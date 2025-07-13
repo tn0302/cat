@@ -2,18 +2,40 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>勇者ハーレム - ノベルビューア</title>
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body {
+    * { margin: 0; padding:  0; box-sizing: border-box; }
+    html, body {
+      height: 100%;
+      width: 100%;
       font-family: sans-serif;
       background-color: #000;
       color: #fff;
+      overflow: hidden;
+    }
+    #header {
+      height: 48px;
+      background: rgba(0,0,0,0.7);
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 12px;
+      font-size: 16px;
+    }
+    #menu-button {
+      background: none;
+      border: none;
+      font-size: 20px;
+      color: white;
+    }
+    #novel-container {
+      position: relative;
+      height: calc(100% - 48px);
       display: flex;
       flex-direction: column;
-      height: 100vh;
-      overflow: hidden;
+      justify-content: flex-end;
     }
     #background {
       flex: 1;
@@ -32,7 +54,6 @@
     #dialogue-box {
       background: rgba(0, 0, 0, 0.7);
       padding: 16px;
-      text-align: left;
     }
     #speaker {
       font-weight: bold;
@@ -41,70 +62,37 @@
     #text {
       line-height: 1.6;
     }
-    #novel-container {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      justify-content: flex-end;
-    }
-    #menu-button {
+    #log-panel {
       position: absolute;
-      top: 10px;
-      left: 10px;
-      background: rgba(255,255,255,0.2);
-      color: white;
-      padding: 8px;
-      border: none;
-      font-size: 20px;
-      z-index: 10;
-    }
-    #menu {
-      position: absolute;
-      top: 0;
+      top: 48px;
       left: 0;
-      background: rgba(0, 0, 0, 0.85);
-      width: 100%;
-      height: 100%;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.9);
+      color: white;
+      overflow-y: scroll;
       display: none;
-      flex-direction: column;
-      padding: 20px;
-      z-index: 9;
+      z-index: 20;
     }
-    #menu ul {
-      list-style: none;
-    }
-    #menu li {
-      margin: 10px 0;
-      font-size: 18px;
+    .log-entry {
+      padding: 12px;
+      border-bottom: 1px solid #333;
       cursor: pointer;
     }
-    #touch-area {
-      position: absolute;
-      top: 0;
-      bottom: 0;
-      width: 50%;
-      z-index: 5;
+    .log-entry:hover {
+      background: rgba(255, 255, 255, 0.1);
     }
-    #left-area { left: 0; }
-    #right-area { right: 0; }
   </style>
 </head>
 <body>
-  <button id="menu-button">☰</button>
-  <div id="menu">
-    <ul>
-      <li onclick="goToScene(0)">▶ 最初から</li>
-      <li onclick="alert('キャラ設定：準備中')">👤 キャラ設定</li>
-      <li onclick="alert('世界観設定：準備中')">🌍 世界観</li>
-      <li onclick="closeMenu()">✖ 閉じる</li>
-    </ul>
+  <div id="header">
+    <button id="menu-button">☰</button>
+    <div id="scene-title">第1話</div>
+    <div style="width: 24px;"></div>
   </div>
-
   <div id="novel-container">
     <div id="background">
       <img id="character" src="" alt="" />
-      <div id="touch-area" class="area" id="left-area" style="left:0;" onclick="prevScene()"></div>
-      <div id="touch-area" class="area" id="right-area" style="right:0;" onclick="nextScene()"></div>
     </div>
     <div id="dialogue-box">
       <div id="speaker"></div>
@@ -112,14 +100,19 @@
     </div>
   </div>
 
+  <div id="log-panel"></div>
+
   <script>
     let scenes = [];
     let currentScene = 0;
+    let startY = 0;
+    let endY = 0;
 
     async function loadScenes() {
       const response = await fetch('scenes.json');
       scenes = await response.json();
       showScene(currentScene);
+      populateLog();
     }
 
     function showScene(index) {
@@ -128,6 +121,7 @@
       document.getElementById("text").textContent = scene.text;
       document.getElementById("background").style.backgroundImage = `url('${scene.background}')`;
       document.getElementById("character").src = scene.character;
+      document.getElementById("scene-title").textContent = `第${scene.id}話`;
     }
 
     function nextScene() {
@@ -144,19 +138,51 @@
       }
     }
 
-    function goToScene(index) {
-      currentScene = index;
-      showScene(currentScene);
-      closeMenu();
+    function populateLog() {
+      const logPanel = document.getElementById("log-panel");
+      logPanel.innerHTML = "";
+      scenes.forEach((scene, i) => {
+        const entry = document.createElement("div");
+        entry.className = "log-entry";
+        entry.textContent = `${scene.id}. ${scene.text.slice(0, 20)}...`;
+        entry.onclick = () => {
+          currentScene = i;
+          showScene(currentScene);
+          logPanel.style.display = "none";
+        };
+        logPanel.appendChild(entry);
+      });
     }
 
-    function closeMenu() {
-      document.getElementById("menu").style.display = "none";
+    function toggleLog(show) {
+      document.getElementById("log-panel").style.display = show ? "block" : "none";
     }
+
+    document.body.addEventListener("touchstart", (e) => {
+      startY = e.touches[0].clientY;
+    });
+
+    document.body.addEventListener("touchend", (e) => {
+      endY = e.changedTouches[0].clientY;
+      if (startY - endY > 50) {
+        toggleLog(true);
+      } else if (endY - startY > 50) {
+        toggleLog(false);
+      }
+    });
+
+    document.body.addEventListener("click", (e) => {
+      const x = e.clientX;
+      const width = window.innerWidth;
+      if (x < width / 2) {
+        prevScene();
+      } else {
+        nextScene();
+      }
+    });
 
     document.getElementById("menu-button").addEventListener("click", () => {
-      const menu = document.getElementById("menu");
-      menu.style.display = menu.style.display === "flex" ? "none" : "flex";
+      alert('メニュー機能は今後追加予定です。');
     });
 
     loadScenes();
