@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>勇者ハーレム - ノベルビューア</title>
   <style>
-    * { margin: 0; padding:  0; box-sizing: border-box; }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
     html, body {
       height: 100%;
       width: 100%;
@@ -23,6 +23,7 @@
       justify-content: space-between;
       padding: 0 12px;
       font-size: 16px;
+      z-index: 10;
     }
     #menu-button {
       background: none;
@@ -30,19 +31,22 @@
       font-size: 20px;
       color: white;
     }
+    #scene-title {
+      flex: 1;
+      text-align: center;
+    }
     #novel-container {
       position: relative;
       height: calc(100% - 48px);
-      display: flex;
-      flex-direction: column;
-      justify-content: flex-end;
     }
     #background {
-      flex: 1;
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 100%;
       background-size: cover;
       background-position: center;
       transition: background-image 0.5s;
-      position: relative;
     }
     #character {
       position: absolute;
@@ -50,10 +54,34 @@
       left: 50%;
       transform: translateX(-50%);
       height: 70%;
+      z-index: 1;
     }
     #dialogue-box {
-      background: rgba(0, 0, 0, 0.7);
+      position: absolute;
+      bottom: 0;
+      width: 100%;
+      height: 30%;
+      background: rgba(0, 0, 0, 0.6);
       padding: 16px;
+      transition: height 0.3s ease;
+      z-index: 2;
+      overflow: hidden;
+    }
+    #dialogue-box.expanded {
+      height: 80%;
+      overflow-y: scroll;
+    }
+    #close-log {
+      display: none;
+      position: absolute;
+      top: 8px;
+      right: 12px;
+      font-size: 20px;
+      cursor: pointer;
+      z-index: 3;
+    }
+    #dialogue-box.expanded #close-log {
+      display: block;
     }
     #speaker {
       font-weight: bold;
@@ -62,25 +90,13 @@
     #text {
       line-height: 1.6;
     }
-    #log-panel {
-      position: absolute;
-      top: 48px;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background: rgba(0, 0, 0, 0.9);
-      color: white;
-      overflow-y: scroll;
-      display: none;
-      z-index: 20;
-    }
     .log-entry {
-      padding: 12px;
-      border-bottom: 1px solid #333;
+      padding: 6px 0;
+      border-bottom: 1px solid #444;
       cursor: pointer;
     }
     .log-entry:hover {
-      background: rgba(255, 255, 255, 0.1);
+      background: rgba(255,255,255,0.1);
     }
   </style>
 </head>
@@ -95,18 +111,18 @@
       <img id="character" src="" alt="" />
     </div>
     <div id="dialogue-box">
+      <div id="close-log" onclick="collapseLog()">✕</div>
       <div id="speaker"></div>
       <div id="text"></div>
+      <div id="log"></div>
     </div>
   </div>
-
-  <div id="log-panel"></div>
 
   <script>
     let scenes = [];
     let currentScene = 0;
+    let dragging = false;
     let startY = 0;
-    let endY = 0;
 
     async function loadScenes() {
       const response = await fetch('scenes.json');
@@ -121,7 +137,7 @@
       document.getElementById("text").textContent = scene.text;
       document.getElementById("background").style.backgroundImage = `url('${scene.background}')`;
       document.getElementById("character").src = scene.character;
-      document.getElementById("scene-title").textContent = `第${scene.id}話`;
+      document.getElementById("scene-title").textContent = `第${scene.episode}話`;
     }
 
     function nextScene() {
@@ -139,35 +155,37 @@
     }
 
     function populateLog() {
-      const logPanel = document.getElementById("log-panel");
-      logPanel.innerHTML = "";
+      const log = document.getElementById("log");
+      log.innerHTML = "";
       scenes.forEach((scene, i) => {
         const entry = document.createElement("div");
         entry.className = "log-entry";
-        entry.textContent = `${scene.id}. ${scene.text.slice(0, 20)}...`;
+        entry.textContent = `${scene.speaker}：${scene.text.slice(0, 30)}...`;
         entry.onclick = () => {
           currentScene = i;
           showScene(currentScene);
-          logPanel.style.display = "none";
+          collapseLog();
         };
-        logPanel.appendChild(entry);
+        log.appendChild(entry);
       });
     }
 
-    function toggleLog(show) {
-      document.getElementById("log-panel").style.display = show ? "block" : "none";
+    function expandLog() {
+      document.getElementById("dialogue-box").classList.add("expanded");
     }
 
-    document.body.addEventListener("touchstart", (e) => {
+    function collapseLog() {
+      document.getElementById("dialogue-box").classList.remove("expanded");
+    }
+
+    document.getElementById("dialogue-box").addEventListener("touchstart", (e) => {
       startY = e.touches[0].clientY;
     });
 
-    document.body.addEventListener("touchend", (e) => {
-      endY = e.changedTouches[0].clientY;
-      if (startY - endY > 50) {
-        toggleLog(true);
-      } else if (endY - startY > 50) {
-        toggleLog(false);
+    document.getElementById("dialogue-box").addEventListener("touchend", (e) => {
+      const endY = e.changedTouches[0].clientY;
+      if (startY - endY > 30) {
+        expandLog();
       }
     });
 
@@ -179,10 +197,6 @@
       } else {
         nextScene();
       }
-    });
-
-    document.getElementById("menu-button").addEventListener("click", () => {
-      alert('メニュー機能は今後追加予定です。');
     });
 
     loadScenes();
