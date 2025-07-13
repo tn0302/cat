@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>勇者ハーレム - ノベルビューア</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: sans-serif;
+      background-color: #000;
+      color: #fff;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      overflow: hidden;
+    }
+    #background {
+      flex: 1;
+      background-size: cover;
+      background-position: center;
+      transition: background-image 0.5s;
+      position: relative;
+    }
+    #character {
+      position: absolute;
+      bottom: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      height: 70%;
+    }
+    #dialogue-box {
+      background: rgba(0, 0, 0, 0.7);
+      padding: 16px;
+      text-align: left;
+    }
+    #speaker {
+      font-weight: bold;
+      margin-bottom: 8px;
+    }
+    #text {
+      line-height: 1.6;
+    }
+    #novel-container {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+    }
+    #menu-button {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      background: rgba(255,255,255,0.2);
+      color: white;
+      padding: 8px;
+      border: none;
+      font-size: 20px;
+      z-index: 10;
+    }
+    #menu {
+      position: absolute;
+      top: 0;
+      left: 0;
+      background: rgba(0, 0, 0, 0.85);
+      width: 100%;
+      height: 100%;
+      display: none;
+      flex-direction: column;
+      padding: 20px;
+      z-index: 9;
+    }
+    #menu ul {
+      list-style: none;
+    }
+    #menu li {
+      margin: 10px 0;
+      font-size: 18px;
+      cursor: pointer;
+    }
+    #touch-area {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 50%;
+      z-index: 5;
+    }
+    #left-area { left: 0; }
+    #right-area { right: 0; }
+  </style>
+</head>
+<body>
+  <button id="menu-button">☰</button>
+  <div id="menu">
+    <ul>
+      <li onclick="goToScene(0)">▶ 最初から</li>
+      <li onclick="alert('キャラ設定：準備中')">👤 キャラ設定</li>
+      <li onclick="alert('世界観設定：準備中')">🌍 世界観</li>
+      <li onclick="closeMenu()">✖ 閉じる</li>
+    </ul>
+  </div>
+
+  <div id="novel-container">
+    <div id="background">
+      <img id="character" src="" alt="" />
+      <div id="touch-area" class="area" id="left-area" style="left:0;" onclick="prevScene()"></div>
+      <div id="touch-area" class="area" id="right-area" style="right:0;" onclick="nextScene()"></div>
+    </div>
+    <div id="dialogue-box">
+      <div id="speaker"></div>
+      <div id="text"></div>
+    </div>
+  </div>
+
+  <script>
+    let scenes = [];
+    let currentScene = 0;
+
+    async function loadScenes() {
+      const response = await fetch('scenes.json');
+      scenes = await response.json();
+      showScene(currentScene);
+    }
+
+    function showScene(index) {
+      const scene = scenes[index];
+      document.getElementById("speaker").textContent = scene.speaker;
+      document.getElementById("text").textContent = scene.text;
+      document.getElementById("background").style.backgroundImage = `url('${scene.background}')`;
+      document.getElementById("character").src = scene.character;
+    }
+
+    function nextScene() {
+      if (currentScene + 1 < scenes.length) {
+        currentScene++;
+        showScene(currentScene);
+      }
+    }
+
+    function prevScene() {
+      if (currentScene > 0) {
+        currentScene--;
+        showScene(currentScene);
+      }
+    }
+
+    function goToScene(index) {
+      currentScene = index;
+      showScene(currentScene);
+      closeMenu();
+    }
+
+    function closeMenu() {
+      document.getElementById("menu").style.display = "none";
+    }
+
+    document.getElementById("menu-button").addEventListener("click", () => {
+      const menu = document.getElementById("menu");
+      menu.style.display = menu.style.display === "flex" ? "none" : "flex";
+    });
+
+    loadScenes();
+  </script>
+</body>
+</html>
