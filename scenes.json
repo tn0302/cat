@@ -1,26 +1,23 @@
 [
   {
-    "id": 1,
+    "episode": 1,
     "speaker": "チハル",
     "text": "君は、もう逃げられないよ。",
     "background": "bg-temple.jpg",
-    "character": "chiharu_smirk.png",
-    "emotion": "冷笑"
+    "character": "chiharu_smirk.png"
   },
   {
-    "id": 2,
+    "episode": 1,
     "speaker": "ナレーション",
     "text": "静寂の中、彼の言葉だけが空気を裂いた。",
     "background": "bg-temple.jpg",
-    "character": "",
-    "emotion": null
+    "character": ""
   },
   {
-    "id": 3,
+    "episode": 2,
     "speaker": "アリスティア",
     "text": "さあ、進みなさいませ⭐️",
     "background": "bg-temple.jpg",
-    "character": "aristia_smile.png",
-    "emotion": "微笑"
+    "character": "aristia_smile.png"
   }
 ]
