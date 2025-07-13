@@ -59,24 +59,20 @@
     }
     #speaker { font-weight: bold; }
     #text { margin-top: 8px; line-height: 1.6; }
-    #log .log-entry {
+    #log {
+      display: none;
+      margin-top: 12px;
+    }
+    #dialogue-box.expanded #log {
+      display: block;
+    }
+    .log-entry {
       padding: 6px 0;
       border-bottom: 1px solid #444;
       cursor: pointer;
     }
-    #log .log-entry:hover {
+    .log-entry:hover {
       background: rgba(255,255,255,0.1);
-    }
-    #controls {
-      display: flex;
-      gap: 8px;
-    }
-    button {
-      background: #333;
-      color: #fff;
-      border: none;
-      padding: 4px 8px;
-      cursor: pointer;
     }
   </style>
 </head>
@@ -104,6 +100,7 @@
     let scenes = [];
     let currentScene = 0;
     let useVoice = false;
+    let startY = 0;
 
     async function loadScenes() {
       const res = await fetch('scenes.json');
@@ -148,6 +145,7 @@
         entry.onclick = () => {
           currentScene = i;
           showScene(currentScene);
+          collapseLog();
         };
         log.appendChild(entry);
       });
@@ -181,7 +179,27 @@
       speechSynthesis.speak(msg);
     }
 
+    function expandLog() {
+      document.getElementById("dialogue-box").classList.add("expanded");
+    }
+
+    function collapseLog() {
+      document.getElementById("dialogue-box").classList.remove("expanded");
+    }
+
+    document.getElementById("dialogue-box").addEventListener("touchstart", (e) => {
+      startY = e.touches[0].clientY;
+    });
+
+    document.getElementById("dialogue-box").addEventListener("touchend", (e) => {
+      const endY = e.changedTouches[0].clientY;
+      if (startY - endY > 30) {
+        expandLog();
+      }
+    });
+
     document.body.addEventListener("click", (e) => {
+      if (document.getElementById("dialogue-box").classList.contains("expanded")) return;
       const x = e.clientX;
       const width = window.innerWidth;
       if (x < width / 2) {
