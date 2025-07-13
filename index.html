@@ -13,6 +13,9 @@
       color: #fff;
       font-family: sans-serif;
       overflow: hidden;
+      user-select: none;
+      -webkit-user-select: none;
+      -ms-user-select: none;
     }
     #header {
       height: 48px;
@@ -41,6 +44,10 @@
       transform: translateX(-50%);
       height: 70%;
       z-index: 1;
+      transition: filter 0.3s;
+    }
+    #character.gray {
+      filter: grayscale(100%);
     }
     #dialogue-box {
       position: absolute;
@@ -74,16 +81,22 @@
     .log-entry:hover {
       background: rgba(255,255,255,0.1);
     }
+    #close-log {
+      display: none;
+      text-align: center;
+      margin-top: 12px;
+      font-size: 18px;
+      color: #ccc;
+      cursor: pointer;
+    }
+    #dialogue-box.expanded #close-log {
+      display: block;
+    }
   </style>
 </head>
 <body>
   <div id="header">
     <div id="scene-title">第1話</div>
-    <div id="controls">
-      <button onclick="saveProgress()">💾 保存</button>
-      <button onclick="loadProgress()">📂 続き</button>
-      <button onclick="toggleVoice()">🔊 読み上げ</button>
-    </div>
   </div>
   <div id="novel-container">
     <div id="background">
@@ -93,20 +106,21 @@
       <div id="speaker"></div>
       <div id="text"></div>
       <div id="log"></div>
+      <div id="close-log" onclick="collapseLog()">✕ ログを閉じる</div>
     </div>
   </div>
 
   <script>
     let scenes = [];
     let currentScene = 0;
-    let useVoice = false;
     let startY = 0;
+    let startX = 0;
+    let inLogMode = false;
 
     async function loadScenes() {
       const res = await fetch('scenes.json');
       scenes = await res.json();
       showScene(currentScene);
-      populateLog();
     }
 
     function showScene(index) {
@@ -114,11 +128,17 @@
       document.getElementById("speaker").textContent = scene.speaker;
       document.getElementById("text").textContent = scene.text;
       document.getElementById("background").style.backgroundImage = `url('${scene.background}')`;
-      document.getElementById("character").src = scene.character;
+      const charImg = document.getElementById("character");
+      charImg.src = scene.character;
       document.getElementById("scene-title").textContent = `第${scene.episode}話`;
-      if (useVoice && scene.speaker !== "ナレーション") {
-        speak(scene.text);
+
+      if (scene.speaker === "ナレーション") {
+        charImg.classList.add("gray");
+      } else {
+        charImg.classList.remove("gray");
       }
+
+      populateLog(scene.episode);
     }
 
     function nextScene() {
@@ -135,71 +155,56 @@
       }
     }
 
-    function populateLog() {
+    function populateLog(currentEpisode) {
       const log = document.getElementById("log");
       log.innerHTML = "";
       scenes.forEach((scene, i) => {
-        const entry = document.createElement("div");
-        entry.className = "log-entry";
-        entry.textContent = `${scene.speaker}：${scene.text.slice(0, 30)}...`;
-        entry.onclick = () => {
-          currentScene = i;
-          showScene(currentScene);
-          collapseLog();
-        };
-        log.appendChild(entry);
+        if (scene.episode === currentEpisode) {
+          const entry = document.createElement("div");
+          entry.className = "log-entry";
+          entry.textContent = `${scene.speaker}：${scene.text.slice(0, 30)}...`;
+          entry.onclick = () => {
+            currentScene = i;
+            showScene(currentScene);
+            collapseLog();
+          };
+          log.appendChild(entry);
+        }
       });
     }
 
-    function saveProgress() {
-      localStorage.setItem("yh_progress", currentScene);
-      alert("進行状況を保存しました。");
-    }
-
-    function loadProgress() {
-      const saved = localStorage.getItem("yh_progress");
-      if (saved !== null) {
-        currentScene = parseInt(saved);
-        showScene(currentScene);
-        alert("保存された場所から再開しました。");
-      } else {
-        alert("保存データが見つかりません。");
-      }
-    }
-
-    function toggleVoice() {
-      useVoice = !useVoice;
-      alert("読み上げ：" + (useVoice ? "オン" : "オフ"));
-    }
-
-    function speak(text) {
-      const msg = new SpeechSynthesisUtterance(text);
-      msg.lang = 'ja-JP';
-      speechSynthesis.cancel();
-      speechSynthesis.speak(msg);
-    }
-
     function expandLog() {
+      inLogMode = true;
       document.getElementById("dialogue-box").classList.add("expanded");
     }
 
     function collapseLog() {
+      inLogMode = false;
       document.getElementById("dialogue-box").classList.remove("expanded");
     }
 
     document.getElementById("dialogue-box").addEventListener("touchstart", (e) => {
       startY = e.touches[0].clientY;
+      startX = e.touches[0].clientX;
     });
 
     document.getElementById("dialogue-box").addEventListener("touchend", (e) => {
       const endY = e.changedTouches[0].clientY;
-      if (startY - endY > 30) {
+      const endX = e.changedTouches[0].clientX;
+
+      if (!inLogMode && startY - endY > 30) {
         expandLog();
+      } else if (inLogMode && Math.abs(endX - startX) > 30) {
+        if (endX < startX) {
+          nextScene();
+        } else {
+          prevScene();
+        }
       }
     });
 
     document.body.addEventListener("click", (e) => {
-      if (document.getElementById("dialogue-box").classList.contains("expanded")) return;
+      if (inLogMode) return;
       const x = e.clientX;
       const width = window.innerWidth;
       if (x < width / 2) {
