@@ -60,11 +60,11 @@
     #speaker { font-weight: bold; }
     #text { margin-top: 8px; line-height: 1.6; }
     #log {
-      display: none;
       margin-top: 12px;
     }
-    #dialogue-box.expanded #log {
-      display: block;
+    #dialogue-box:not(.expanded) #log,
+    #dialogue-box:not(.expanded) #close-log {
+      display: none;
     }
     .log-entry {
       padding: 6px 0;
@@ -73,6 +73,14 @@
     }
     .log-entry:hover {
       background: rgba(255,255,255,0.1);
+    }
+    #close-log {
+      position: absolute;
+      bottom: 8px;
+      right: 12px;
+      font-size: 20px;
+      cursor: pointer;
+      z-index: 3;
     }
   </style>
 </head>
@@ -93,6 +101,7 @@
       <div id="speaker"></div>
       <div id="text"></div>
       <div id="log"></div>
+      <div id="close-log" onclick="collapseLog()">✕</div>
     </div>
   </div>
 
@@ -101,6 +110,7 @@
     let currentScene = 0;
     let useVoice = false;
     let startY = 0;
+    let startX = 0;
 
     async function loadScenes() {
       const res = await fetch('scenes.json');
@@ -111,12 +121,12 @@
 
     function showScene(index) {
       const scene = scenes[index];
-      document.getElementById("speaker").textContent = scene.speaker;
-      document.getElementById("text").textContent = scene.text;
-      document.getElementById("background").style.backgroundImage = `url('${scene.background}')`;
-      document.getElementById("character").src = scene.character;
-      document.getElementById("scene-title").textContent = `第${scene.episode}話`;
-      if (useVoice && scene.speaker !== "ナレーション") {
+      document.getElementById('speaker').textContent = scene.speaker;
+      document.getElementById('text').textContent = scene.text;
+      document.getElementById('background').style.backgroundImage = `url('${scene.background}')`;
+      document.getElementById('character').src = scene.character;
+      document.getElementById('scene-title').textContent = `第${scene.episode}話`;
+      if (useVoice && scene.speaker !== 'ナレーション') {
         speak(scene.text);
       }
     }
@@ -125,6 +135,7 @@
       if (currentScene + 1 < scenes.length) {
         currentScene++;
         showScene(currentScene);
+        populateLog();
       }
     }
 
@@ -132,44 +143,48 @@
       if (currentScene > 0) {
         currentScene--;
         showScene(currentScene);
+        populateLog();
       }
     }
 
     function populateLog() {
-      const log = document.getElementById("log");
-      log.innerHTML = "";
+      const log = document.getElementById('log');
+      log.innerHTML = '';
       scenes.forEach((scene, i) => {
-        const entry = document.createElement("div");
-        entry.className = "log-entry";
-        entry.textContent = `${scene.speaker}：${scene.text.slice(0, 30)}...`;
-        entry.onclick = () => {
-          currentScene = i;
-          showScene(currentScene);
-          collapseLog();
-        };
-        log.appendChild(entry);
+        if (scene.episode === scenes[currentScene].episode) {
+          const entry = document.createElement('div');
+          entry.className = 'log-entry';
+          entry.textContent = `${scene.speaker}：${scene.text.slice(0,30)}...`;
+          entry.onclick = () => {
+            currentScene = i;
+            showScene(currentScene);
+            collapseLog();
+          };
+          log.appendChild(entry);
+        }
       });
     }
 
     function saveProgress() {
-      localStorage.setItem("yh_progress", currentScene);
-      alert("進行状況を保存しました。");
+      localStorage.setItem('yh_progress', currentScene);
+      alert('進行状況を保存しました。');
     }
 
     function loadProgress() {
-      const saved = localStorage.getItem("yh_progress");
+      const saved = localStorage.getItem('yh_progress');
       if (saved !== null) {
         currentScene = parseInt(saved);
         showScene(currentScene);
-        alert("保存された場所から再開しました。");
+        populateLog();
+        alert('保存された場所から再開しました。');
       } else {
-        alert("保存データが見つかりません。");
+        alert('保存データが見つかりません。');
       }
     }
 
     function toggleVoice() {
       useVoice = !useVoice;
-      alert("読み上げ：" + (useVoice ? "オン" : "オフ"));
+      alert('読み上げ：' + (useVoice ? 'オン' : 'オフ'));
     }
 
     function speak(text) {
@@ -180,33 +195,48 @@
     }
 
     function expandLog() {
-      document.getElementById("dialogue-box").classList.add("expanded");
+      document.getElementById('dialogue-box').classList.add('expanded');
     }
 
     function collapseLog() {
-      document.getElementById("dialogue-box").classList.remove("expanded");
+      document.getElementById('dialogue-box').classList.remove('expanded');
     }
 
-    document.getElementById("dialogue-box").addEventListener("touchstart", (e) => {
+    document.getElementById('dialogue-box').addEventListener('touchstart', e => {
       startY = e.touches[0].clientY;
+      startX = e.touches[0].clientX;
     });
 
-    document.getElementById("dialogue-box").addEventListener("touchend", (e) => {
+    document.getElementById('dialogue-box').addEventListener('touchend', e => {
       const endY = e.changedTouches[0].clientY;
+      const endX = e.changedTouches[0].clientX;
       if (startY - endY > 30) {
         expandLog();
       }
     });
 
-    document.body.addEventListener("click", (e) => {
-      if (document.getElementById("dialogue-box").classList.contains("expanded")) return;
+    document.getElementById('dialogue-box').addEventListener('touchmove', e => {
+      // Prevent default scrolling
+      e.preventDefault();
+    });
+
+    document.getElementById('dialogue-box').addEventListener('touchend', e => {
+      const endX2 = e.changedTouches[0].clientX;
+      const deltaX = startX - endX2;
+      if (document.getElementById('dialogue-box').classList.contains('expanded')) {
+        if (Math.abs(deltaX) > 50) {
+          if (deltaX > 0) nextScene();
+          else prevScene();
+        }
+      }
+    });
+
+    document.body.addEventListener('click', e => {
+      if (document.getElementById('dialogue-box').classList.contains('expanded')) return;
       const x = e.clientX;
       const width = window.innerWidth;
-      if (x < width / 2) {
-        prevScene();
-      } else {
-        nextScene();
-      }
+      if (x < width / 2) prevScene();
+      else nextScene();
     });
 
     loadScenes();
