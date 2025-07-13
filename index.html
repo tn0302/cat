@@ -5,35 +5,22 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>勇者ハーレム - ノベルビューア</title>
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
     html, body {
+      margin: 0;
+      padding: 0;
       height: 100%;
-      width: 100%;
-      font-family: sans-serif;
-      background-color: #000;
+      background: #000;
       color: #fff;
+      font-family: sans-serif;
       overflow: hidden;
     }
     #header {
       height: 48px;
       background: rgba(0,0,0,0.7);
-      color: white;
       display: flex;
       align-items: center;
       justify-content: space-between;
       padding: 0 12px;
-      font-size: 16px;
-      z-index: 10;
-    }
-    #menu-button {
-      background: none;
-      border: none;
-      font-size: 20px;
-      color: white;
-    }
-    #scene-title {
-      flex: 1;
-      text-align: center;
     }
     #novel-container {
       position: relative;
@@ -41,12 +28,11 @@
     }
     #background {
       position: absolute;
-      top: 0;
-      bottom: 0;
       width: 100%;
+      height: 100%;
       background-size: cover;
       background-position: center;
-      transition: background-image 0.5s;
+      z-index: 0;
     }
     #character {
       position: absolute;
@@ -60,58 +46,54 @@
       position: absolute;
       bottom: 0;
       width: 100%;
-      height: 30%;
+      height: 25%;
       background: rgba(0, 0, 0, 0.6);
       padding: 16px;
-      transition: height 0.3s ease;
       z-index: 2;
+      transition: height 0.3s ease;
       overflow: hidden;
     }
     #dialogue-box.expanded {
       height: 80%;
       overflow-y: scroll;
     }
-    #close-log {
-      display: none;
-      position: absolute;
-      top: 8px;
-      right: 12px;
-      font-size: 20px;
-      cursor: pointer;
-      z-index: 3;
-    }
-    #dialogue-box.expanded #close-log {
-      display: block;
-    }
-    #speaker {
-      font-weight: bold;
-      margin-bottom: 8px;
-    }
-    #text {
-      line-height: 1.6;
-    }
-    .log-entry {
+    #speaker { font-weight: bold; }
+    #text { margin-top: 8px; line-height: 1.6; }
+    #log .log-entry {
       padding: 6px 0;
       border-bottom: 1px solid #444;
       cursor: pointer;
     }
-    .log-entry:hover {
+    #log .log-entry:hover {
       background: rgba(255,255,255,0.1);
+    }
+    #controls {
+      display: flex;
+      gap: 8px;
+    }
+    button {
+      background: #333;
+      color: #fff;
+      border: none;
+      padding: 4px 8px;
+      cursor: pointer;
     }
   </style>
 </head>
 <body>
   <div id="header">
-    <button id="menu-button">☰</button>
     <div id="scene-title">第1話</div>
-    <div style="width: 24px;"></div>
+    <div id="controls">
+      <button onclick="saveProgress()">💾 保存</button>
+      <button onclick="loadProgress()">📂 続き</button>
+      <button onclick="toggleVoice()">🔊 読み上げ</button>
+    </div>
   </div>
   <div id="novel-container">
     <div id="background">
-      <img id="character" src="" alt="" />
+      <img id="character" src="" />
     </div>
     <div id="dialogue-box">
-      <div id="close-log" onclick="collapseLog()">✕</div>
       <div id="speaker"></div>
       <div id="text"></div>
       <div id="log"></div>
@@ -121,12 +103,11 @@
   <script>
     let scenes = [];
     let currentScene = 0;
-    let dragging = false;
-    let startY = 0;
+    let useVoice = false;
 
     async function loadScenes() {
-      const response = await fetch('scenes.json');
-      scenes = await response.json();
+      const res = await fetch('scenes.json');
+      scenes = await res.json();
       showScene(currentScene);
       populateLog();
     }
@@ -138,6 +119,9 @@
       document.getElementById("background").style.backgroundImage = `url('${scene.background}')`;
       document.getElementById("character").src = scene.character;
       document.getElementById("scene-title").textContent = `第${scene.episode}話`;
+      if (useVoice && scene.speaker !== "ナレーション") {
+        speak(scene.text);
+      }
     }
 
     function nextScene() {
@@ -164,30 +148,38 @@
         entry.onclick = () => {
           currentScene = i;
           showScene(currentScene);
-          collapseLog();
         };
         log.appendChild(entry);
       });
     }
 
-    function expandLog() {
-      document.getElementById("dialogue-box").classList.add("expanded");
+    function saveProgress() {
+      localStorage.setItem("yh_progress", currentScene);
+      alert("進行状況を保存しました。");
     }
 
-    function collapseLog() {
-      document.getElementById("dialogue-box").classList.remove("expanded");
-    }
-
-    document.getElementById("dialogue-box").addEventListener("touchstart", (e) => {
-      startY = e.touches[0].clientY;
-    });
-
-    document.getElementById("dialogue-box").addEventListener("touchend", (e) => {
-      const endY = e.changedTouches[0].clientY;
-      if (startY - endY > 30) {
-        expandLog();
+    function loadProgress() {
+      const saved = localStorage.getItem("yh_progress");
+      if (saved !== null) {
+        currentScene = parseInt(saved);
+        showScene(currentScene);
+        alert("保存された場所から再開しました。");
+      } else {
+        alert("保存データが見つかりません。");
       }
-    });
+    }
+
+    function toggleVoice() {
+      useVoice = !useVoice;
+      alert("読み上げ：" + (useVoice ? "オン" : "オフ"));
+    }
+
+    function speak(text) {
+      const msg = new SpeechSynthesisUtterance(text);
+      msg.lang = 'ja-JP';
+      speechSynthesis.cancel();
+      speechSynthesis.speak(msg);
+    }
 
     document.body.addEventListener("click", (e) => {
       const x = e.clientX;
