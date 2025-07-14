@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <title>アセット管理ページ v4</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body { background: #111; color: #fff; font-family: sans-serif; padding: 20px; }
+    h1 { font-size: 1.5em; }
+    section { margin-top: 24px; }
+    label, select, input, button { display: block; width: 100%; font-size: 1em; margin-top: 8px; }
+    select, input { padding: 6px; }
+    button { background: #333; color: #fff; border: none; padding: 6px; cursor: pointer; margin-top: 12px; }
+    textarea { width: 100%; height: 140px; margin-top: 8px; background: #222; color: #0f0; font-family: monospace; }
+    .entry { display: flex; align-items: center; margin-top: 6px; justify-content: space-between; }
+    .entry-info { flex: 1; }
+    .thumb { height: 40px; margin-right: 8px; vertical-align: middle; }
+  </style>
+</head>
+<body>
+  <h1>🧩 アセット管理 v4</h1>
+  <button onclick="loadScenes()">📂 scenes.json 読込</button>
+
+  <section>
+    <h2>背景画像</h2>
+    <select id="bg-tag"></select>
+    <input type="file" id="bg-file" accept="image/*" />
+    <button onclick="addBackground()">追加</button>
+    <div id="bg-list"></div>
+  </section>
+
+  <section>
+    <h2>キャラクター画像</h2>
+    <select id="char-name"></select>
+    <select id="char-face"></select>
+    <input type="file" id="char-file" accept="image/*" />
+    <button onclick="addCharacter()">追加</button>
+    <div id="char-list"></div>
+  </section>
+
+  <section>
+    <h2>エフェクト画像</h2>
+    <select id="effect-tag"></select>
+    <input type="file" id="effect-file" accept="image/*" />
+    <button onclick="addEffect()">追加</button>
+    <div id="effect-list"></div>
+  </section>
+
+  <section>
+    <h2>エクスポート</h2>
+    <button onclick="downloadAssets()">💾 保存</button>
+    <textarea id="assets-json" readonly></textarea>
+  </section>
+
+  <script>
+    const assets = { backgrounds: {}, characters: {}, effects: {} };
+
+    function readFileAsBase64(file, cb) {
+      const reader = new FileReader();
+      reader.onload = () => cb(reader.result);
+      reader.readAsDataURL(file);
+    }
+
+    async function loadScenes() {
+      const res = await fetch("scenes.json");
+      const data = await res.json();
+      const uniq = arr => [...new Set(arr)].filter(x => x);
+
+      const speakers = uniq(data.map(s => s.speaker));
+      const faces = uniq(data.map(s => s.face));
+      const backgrounds = uniq(data.map(s => s.background));
+      const effects = uniq(data.map(s => s.effect));
+
+      fillSelect("char-name", speakers);
+      fillSelect("char-face", faces);
+      fillSelect("bg-tag", backgrounds);
+      fillSelect("effect-tag", effects);
+
+      alert("scenes.json を読み込みました。");
+    }
+
+    function fillSelect(id, items) {
+      const select = document.getElementById(id);
+      select.innerHTML = items.map(i => `<option value="${i}">${i}</option>`).join("");
+    }
+
+    function addBackground() {
+      const tag = document.getElementById("bg-tag").value;
+      const file = document.getElementById("bg-file").files[0];
+      if (!tag || !file) return;
+      readFileAsBase64(file, data => {
+        assets.backgrounds[tag] = data;
+        updateOutput();
+        updateList("bg-list", assets.backgrounds);
+      });
+    }
+
+    function addCharacter() {
+      const name = document.getElementById("char-name").value;
+      const face = document.getElementById("char-face").value;
+      const file = document.getElementById("char-file").files[0];
+      if (!name || !face || !file) return;
+      readFileAsBase64(file, data => {
+        if (!assets.characters[name]) assets.characters[name] = { normal: {} };
+        assets.characters[name].normal[face] = data;
+        updateOutput();
+        updateCharList();
+      });
+    }
+
+    function addEffect() {
+      const tag = document.getElementById("effect-tag").value;
+      const file = document.getElementById("effect-file").files[0];
+      if (!tag || !file) return;
+      readFileAsBase64(file, data => {
+        assets.effects[tag] = data;
+        updateOutput();
+        updateList("effect-list", assets.effects);
+      });
+    }
+
+    function updateList(id, data) {
+      const container = document.getElementById(id);
+      container.innerHTML = "";
+      for (const [k, v] of Object.entries(data)) {
+        container.innerHTML += `<div class="entry"><div class="entry-info"><img src="${v}" class="thumb"/> ${k}</div></div>`;
+      }
+    }
+
+    function updateCharList() {
+      const container = document.getElementById("char-list");
+      container.innerHTML = "";
+      for (const [name, set] of Object.entries(assets.characters)) {
+        for (const [face, img] of Object.entries(set.normal)) {
+          container.innerHTML += `<div class="entry"><div class="entry-info"><img src="${img}" class="thumb"/> ${name}（${face}）</div></div>`;
+        }
+      }
+    }
+
+    function updateOutput() {
+      document.getElementById("assets-json").value = JSON.stringify(assets, null, 2);
+    }
+
+    function downloadAssets() {
+      const blob = new Blob([JSON.stringify(assets, null, 2)], {type: "application/json"});
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "assets.json";
+      a.click();
+    }
+  </script>
+</body>
+</html>
