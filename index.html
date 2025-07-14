@@ -39,13 +39,10 @@
   </style>
 </head>
 <body>
-  <div id="header">
+<div id="header">
     <div id="scene-title">第1話</div>
     <div id="controls">
-      <button onclick="saveProgress()">💾 保存</button>
-      <button onclick="loadProgress()">📂 続き</button>
-      <button onclick="toggleVoice()">🔊 読み上げ</button>
-      <button onclick="openModal()">⚙️ 設定</button> <!-- ★復元 -->
+      <button onclick="openModal()">⚙️ 設定</button>
     </div>
   </div>
 
@@ -71,10 +68,14 @@
     <div id="modal-content">
       <div id="modal-close" onclick="closeModal()">✕</div>
       <h2>設定メニュー</h2>
+      <button onclick="saveProgress()">💾 進行状況を保存</button><br><br>
+      <button onclick="loadProgress()">📂 続きから再開</button><br><br>
+      <button onclick="toggleVoice()">🔊 読み上げ: <span id="voice-status">オフ</span></button><br><br>
       <button onclick="downloadScenes()">⬇️ scenes.json を保存</button><br><br>
       <a href="assets_editor.html" target="_blank">🖼️ アセット管理ページを開く</a>
     </div>
   </div>
+
 
   <script>
     let scenes = [], assets = {}, currentScene = 0, useVoice = false;
