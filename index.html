@@ -22,7 +22,6 @@
     button { margin-top: 12px; padding: 6px 12px; background: #333; color: #fff; border: none; cursor: pointer; }
     #close-log { display: none; position: absolute; top: 8px; right: 12px; font-size: 20px; cursor: pointer; z-index: 3; }
     #dialogue-box.expanded #close-log { display: block; }
-
     #modal {
       display: none; position: fixed; z-index: 10;
       left: 0; top: 0; width: 100%; height: 100%;
@@ -71,7 +70,39 @@
   </div>
 </div>
 <script>
-  // ここにスクリプトが続きます（既存の JS を維持）
+let scenes = [], currentScene = 0, useVoice = false;
+const apiBase = "https://YOUR_SERVICE.microcms.io/api/v1/scenes";
+const apiKey = "YOUR_WRITE_API_KEY"; // ⚠埋め込みリスク承知の上で
+
+async function loadScenes() {
+  const res = await fetch(apiBase + "?limit=100", {
+    headers: { 'X-API-KEY': apiKey }
+  });
+  const data = await res.json();
+  scenes = data.contents;
+  showScene(currentScene);
+}
+
+async function applyEdits() {
+  const s = scenes[currentScene];
+  s.speaker = document.getElementById("edit-speaker").value;
+  s.text = document.getElementById("edit-text").value;
+  s.face = document.getElementById("edit-face").value;
+  s.background = document.getElementById("edit-bg").value;
+  s.special = document.getElementById("edit-special").value;
+  await fetch(`${apiBase}/${s.id}`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-API-KEY': apiKey
+    },
+    body: JSON.stringify(s)
+  });
+  showScene(currentScene);
+  collapseLog();
+}
+
+// ...他の関数はそのまま維持...
 </script>
 </body>
 </html>
