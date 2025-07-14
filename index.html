@@ -3,83 +3,87 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>勇者ハーレム - ノベルビューア（編集モード）</title>
+  <title>勇者ハーレム - ノベルビューア</title>
   <style>
     html, body { margin: 0; padding: 0; height: 100%; background: #000; color: #fff; font-family: sans-serif; overflow: hidden; }
-    #header { height: 48px; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: space-between; padding: 0 12px; }
+    #header {
+      height: 48px; background: rgba(0,0,0,0.7); display: flex; align-items: center;
+      justify-content: space-between; padding: 0 12px;
+    }
     #novel-container { position: relative; height: calc(100% - 48px); }
-    #background { position: absolute; width: 100%; height: 100%; background-size: cover; background-position: center; z-index: 0; }
-    #character { position: absolute; bottom: -10%; left: 50%; transform: translateX(-50%); height: 70%; z-index: 1; transition: filter 0.3s ease; }
+    #background {
+      position: absolute; width: 100%; height: 100%; background-size: cover;
+      background-position: center; z-index: 0;
+    }
+    #character {
+      position: absolute; bottom: -10%; left: 50%; transform: translateX(-50%);
+      height: 70%; z-index: 1; transition: filter 0.3s ease;
+    }
     #character.dimmed { filter: brightness(40%) saturate(50%); }
-    #dialogue-box { position: absolute; bottom: 0; width: 100%; height: 25%; background: rgba(0, 0, 0, 0.6); padding: 16px; z-index: 2; transition: height 0.3s ease; overflow: hidden; }
-    #dialogue-box.expanded { height: 80%; overflow-y: auto; }
+    #dialogue-box {
+      position: absolute; bottom: 0; width: 100%; height: 25%;
+      background: rgba(0, 0, 0, 0.6); padding: 16px; z-index: 2;
+      transition: height 0.3s ease; overflow: hidden;
+    }
     #speaker { font-weight: bold; }
     #text { margin-top: 8px; line-height: 1.6; }
-    #edit-form { display: none; }
-    #dialogue-box.expanded #edit-form { display: block; margin-top: 12px; }
-    label { display: block; margin-top: 8px; }
-    select, textarea, input { width: 100%; margin-top: 4px; font-size: 14px; }
-    button { margin-top: 12px; padding: 6px 12px; background: #333; color: #fff; border: none; cursor: pointer; }
-    #close-log { display: none; position: absolute; top: 8px; right: 12px; font-size: 20px; cursor: pointer; z-index: 3; }
-    #dialogue-box.expanded #close-log { display: block; }
+    button {
+      background: #333; color: #fff; border: none;
+      padding: 4px 8px; cursor: pointer;
+    }
+    /* モーダル */
+    #modal {
+      display: none; position: fixed; z-index: 10;
+      left: 0; top: 0; width: 100%; height: 100%;
+      background: rgba(0,0,0,0.7);
+      justify-content: center; align-items: center;
+    }
+    #modal-content {
+      background: #222; padding: 20px; border-radius: 8px; width: 90%; max-width: 400px;
+    }
+    #modal-content h2 { margin-top: 0; }
+    #modal-close {
+      position: absolute; top: 10px; right: 20px; font-size: 24px;
+      cursor: pointer;
+    }
+    a { color: #0bf; text-decoration: underline; }
   </style>
 </head>
 <body>
   <div id="header">
     <div id="scene-title">第1話</div>
     <div id="controls">
-      <button onclick="saveProgress()">💾 保存</button>
-      <button onclick="loadProgress()">📂 続き</button>
-      <button onclick="toggleVoice()">🔊 読み上げ</button>
+      <button onclick="openModal()">⚙️ 設定</button>
     </div>
   </div>
+
   <div id="novel-container">
     <div id="background"><img id="character" src="" alt="" /></div>
     <div id="dialogue-box">
       <div id="speaker"></div>
       <div id="text"></div>
-      <div id="edit-form">
-        <label>話者：
-          <select id="edit-speaker"></select>
-        </label>
-        <label>セリフ：
-          <textarea id="edit-text" rows="2"></textarea>
-        </label>
-        <label>表情：
-          <select id="edit-face"></select>
-        </label>
-        <label>背景：
-          <select id="edit-bg"></select>
-        </label>
-        <label>特殊：
-          <input type="text" id="edit-special" />
-        </label>
-        <button onclick="applyEdits()">✅ 適用</button>
-      </div>
-      <div id="close-log" onclick="collapseLog()">✕</div>
     </div>
   </div>
+
+  <div id="modal">
+    <div id="modal-content">
+      <div id="modal-close" onclick="closeModal()">✕</div>
+      <h2>設定メニュー</h2>
+      <button onclick="saveProgress()">💾 進行状況を保存</button><br><br>
+      <button onclick="loadProgress()">📂 続きから再開</button><br><br>
+      <button onclick="toggleVoice()">🔊 読み上げ: <span id="voice-status">オフ</span></button><br><br>
+      <button onclick="downloadScenes()">⬇️ scenes.json を保存</button><br><br>
+      <a href="assets_editor.html" target="_blank">🖼️ アセット管理ページを開く</a>
+    </div>
+  </div>
+
   <script>
-    let scenes = [], assets = {}, currentScene = 0, useVoice = false;
-    let startY = 0, startX = 0, touchStartTime = 0;
+    let scenes = [], currentScene = 0, useVoice = false;
 
     async function loadScenes() {
       const res = await fetch('scenes.json');
       scenes = await res.json();
-      const res2 = await fetch('assets.json');
-      assets = await res2.json();
-      populateFormOptions();
       showScene(currentScene);
-    }
-
-    function populateFormOptions() {
-      const speakerSel = document.getElementById("edit-speaker");
-      const faceSel = document.getElementById("edit-face");
-      const bgSel = document.getElementById("edit-bg");
-
-      speakerSel.innerHTML = Object.keys(assets.characters).map(c => `<option value="${c}">${c}</option>`).join("");
-      faceSel.innerHTML = Array.from(new Set(Object.values(assets.characters).flatMap(c => Object.keys(c.normal)))).map(f => `<option value="${f}">${f}</option>`).join("");
-      bgSel.innerHTML = Object.keys(assets.backgrounds).map(bg => `<option value="${bg}">${bg}</option>`).join("");
     }
 
     function showScene(index) {
@@ -87,36 +91,10 @@
       document.getElementById("scene-title").textContent = `第${s.episode}話`;
       document.getElementById("speaker").textContent = s.speaker;
       document.getElementById("text").textContent = s.text;
-      document.getElementById("background").style.backgroundImage = `url('assets/${assets.backgrounds[s.background]}')`;
+      document.getElementById("background").style.backgroundImage = `url('assets/${s.background || 'bg_forest_day.jpg'}')`;
       document.getElementById("character").src = "assets/" + (s.character || "placeholder.png");
       document.getElementById("character").classList.toggle("dimmed", s.speaker === "ナレーション");
-
-      // 編集フォームに反映
-      document.getElementById("edit-speaker").value = s.speaker;
-      document.getElementById("edit-text").value = s.text;
-      document.getElementById("edit-face").value = s.face || "";
-      document.getElementById("edit-bg").value = s.background || "";
-      document.getElementById("edit-special").value = s.special || "";
-
-      if (useVoice && s.speaker !== "ナレーション") {
-        speak(s.text);
-      }
-    }
-
-    function applyEdits() {
-      const s = scenes[currentScene];
-      s.speaker = document.getElementById("edit-speaker").value;
-      s.text = document.getElementById("edit-text").value;
-      s.face = document.getElementById("edit-face").value;
-      s.background = document.getElementById("edit-bg").value;
-      s.special = document.getElementById("edit-special").value;
-
-      const form = s.special === "transform" ? "transform" : "normal";
-      const faceTag = s.face;
-      s.character = assets.characters[s.speaker]?.[form]?.[faceTag] || "placeholder.png";
-
-      showScene(currentScene);
-      collapseLog();
+      if (useVoice && s.speaker !== "ナレーション") speak(s.text);
     }
 
     function saveProgress() {
@@ -137,7 +115,7 @@
 
     function toggleVoice() {
       useVoice = !useVoice;
-      alert('読み上げ：' + (useVoice ? 'オン' : 'オフ'));
+      document.getElementById("voice-status").textContent = useVoice ? "オン" : "オフ";
     }
 
     function speak(txt) {
@@ -147,32 +125,24 @@
       speechSynthesis.speak(msg);
     }
 
-    function expandLog() {
-      document.getElementById('dialogue-box').classList.add('expanded');
+    function openModal() {
+      document.getElementById("modal").style.display = "flex";
     }
 
-    function collapseLog() {
-      document.getElementById('dialogue-box').classList.remove('expanded');
+    function closeModal() {
+      document.getElementById("modal").style.display = "none";
     }
 
-    const box = document.getElementById('dialogue-box');
-    box.addEventListener('touchstart', e => {
-      startY = e.touches[0].clientY;
-      startX = e.touches[0].clientX;
-      touchStartTime = Date.now();
-    });
-    box.addEventListener('touchend', e => {
-      const endY = e.changedTouches[0].clientY;
-      const endX = e.changedTouches[0].clientX;
-      const dy = startY - endY, dx = startX - endX;
-      const dt = Date.now() - touchStartTime;
-      if (dy > 30) { expandLog(); return; }
-      if (Math.abs(dy) < 10 && Math.abs(dx) < 10 && dt > 500) { collapseLog(); return; }
-      if (box.classList.contains('expanded') && endY - startY > 30) { collapseLog(); return; }
-    });
+    function downloadScenes() {
+      const blob = new Blob([JSON.stringify(scenes, null, 2)], {type: "application/json"});
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "scenes.json";
+      a.click();
+    }
 
-    document.body.addEventListener('click', e => {
-      if (box.classList.contains('expanded')) return;
+    document.body.addEventListener("click", e => {
+      if (document.getElementById("modal").style.display === "flex") return;
       const x = e.clientX, w = window.innerWidth;
       x < w/2 ? currentScene-- : currentScene++;
       currentScene = Math.max(0, Math.min(currentScene, scenes.length - 1));
