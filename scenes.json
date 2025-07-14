@@ -1,23 +1,24 @@
 [
   {
     "episode": 1,
+    "scene": 1,
     "speaker": "チハル",
     "text": "君は、もう逃げられないよ。",
-    "background": "bg-temple.jpg",
-    "character": "chiharu_smirk.png"
+    "face": "冷笑",
+    "background": "forest_day",
+    "character": "chiharu_cold.png",
+    "effect": null,
+    "special": null
   },
   {
     "episode": 1,
+    "scene": 2,
     "speaker": "ナレーション",
-    "text": "静寂の中、彼の言葉だけが空気を裂いた。",
-    "background": "bg-temple.jpg",
-    "character": "aristia_smile.png"
-  },
-  {
-    "episode": 2,
-    "speaker": "アリスティア",
-    "text": "さあ、進みなさいませ⭐️",
-    "background": "bg-temple.jpg",
-    "character": "aristia_smile.png"
+    "text": "その声は森の静寂を裂いた。",
+    "face": null,
+    "background": "forest_day",
+    "character": "chiharu_cold.png",
+    "effect": null,
+    "special": null
   }
 ]
