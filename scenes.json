@@ -5,7 +5,7 @@
     "speaker": "チハル",
     "text": "君は、もう逃げられないよ。",
     "face": "冷笑",
-    "background": "forest_day",
+    "background": "bg-temple.jpg",
     "character": "chiharu_cold.png",
     "effect": null,
     "special": null
@@ -16,7 +16,7 @@
     "speaker": "ナレーション",
     "text": "その声は森の静寂を裂いた。",
     "face": null,
-    "background": "forest_day",
+    "background": "bg-temple.jpg",
     "character": "chiharu_cold.png",
     "effect": null,
     "special": null
