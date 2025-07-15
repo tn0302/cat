@@ -90,7 +90,7 @@ async function loadScenes() {
     });
     if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
     const data = await res.json();
-    scenes = data.contents.sort((a, b) => a.episode - b.episode || a.scene - b.scene); // シーンをソート
+    scenes = data.contents.sort((a, b) => a.episode - b.episode || a.sceneNumber - b.sceneNumber); // シーンをソート
     if (scenes.length === 0) {
       alert("シーンデータがありません。新しいシーンを追加してください。");
       addScene(); // データがない場合は最初のシーンを追加
@@ -128,7 +128,7 @@ async function applyEdits() {
       background: s.background,
       special: s.special,
       episode: s.episode || 1, // 新規シーンの場合、デフォルト値を設定
-      scene: s.scene || scenes.length // 新規シーンの場合、デフォルト値を設定
+      sceneNumber: s.sceneNumber || scenes.length // 新規シーンの場合、デフォルト値を設定
     };
 
     const res = await fetch(url, {
@@ -173,7 +173,7 @@ function showScene(index) {
   currentScene = index;
   const s = scenes[currentScene];
 
-  document.getElementById("scene-title").textContent = `第${s.episode || '不明'}話 #${s.scene || (currentScene + 1)}`;
+  document.getElementById("scene-title").textContent = `第${s.episode || '不明'}話 #${s.sceneNumber || (currentScene + 1)}`;
   document.getElementById("speaker").textContent = s.speaker || "話者不明";
   document.getElementById("text").textContent = s.text || "（セリフなし）";
   document.getElementById("background").style.backgroundImage = `url('assets/${s.background || 'default_bg'}.jpg')`;
@@ -357,7 +357,7 @@ function handleFileUpload(event) {
               background: scene.background,
               special: scene.special,
               episode: scene.episode || 1,
-              scene: scene.scene || 1
+              sceneNumber: scene.sceneNumber || 1
           };
 
           const res = await fetch(url, {
@@ -438,7 +438,7 @@ async function addScene() {
     background: "default_bg",
     special: "",
     episode: scenes[currentScene]?.episode || 1, // 現在のシーンのEPを継承
-    scene: (scenes[currentScene]?.scene || 0) + 1 // 現在のシーンの次
+    sceneNumber: (scenes[currentScene]?.sceneNumber || 0) + 1 // 現在のシーンの次
   };
 
   // microCMSにPOSTして新規シーンを作成
