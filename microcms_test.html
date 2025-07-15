@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>microCMS Connection Test</title>
+    <style>
+        body { font-family: sans-serif; margin: 20px; background: #f4f4f4; color: #333; }
+        pre { background: #eee; padding: 15px; border-radius: 8px; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word; }
+        .success { color: green; font-weight: bold; }
+        .error { color: red; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <h1>microCMS 接続テスト</h1>
+    <p>このページは microCMS からデータを取得し、表示します。</p>
+    <div id="status">テスト中...</div>
+    <pre id="data-output"></pre>
+
+    <script>
+        // ★★★ ここにあなたのmicroCMS API情報を入力してください ★★★
+        const YOUR_SERVICE_ID = "nvw9sy9y9b"; // あなたのmicroCMSサービスID
+        const YOUR_API_ENDPOINT = "scenes";    // あなたのAPIエンドポイント名 (例: 'scenes', 'blogs' など)
+        const YOUR_API_KEY = "fA7lEFFe3cPFr0zfmbnhckYWS79QT2QKdFiy"; // あなたのmicroCMS APIキー
+        // ★★★ ここまで ★★★
+
+        const apiBase = `https://${YOUR_SERVICE_ID}.microcms.io/api/v1/${YOUR_API_ENDPOINT}`;
+        const statusElement = document.getElementById('status');
+        const dataOutputElement = document.getElementById('data-output');
+
+        async function testMicroCMSConnection() {
+            try {
+                const res = await fetch(apiBase, {
+                    headers: { 'X-API-KEY': YOUR_API_KEY }
+                });
+
+                if (!res.ok) {
+                    const errorBody = await res.text(); // エラーレスポンスの本体を取得
+                    throw new Error(`HTTPエラー！ステータス: ${res.status}, レスポンス: ${errorBody}`);
+                }
+
+                const data = await res.json();
+                statusElement.textContent = '✅ microCMSへの接続に成功しました！';
+                statusElement.className = 'success';
+                dataOutputElement.textContent = JSON.stringify(data, null, 2); // データを整形して表示
+            } catch (error) {
+                statusElement.textContent = `❌ microCMSへの接続に失敗しました。エラー: ${error.message}`;
+                statusElement.className = 'error';
+                dataOutputElement.textContent = 'データ取得に失敗しました。詳細を上記エラーメッセージで確認してください。';
+                console.error("microCMS接続テストエラー:", error);
+            }
+        }
+
+        testMicroCMSConnection();
+    </script>
+</body>
+</html>
