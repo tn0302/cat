@@ -173,7 +173,7 @@ function showScene(index) {
   currentScene = index;
   const s = scenes[currentScene];
 
-  document.getElementById("scene-title").textContent = `第${s.episode || '不明'}話 #${s.sceneNumber || (currentScene + 1)}`;
+  document.getElementById("scene-title").textContent = `第${s.episode || '不明'}話 #${s.scene || (currentScene + 1)}`;
   document.getElementById("speaker").textContent = s.speaker || "話者不明";
   document.getElementById("text").textContent = s.text || "（セリフなし）";
   document.getElementById("background").style.backgroundImage = `url('assets/${s.background || 'default_bg'}.jpg')`;
@@ -357,7 +357,7 @@ function handleFileUpload(event) {
               background: scene.background,
               special: scene.special,
               episode: scene.episode || 1,
-              sceneNumber: scene.sceneNumber || 1
+              scene: scene.scene || 1
           };
 
           const res = await fetch(url, {
@@ -438,7 +438,7 @@ async function addScene() {
     background: "default_bg",
     special: "",
     episode: scenes[currentScene]?.episode || 1, // 現在のシーンのEPを継承
-    sceneNumber: (scenes[currentScene]?.sceneNumber || 0) + 1 // 現在のシーンの次
+    scene: (scenes[currentScene]?.scene || 0) + 1 // 現在のシーンの次
   };
 
   // microCMSにPOSTして新規シーンを作成
