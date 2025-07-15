@@ -90,7 +90,7 @@ async function loadScenes() {
     });
     if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
     const data = await res.json();
-    scenes = data.contents.sort((a, b) => a.episode - b.episode || a.sceneNumber - b.sceneNumber); // シーンをソート
+    scenes = data.contents.sort((a, b) => a.episode - b.episode || a.scene - b.scene); // シーンをソート
     if (scenes.length === 0) {
       alert("シーンデータがありません。新しいシーンを追加してください。");
       addScene(); // データがない場合は最初のシーンを追加
