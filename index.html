@@ -521,6 +521,7 @@ async function addScene() {
 
 // 選択肢（話者、表情、背景）を動的に生成
 function populateSelectOptions() {
+    const narationOption = `<option value="ナレーション">ナレーション</option>`;
     // 既存の選択肢をクリア
     speakerSelect.innerHTML = '<option value="">--未選択--</option>';
     faceSelect.innerHTML = '<option value="">--未選択--</option>';
