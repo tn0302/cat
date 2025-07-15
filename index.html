@@ -11,15 +11,15 @@
     #background { position: absolute; width: 100%; height: 100%; background-size: cover; background-position: center; z-index: 0; }
     #character { position: absolute; bottom: -10%; left: 50%; transform: translateX(-50%); height: 70%; z-index: 1; transition: filter 0.3s ease; }
     #character.dimmed { filter: brightness(40%) saturate(50%); }
-    #dialogue-box { position: absolute; bottom: 0; width: 100%; height: 25%; background: rgba(0, 0, 0, 0.6); padding: 16px; z-index: 2; transition: height 0.3s ease; overflow: hidden; }
+    #dialogue-box { position: absolute; bottom: 0; width: 100%; height: 25%; background: rgba(0, 0, 0, 0.6); padding: 16px; z-index: 2; transition: height 0.3s ease; overflow: hidden; box-sizing: border-box; }
     #dialogue-box.expanded { height: 80%; overflow-y: auto; }
     #speaker { font-weight: bold; }
     #text { margin-top: 8px; line-height: 1.6; }
     #edit-form { display: none; }
     #dialogue-box.expanded #edit-form { display: block; margin-top: 12px; }
     label { display: block; margin-top: 8px; }
-    select, textarea, input { width: 100%; margin-top: 4px; font-size: 14px; }
-    button { margin-top: 12px; padding: 6px 12px; background: #333; color: #fff; border: none; cursor: pointer; }
+    select, textarea, input { width: 100%; margin-top: 4px; font-size: 14px; padding: 4px; box-sizing: border-box; }
+    button { margin-top: 12px; padding: 6px 12px; background: #333; color: #fff; border: none; cursor: pointer; border-radius: 4px; }
     #close-log { display: none; position: absolute; top: 8px; right: 12px; font-size: 20px; cursor: pointer; z-index: 3; }
     #dialogue-box.expanded #close-log { display: block; }
     #modal {
@@ -29,6 +29,7 @@
     }
     #modal-content {
       background: #222; padding: 20px; border-radius: 8px; width: 90%; max-width: 400px;
+      position: relative; /* Closeボタンの位置決めのため */
     }
     #modal-close {
       position: absolute; top: 10px; right: 20px; font-size: 24px; cursor: pointer;
@@ -43,17 +44,20 @@
   </div>
 </div>
 <div id="novel-container">
-  <div id="background"><img id="character" src="" alt="" /></div>
+  <div id="background"></div>
+  <img id="character" src="" alt="" />
   <div id="dialogue-box">
     <div id="speaker"></div>
     <div id="text"></div>
     <div id="edit-form">
       <label>話者：<select id="edit-speaker"></select></label>
-      <label>セリフ：<textarea id="edit-text" rows="2"></textarea></label>
+      <label>セリフ：<textarea id="edit-text" rows="3"></textarea></label>
       <label>表情：<select id="edit-face"></select></label>
       <label>背景：<select id="edit-bg"></select></label>
-      <label>特殊：<input type="text" id="edit-special" /></label>
+      <label>特殊：<input type="text" id="edit-special" placeholder="特殊効果やフラグなど" /></label>
       <button onclick="applyEdits()">✅ 適用</button>
+      <button onclick="deleteScene()" style="background: #a00; margin-left: 8px;">🗑️ このシーンを削除</button>
+      <button onclick="addScene()" style="background: #0a0; margin-left: 8px;">➕ シーンを追加</button>
     </div>
     <div id="close-log" onclick="collapseLog()">✕</div>
   </div>
@@ -66,61 +70,182 @@
     <button onclick="loadProgress()">📂 続きから再開</button><br><br>
     <button onclick="toggleVoice()">🔊 読み上げ: <span id="voice-status">オフ</span></button><br><br>
     <button onclick="downloadScenes()">⬇️ scenes.json を保存</button><br><br>
+    <button onclick="uploadScenes()">⬆️ scenes.json をアップロード</button><br><br>
     <a href="assets_editor.html" target="_blank">🖼️ アセット管理ページを開く</a>
   </div>
 </div>
+
+<input type="file" id="file-input" style="display: none;" accept=".json" onchange="handleFileUpload(event)">
+
 <script>
 let scenes = [], currentScene = 0, useVoice = false;
 const apiBase = "https://nvw9sy9y9b.microcms.io/api/v1/scenes";
 const apiKey = "fA7lEFFe3cPFr0zfmbnhckYWS79QT2QKdFiy"; // ← あなたのmicroCMS APIキー
 
+// microCMSからシーンデータをロード
 async function loadScenes() {
-  const res = await fetch(apiBase + "?limit=100", {
-    headers: { 'X-API-KEY': apiKey }
-  });
-  const data = await res.json();
-  scenes = data.contents;
-  showScene(currentScene);
+  try {
+    const res = await fetch(apiBase + "?limit=999", { // limitを増やし、より多くのシーンをロード
+      headers: { 'X-API-KEY': apiKey }
+    });
+    if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+    const data = await res.json();
+    scenes = data.contents.sort((a, b) => a.episode - b.episode || a.sceneNumber - b.sceneNumber); // シーンをソート
+    if (scenes.length === 0) {
+      alert("シーンデータがありません。新しいシーンを追加してください。");
+      addScene(); // データがない場合は最初のシーンを追加
+      return;
+    }
+    showScene(currentScene);
+    populateSelectOptions(); // 話者、表情、背景の選択肢を初期化
+  } catch (error) {
+    console.error("シーンの読み込み中にエラーが発生しました:", error);
+    alert("シーンの読み込みに失敗しました。APIキーまたはネットワーク接続を確認してください。");
+  }
 }
 
+// シーンの編集内容をmicroCMSに適用
 async function applyEdits() {
   const s = scenes[currentScene];
+  const originalSpeaker = s.speaker; // 変更前の話者を保持
+
+  // フォームから値を取得
   s.speaker = document.getElementById("edit-speaker").value;
   s.text = document.getElementById("edit-text").value;
   s.face = document.getElementById("edit-face").value;
   s.background = document.getElementById("edit-bg").value;
   s.special = document.getElementById("edit-special").value;
 
-  await fetch(`${apiBase}/${s.id}`, {
-    method: 'PATCH',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-API-KEY': apiKey
-    },
-    body: JSON.stringify(s)
-  });
-  showScene(currentScene);
-  collapseLog();
+  try {
+    const method = s.id ? 'PATCH' : 'POST'; // 既存のシーンならPATCH、新規ならPOST
+    const url = s.id ? `${apiBase}/${s.id}` : apiBase;
+    
+    // microCMSに送信するデータ (不要なフィールドは送らない)
+    const dataToSend = {
+      speaker: s.speaker,
+      text: s.text,
+      face: s.face,
+      background: s.background,
+      special: s.special,
+      episode: s.episode || 1, // 新規シーンの場合、デフォルト値を設定
+      sceneNumber: s.sceneNumber || scenes.length // 新規シーンの場合、デフォルト値を設定
+    };
+
+    const res = await fetch(url, {
+      method: method,
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-KEY': apiKey
+      },
+      body: JSON.stringify(dataToSend)
+    });
+
+    if (!res.ok) {
+      const errorData = await res.json();
+      throw new Error(`API error! status: ${res.status}, message: ${JSON.stringify(errorData)}`);
+    }
+
+    // 新規作成の場合はIDを更新
+    if (method === 'POST') {
+      const responseData = await res.json();
+      s.id = responseData.id;
+    }
+
+    showScene(currentScene);
+    collapseLog();
+    // 話者が変わった場合、選択肢を再構築
+    if (originalSpeaker !== s.speaker) {
+      populateSelectOptions();
+    }
+    alert("シーンが保存されました！");
+  } catch (error) {
+    console.error("シーンの保存中にエラーが発生しました:", error);
+    alert("シーンの保存に失敗しました。詳細をコンソールで確認してください。");
+  }
 }
 
+// シーンを表示
 function showScene(index) {
-  const s = scenes[index];
-  document.getElementById("scene-title").textContent = `第${s.episode}話`;
-  document.getElementById("speaker").textContent = s.speaker;
-  document.getElementById("text").textContent = s.text;
-  document.getElementById("background").style.backgroundImage = `url('assets/${s.background}.jpg')`;
-  document.getElementById("character").src = "assets/" + (s.character || "placeholder.png");
+  if (index < 0 || index >= scenes.length) {
+    console.warn("無効なシーンインデックス:", index);
+    return;
+  }
+  currentScene = index;
+  const s = scenes[currentScene];
+
+  document.getElementById("scene-title").textContent = `第${s.episode || '不明'}話 #${s.sceneNumber || (currentScene + 1)}`;
+  document.getElementById("speaker").textContent = s.speaker || "話者不明";
+  document.getElementById("text").textContent = s.text || "（セリフなし）";
+  document.getElementById("background").style.backgroundImage = `url('assets/${s.background || 'default_bg'}.jpg')`;
+  
+  // キャラクター画像が存在しない場合の処理を強化
+  const characterImage = s.character && s.character !== "なし" ? `assets/${s.character}.png` : '';
+  const characterElement = document.getElementById("character");
+  characterElement.src = characterImage || "assets/placeholder.png"; // キャラクター画像がない場合はplaceholder
+  characterElement.style.display = characterImage ? 'block' : 'none'; // 画像がない場合は非表示
+  
   document.getElementById("character").classList.toggle("dimmed", s.speaker === "ナレーション");
 
-  document.getElementById("edit-speaker").value = s.speaker;
-  document.getElementById("edit-text").value = s.text;
+  // 編集フォームの値を更新
+  document.getElementById("edit-speaker").value = s.speaker || "";
+  document.getElementById("edit-text").value = s.text || "";
   document.getElementById("edit-face").value = s.face || "";
   document.getElementById("edit-bg").value = s.background || "";
   document.getElementById("edit-special").value = s.special || "";
 
-  if (useVoice && s.speaker !== "ナレーション") speak(s.text);
+  if (useVoice && s.speaker !== "ナレーション" && s.text) {
+    speak(s.text);
+  }
 }
 
+// 選択肢（話者、表情、背景）を動的に生成
+function populateSelectOptions() {
+  const speakerSelect = document.getElementById("edit-speaker");
+  const faceSelect = document.getElementById("edit-face");
+  const bgSelect = document.getElementById("edit-bg");
+
+  // 既存の選択肢をクリア
+  speakerSelect.innerHTML = '<option value="">未選択</option>';
+  faceSelect.innerHTML = '<option value="">未選択</option>';
+  bgSelect.innerHTML = '<option value="">未選択</option>';
+
+  // 現時点での全シーンからユニークな話者名を取得
+  const uniqueSpeakers = [...new Set(scenes.map(s => s.speaker).filter(Boolean))].sort();
+  uniqueSpeakers.forEach(speaker => {
+    const option = document.createElement("option");
+    option.value = speaker;
+    option.textContent = speaker;
+    speakerSelect.appendChild(option);
+  });
+  
+  // 必要に応じて、表情や背景も同様に動的に生成
+  // 今は仮の選択肢を生成
+  const sampleFaces = ["通常", "笑顔", "怒り", "悲しみ"];
+  sampleFaces.forEach(face => {
+    const option = document.createElement("option");
+    option.value = face;
+    option.textContent = face;
+    faceSelect.appendChild(option);
+  });
+
+  const sampleBgs = ["forest", "town", "castle", "room"];
+  sampleBgs.forEach(bg => {
+    const option = document.createElement("option");
+    option.value = bg;
+    option.textContent = bg;
+    bgSelect.appendChild(option);
+  });
+
+  // 現在のシーンの値を選択肢に設定
+  const s = scenes[currentScene];
+  if (s) {
+    speakerSelect.value = s.speaker || "";
+    faceSelect.value = s.face || "";
+    bgSelect.value = s.background || "";
+  }
+}
+
+// 進行状況の保存と読み込み
 function saveProgress() {
   localStorage.setItem('yh_progress', currentScene);
   alert('進行状況を保存しました。');
@@ -128,15 +253,16 @@ function saveProgress() {
 
 function loadProgress() {
   const sv = localStorage.getItem('yh_progress');
-  if (sv !== null) {
+  if (sv !== null && !isNaN(+sv) && +sv >= 0 && +sv < scenes.length) {
     currentScene = +sv;
     showScene(currentScene);
-    alert('保存地点から再開');
+    alert('保存地点から再開しました。');
   } else {
-    alert('保存データがありません');
+    alert('有効な保存データがありません。');
   }
 }
 
+// 音声読み上げ機能
 function toggleVoice() {
   useVoice = !useVoice;
   document.getElementById("voice-status").textContent = useVoice ? "オン" : "オフ";
@@ -144,12 +270,17 @@ function toggleVoice() {
 }
 
 function speak(txt) {
-  const msg = new SpeechSynthesisUtterance(txt);
-  msg.lang = 'ja-JP';
-  speechSynthesis.cancel();
-  speechSynthesis.speak(msg);
+  if ('speechSynthesis' in window) {
+    const msg = new SpeechSynthesisUtterance(txt);
+    msg.lang = 'ja-JP';
+    speechSynthesis.cancel();
+    speechSynthesis.speak(msg);
+  } else {
+    console.warn("お使いのブラウザは音声合成に対応していません。");
+  }
 }
 
+// ログ（編集フォーム）の展開と格納
 function expandLog() {
   document.getElementById('dialogue-box').classList.add('expanded');
 }
@@ -158,6 +289,7 @@ function collapseLog() {
   document.getElementById('dialogue-box').classList.remove('expanded');
 }
 
+// モーダル（設定メニュー）の開閉
 function openModal() {
   document.getElementById("modal").style.display = "flex";
 }
@@ -166,38 +298,250 @@ function closeModal() {
   document.getElementById("modal").style.display = "none";
 }
 
+// scenes.jsonのダウンロード
 function downloadScenes() {
+  if (scenes.length === 0) {
+    alert("ダウンロードするシーンがありません。");
+    return;
+  }
   const blob = new Blob([JSON.stringify(scenes, null, 2)], { type: "application/json" });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
   a.download = "scenes.json";
+  document.body.appendChild(a); // Firefox対応
   a.click();
+  document.body.removeChild(a); // Firefox対応
+  URL.revokeObjectURL(a.href); // オブジェクトURLを解放
 }
 
+// scenes.jsonのアップロード
+function uploadScenes() {
+  document.getElementById('file-input').click();
+}
+
+function handleFileUpload(event) {
+  const file = event.target.files[0];
+  if (!file) {
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = async (e) => {
+    try {
+      const uploadedData = JSON.parse(e.target.result);
+      if (!Array.isArray(uploadedData)) {
+        throw new Error("アップロードされたJSONは配列である必要があります。");
+      }
+
+      // 既存のmicroCMSデータをすべて削除 (注意: 既存データが消えます)
+      // より安全な方法: IDを基に既存データを更新/追加/削除を個別に行うロジック
+      const existingSceneIds = new Set(scenes.map(s => s.id));
+      const uploadedSceneIds = new Set(uploadedData.map(s => s.id).filter(Boolean));
+
+      // microCMSに存在し、アップロードデータにないものを削除
+      for (const scene of scenes) {
+          if (!uploadedSceneIds.has(scene.id)) {
+              await deleteSceneFromMicroCMS(scene.id);
+          }
+      }
+
+      // アップロードされたデータをmicroCMSに反映 (更新または新規作成)
+      for (const scene of uploadedData) {
+          const method = existingSceneIds.has(scene.id) ? 'PATCH' : 'POST';
+          const url = scene.id && existingSceneIds.has(scene.id) ? `${apiBase}/${scene.id}` : apiBase;
+          
+          // microCMSに送信するデータ
+          const dataToSend = {
+              speaker: scene.speaker,
+              text: scene.text,
+              face: scene.face,
+              background: scene.background,
+              special: scene.special,
+              episode: scene.episode || 1,
+              sceneNumber: scene.sceneNumber || 1
+          };
+
+          const res = await fetch(url, {
+              method: method,
+              headers: {
+                  'Content-Type': 'application/json',
+                  'X-API-KEY': apiKey
+              },
+              body: JSON.stringify(dataToSend)
+          });
+          if (!res.ok) {
+              const errorData = await res.json();
+              throw new Error(`API error during upload (${method} ${url})! status: ${res.status}, message: ${JSON.stringify(errorData)}`);
+          }
+      }
+      
+      alert("シーンデータが正常にアップロードされ、microCMSに同期されました！");
+      closeModal();
+      loadScenes(); // 同期後、最新のデータを再ロード
+    } catch (error) {
+      console.error("ファイルの読み込みまたはアップロード中にエラーが発生しました:", error);
+      alert("ファイルのアップロードに失敗しました。JSON形式が正しいか確認してください。");
+    }
+  };
+  reader.readAsText(file);
+}
+
+// シーンの削除機能
+async function deleteScene() {
+  if (scenes.length === 0) {
+    alert("削除するシーンがありません。");
+    return;
+  }
+  if (!confirm("本当にこのシーンを削除しますか？")) {
+    return;
+  }
+
+  const s = scenes[currentScene];
+  if (!s || !s.id) {
+    alert("このシーンはまだ保存されていないか、IDがありません。");
+    return;
+  }
+
+  try {
+    await deleteSceneFromMicroCMS(s.id);
+    alert("シーンが正常に削除されました。");
+    scenes.splice(currentScene, 1); // ローカル配列から削除
+    if (currentScene >= scenes.length) { // 最後のシーンを削除した場合
+      currentScene = Math.max(0, scenes.length - 1);
+    }
+    showScene(currentScene);
+    populateSelectOptions();
+    collapseLog();
+  } catch (error) {
+    console.error("シーンの削除中にエラーが発生しました:", error);
+    alert("シーンの削除に失敗しました。詳細をコンソールで確認してください。");
+  }
+}
+
+async function deleteSceneFromMicroCMS(sceneId) {
+    const res = await fetch(`${apiBase}/${sceneId}`, {
+        method: 'DELETE',
+        headers: { 'X-API-KEY': apiKey }
+    });
+    if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(`API error during delete! status: ${res.status}, message: ${JSON.stringify(errorData)}`);
+    }
+}
+
+
+// 新しいシーンの追加機能
+async function addScene() {
+  const newScene = {
+    speaker: "新しい話者",
+    text: "新しいセリフ",
+    face: "",
+    background: "default_bg",
+    special: "",
+    episode: scenes[currentScene]?.episode || 1, // 現在のシーンのEPを継承
+    sceneNumber: (scenes[currentScene]?.sceneNumber || 0) + 1 // 現在のシーンの次
+  };
+
+  // microCMSにPOSTして新規シーンを作成
+  try {
+    const res = await fetch(apiBase, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-KEY': apiKey
+      },
+      body: JSON.stringify(newScene)
+    });
+
+    if (!res.ok) {
+      const errorData = await res.json();
+      throw new Error(`API error! status: ${res.status}, message: ${JSON.stringify(errorData)}`);
+    }
+    const createdScene = await res.json();
+    newScene.id = createdScene.id; // microCMSから返されたIDを設定
+
+    scenes.splice(currentScene + 1, 0, newScene); // 現在のシーンの次に挿入
+    currentScene++; // 新しいシーンに移動
+    showScene(currentScene);
+    populateSelectOptions();
+    expandLog(); // 追加後、編集モードに
+    alert("新しいシーンが追加されました！");
+  } catch (error) {
+    console.error("新しいシーンの追加中にエラーが発生しました:", error);
+    alert("新しいシーンの追加に失敗しました。詳細をコンソールで確認してください。");
+  }
+}
+
+
+// イベントリスナー
 const box = document.getElementById('dialogue-box');
+let startY = 0, startX = 0, touchStartTime = 0;
+
 box.addEventListener('touchstart', e => {
   startY = e.touches[0].clientY;
   startX = e.touches[0].clientX;
   touchStartTime = Date.now();
 });
+
 box.addEventListener('touchend', e => {
   const endY = e.changedTouches[0].clientY;
   const endX = e.changedTouches[0].clientX;
-  const dy = startY - endY, dx = startX - endX;
+  const dy = startY - endY;
+  const dx = startX - endX;
   const dt = Date.now() - touchStartTime;
-  if (dy > 30) { expandLog(); return; }
-  if (Math.abs(dy) < 10 && Math.abs(dx) < 10 && dt > 500) { collapseLog(); return; }
-  if (box.classList.contains('expanded') && endY - startY > 30) { collapseLog(); return; }
+
+  const dialogueBox = document.getElementById('dialogue-box');
+  const isExpanded = dialogueBox.classList.contains('expanded');
+
+  // 上スワイプでログ展開
+  if (dy > 50 && Math.abs(dx) < 50 && dt < 300 && !isExpanded) { // 閾値を少し厳しく
+    expandLog();
+    return;
+  }
+  // 下スワイプでログ格納
+  if (endY - startY > 50 && Math.abs(dx) < 50 && dt < 300 && isExpanded) { // 閾値を少し厳しく
+    collapseLog();
+    return;
+  }
+  // 長押し（タップ＆ホールド）でログ展開/格納
+  if (Math.abs(dy) < 10 && Math.abs(dx) < 10 && dt >= 500) { // 短いタップと区別
+    if (isExpanded) {
+      collapseLog();
+    } else {
+      expandLog();
+    }
+    return;
+  }
 });
 
+// bodyクリックでシーン遷移
 document.body.addEventListener('click', e => {
-  if (box.classList.contains('expanded')) return;
-  const x = e.clientX, w = window.innerWidth;
-  x < w / 2 ? currentScene-- : currentScene++;
+  // モーダルが開いている場合、またはダイアログボックスが展開中の場合は何もしない
+  if (document.getElementById("modal").style.display === "flex" || box.classList.contains('expanded')) {
+    return;
+  }
+
+  // 編集フォーム内の要素がクリックされた場合は何もしない
+  if (e.target.closest('#edit-form') || e.target.closest('#controls') || e.target.closest('#header')) {
+    return;
+  }
+
+  const x = e.clientX;
+  const w = window.innerWidth;
+  
+  if (x < w / 3) { // 画面左1/3をクリックで前へ
+    currentScene--;
+  } else if (x > w * 2 / 3) { // 画面右1/3をクリックで次へ
+    currentScene++;
+  } else { // 画面中央1/3をクリックでログ展開
+    expandLog();
+    return; // シーン遷移はしない
+  }
+
   currentScene = Math.max(0, Math.min(currentScene, scenes.length - 1));
   showScene(currentScene);
 });
 
+// 初期ロード
 loadScenes();
 </script>
 </body>
