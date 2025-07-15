@@ -65,21 +65,10 @@
             border-bottom: 1px solid #444;
             padding-bottom: 5px;
         }
-        #missing-asset-list {
-            max-height: 200px;
-            overflow-y: auto;
-            background: #1a1a1a;
-            padding: 10px;
-            border-radius: 4px;
-            margin-bottom: 15px;
-        }
-        #missing-asset-list p {
-            margin: 5px 0;
-            font-size: 14px;
-        }
         #asset-upload-form label {
             margin-top: 10px;
         }
+        #asset-upload-form select,
         #asset-upload-form input[type="file"] {
             margin-top: 5px;
             padding: 8px;
@@ -142,28 +131,21 @@
         <div id="asset-upload-modal-close" class="modal-close" onclick="closeAssetUploadModal()">✕</div>
         <h2>不足アセットのアップロード</h2>
         <p>現在のエピソードで利用されているが、microCMSに登録されていないアセットです。</p>
-        <div id="missing-asset-list">
-            <p>不足しているアセットはありません。</p>
-        </div>
-        <h3>アセットファイルアップロード</h3>
         <form id="asset-upload-form" onsubmit="event.preventDefault();">
-            <label>背景画像 (.jpg, .png)</label>
-            <input type="file" id="upload-bg-file" accept=".jpg,.jpeg,.png" multiple>
-            <button type="button" onclick="handleAssetUpload('background')">背景をアップロード</button>
+            <label for="missing-asset-select">不足アセットを選択:</label>
+            <select id="missing-asset-select">
+                <option value="">--不足アセットなし--</option>
+            </select>
 
-            <label>キャラクター画像 (.png)</label>
-            <input type="file" id="upload-char-file" accept=".png" multiple>
-            <button type="button" onclick="handleAssetUpload('character')">キャラクターをアップロード</button>
-
-            <label>特殊画像 / エフェクト (.jpg, .png, .gif)</label>
-            <input type="file" id="upload-special-file" accept=".jpg,.jpeg,.png,.gif" multiple>
-            <button type="button" onclick="handleAssetUpload('special_image')">特殊画像をアップロード</button>
+            <label for="upload-single-asset-file" style="margin-top: 15px;">画像ファイルを選択:</label>
+            <input type="file" id="upload-single-asset-file" accept=".jpg,.jpeg,.png,.gif">
+            
+            <button type="button" onclick="handleSingleAssetUpload()" style="margin-top: 20px;">⬆️ アップロードして保存</button>
             <p style="font-size: 12px; color: #aaa; margin-top: 10px;">
-                ※ファイル名からアセットタグを自動推測します。<br>
-                　例: `forest.jpg` -> `tag: forest`, `hero_smile.png` -> `tag: hero`, `face_tag: smile`
+                ※キャラクター画像は「キャラクター名_表情.png」の命名規則を推奨します。<br>
+                　例: `hero_smile.png` -> `tag: hero`, `character_face_tag: smile`
             </p>
         </form>
-        <button onclick="reloadAssetsAndCheck()" style="margin-top: 20px; background: #0a0;">🔄 再読み込みしてチェック</button>
     </div>
 </div>
 
@@ -188,7 +170,7 @@ let loadedAssets = { backgrounds: {}, characters: {}, effects: {}, specialImages
 let currentSceneIndex = 0; 
 let useVoice = false;
 let currentEpisodeNumber = 1; 
-let missingAssets = { backgrounds: [], characters: [], specialImages: [] }; // 不足アセットリスト
+let missingAssets = []; // 不足アセットリストを統一
 
 // UI要素の取得
 const speakerSelect = document.getElementById("edit-speaker");
@@ -199,7 +181,7 @@ const specialImageElement = document.getElementById("special-image");
 const backgroundElement = document.getElementById("background"); 
 const loadingOverlay = document.getElementById('loading-overlay');
 const missingAssetsIndicator = document.getElementById('missing-assets-indicator');
-const missingAssetListDiv = document.getElementById('missing-asset-list');
+const missingAssetSelect = document.getElementById('missing-asset-select'); // 新しいプルダウン
 
 
 // --- 初期化とデータ読み込み ---
@@ -229,9 +211,8 @@ async function loadEpisodeData(episodeNumber) {
         if (currentEpisodeScenes.length === 0) {
             alert(`エピソード ${episodeNumber} にシーンデータがありません。新しいシーンを追加してください。`);
             showLoadingOverlay(false);
-            // シーンがない場合もアセット不足チェックは行うため、populateSelectOptionsを呼び出す
-            populateSelectOptions(); // 選択肢を更新
-            checkMissingAssets(); // アセット不足チェック
+            populateSelectOptions(); 
+            checkMissingAssets(); 
             return; 
         }
         
@@ -253,23 +234,17 @@ async function loadEpisodeData(episodeNumber) {
                 requiredCharacterTags.add(scene.character);
                 if (scene.face) requiredFaceTags.add(scene.face); 
             }
-            // specialフィールドがキャラクターの別姿である場合も考慮し、対応するキャラクタータグと表情タグを収集
-            // 例: special: 'hero_armor' の場合、'hero' と 'armor' を収集
-            // または、specialが一枚絵のタグとして使われる場合も考慮
             if (scene.special && scene.special !== "なし") {
-                // 特殊画像として扱われる場合
-                requiredSpecialImageTags.add(scene.special);
-                
-                // キャラクターの別姿として扱われる場合（命名規則に依存）
+                // specialがキャラクターの服装/姿切り替えの場合も考慮し、対応するキャラクタータグと表情タグを収集
                 const parts = scene.special.split('_');
-                if (parts.length > 1) { // 例: hero_armor -> tag:hero, face_tag:armor
+                if (parts.length > 1) { 
                     const charTag = parts[0];
-                    const faceTag = parts.slice(1).join('_'); // _で区切られた残り全てを表情タグとする
+                    const faceTag = parts.slice(1).join('_');
                     requiredCharacterTags.add(charTag);
                     requiredFaceTags.add(faceTag);
-                } else { // 単純なタグの場合も一応キャラクタータグとして収集
-                    requiredCharacterTags.add(scene.special);
                 }
+                // specialが一枚絵のタグとして使われる場合も収集
+                requiredSpecialImageTags.add(scene.special);
             }
         });
 
@@ -286,6 +261,7 @@ async function loadEpisodeData(episodeNumber) {
         // キャラクター
         if (requiredCharacterTags.size > 0) {
             let charFilter = `asset_type[equals]character[and](${Array.from(requiredCharacterTags).map(tag => `tag[equals]${tag}`).join('[or]')})`;
+            // 表情タグも指定されている場合、より厳密にフィルターする
             if (requiredFaceTags.size > 0) { 
                 charFilter += `[and](${Array.from(requiredFaceTags).map(tag => `character_face_tag[equals]${tag}`).join('[or]')})`;
             }
@@ -312,14 +288,14 @@ async function loadEpisodeData(episodeNumber) {
         currentSceneIndex = 0; 
         showScene(currentSceneIndex);
         populateSelectOptions(); 
-        checkMissingAssets(); // アセット不足チェック
+        checkMissingAssets(); 
         
     } catch (error) {
         console.error(`エピソード ${episodeNumber} のデータ読み込み中にエラーが発生しました:`, error);
         alert(`データの読み込みに失敗しました。APIキー、サービスID、エンドポイント、またはネットワーク接続を確認してください。\nエラー: ${error.message}`);
         currentEpisodeScenes = []; 
         loadedAssets = { backgrounds: {}, characters: {}, effects: {}, specialImages: {} }; 
-        checkMissingAssets(); // エラー時もチェックを試みる
+        checkMissingAssets(); 
     } finally {
         showLoadingOverlay(false);
     }
@@ -379,23 +355,22 @@ function showScene(index) {
     
     // specialフィールドの処理
     const specialContent = s.special; 
-    let isSpecialImage = false;
+    let isSpecialImage = false; // specialフィールドが一枚絵として使われるかどうかのフラグ
 
-    // specialがspecialImagesに存在するかチェック
+    // specialContentが特殊画像アセットとして存在するかチェック
     if (specialContent && loadedAssets.specialImages[specialContent]) {
         isSpecialImage = true;
     } else if (specialContent) {
-        // specialがキャラクターの服装/姿切り替えの場合も考慮
+        // specialContentがキャラクターの服装/姿切り替えとして認識されるかチェック
         const parts = specialContent.split('_');
-        const charName = parts[0];
-        const faceTagFromSpecial = parts.slice(1).join('_');
-        if (loadedAssets.characters[charName] && loadedAssets.characters[charName][faceTagFromSpecial]) {
-            // specialがキャラクターの別姿として認識された場合、一枚絵ではない
+        const charTag = parts[0];
+        const faceTag = parts.slice(1).join('_');
+        if (loadedAssets.characters[charTag] && loadedAssets.characters[charTag][faceTag]) {
+            // キャラクターの別姿として認識された場合は、一枚絵ではないのでisSpecialImageはfalseのまま
             isSpecialImage = false;
         } else {
-            // どちらでもない場合、タグとして不足している可能性があるので、specialImageとして試みる
-            // これはフォールバックであり、事前にassetsAPIに登録されていることが望ましい
-            console.warn(`Special content "${specialContent}" is not found in loadedAssets.specialImages, trying as character alternative or showing placeholder.`);
+            // どちらでもない場合、フォールバックとして特殊画像として試みる（ただし、本来はアセット登録されているべき）
+            // isSpecialImageはfalseのままにして、後続でキャラクターのplaceholderが表示されるようにする
         }
     }
 
@@ -867,129 +842,130 @@ async function handleFileUpload(event) {
 
 // 不足アセットをチェックし、UIを更新する
 function checkMissingAssets() {
-    missingAssets = { backgrounds: [], characters: {}, specialImages: [] };
+    missingAssets = []; // リストを初期化
 
-    // シーンデータに基づいて必要なアセットを特定
+    // 現在のシーンで使われているアセットを全て集める（重複なし）
+    const requiredBackgrounds = new Set();
+    const requiredCharacters = new Set(); // { charName: Set<faceTag> }
+    const requiredSpecialImages = new Set();
+
     currentEpisodeScenes.forEach(scene => {
-        // 背景
-        if (scene.background && scene.background !== "なし" && !loadedAssets.backgrounds[scene.background] && scene.background !== "default_bg") {
-            missingAssets.backgrounds.push(scene.background);
+        if (scene.background && scene.background !== "なし" && scene.background !== "default_bg") {
+            requiredBackgrounds.add(scene.background);
         }
 
-        // キャラクター（話者名と表情）
         const charName = scene.character || scene.speaker;
         if (charName && charName !== "なし" && charName !== "ナレーション") {
             let actualFaceTag = scene.face || 'normal';
-            // specialがキャラクターの服装/姿切り替えの場合も考慮
+            // specialがキャラクターの服装/姿切り替えの場合
             if (scene.special) {
                 const parts = scene.special.split('_');
-                const charTagFromSpecial = parts[0];
-                const faceTagFromSpecial = parts.slice(1).join('_');
-                if (charName === charTagFromSpecial) { // specialが現在のキャラクターの別姿である場合
-                    actualFaceTag = faceTagFromSpecial;
+                const specialCharTag = parts[0];
+                const specialFaceTag = parts.slice(1).join('_');
+                if (charName === specialCharTag) { // current char name matches special char tag
+                    actualFaceTag = specialFaceTag;
                 }
             }
-            if (!loadedAssets.characters[charName] || !loadedAssets.characters[charName][actualFaceTag]) {
-                if (!missingAssets.characters[charName]) {
-                    missingAssets.characters[charName] = new Set();
-                }
-                missingAssets.characters[charName].add(actualFaceTag);
+            if (!requiredCharacters.has(charName)) {
+                requiredCharacters.set(charName, new Set());
             }
+            requiredCharacters.get(charName).add(actualFaceTag);
         }
 
-        // 特殊画像
-        if (scene.special && scene.special !== "なし" && !loadedAssets.specialImages[scene.special]) {
-            // specialがキャラクターの別姿として処理される場合は除外
+        if (scene.special && scene.special !== "なし") {
+            // specialがキャラクターの別姿として使われているか確認
             const parts = scene.special.split('_');
-            const charTagFromSpecial = parts[0];
-            const faceTagFromSpecial = parts.slice(1).join('_');
-            if (!(loadedAssets.characters[charTagFromSpecial] && loadedAssets.characters[charTagFromSpecial][faceTagFromSpecial])) {
-                missingAssets.specialImages.push(scene.special);
+            const specialCharTag = parts[0];
+            const specialFaceTag = parts.slice(1).join('_');
+            
+            // specialがキャラクターの別姿（既にrequiredCharactersで処理済み）ではない、かつ特殊画像として未登録の場合
+            if (!(loadedAssets.characters[specialCharTag] && loadedAssets.characters[specialCharTag][specialFaceTag])) {
+                 requiredSpecialImages.add(scene.special);
             }
         }
     });
 
-    // 重複を削除してリストを整形
-    missingAssets.backgrounds = [...new Set(missingAssets.backgrounds)];
-    for (const charName in missingAssets.characters) {
-        missingAssets.characters[charName] = [...missingAssets.characters[charName]];
-    }
-    missingAssets.specialImages = [...new Set(missingAssets.specialImages)];
+    // 不足している背景を`missingAssets`に追加
+    requiredBackgrounds.forEach(tag => {
+        if (!loadedAssets.backgrounds[tag]) {
+            missingAssets.push({ tag: tag, type: 'background' });
+        }
+    });
+
+    // 不足しているキャラクターを`missingAssets`に追加
+    requiredCharacters.forEach((faceTags, charName) => {
+        faceTags.forEach(faceTag => {
+            if (!loadedAssets.characters[charName] || !loadedAssets.characters[charName][faceTag]) {
+                missingAssets.push({ tag: `${charName}_${faceTag}`, type: 'character' });
+            }
+        });
+    });
+
+    // 不足している特殊画像を`missingAssets`に追加
+    requiredSpecialImages.forEach(tag => {
+        if (!loadedAssets.specialImages[tag]) {
+            missingAssets.push({ tag: tag, type: 'special_image' });
+        }
+    });
+
+    // ソート（見やすくするため）
+    missingAssets.sort((a, b) => {
+        if (a.type !== b.type) {
+            return a.type.localeCompare(b.type);
+        }
+        return a.tag.localeCompare(b.tag);
+    });
 
     // UIの更新
     updateMissingAssetsIndicator();
-    updateMissingAssetListModal();
+    populateMissingAssetSelect();
 }
 
 // びっくりマークの表示/非表示を切り替える
 function updateMissingAssetsIndicator() {
-    const hasMissing = missingAssets.backgrounds.length > 0 || 
-                       Object.keys(missingAssets.characters).length > 0 || 
-                       missingAssets.specialImages.length > 0;
-    
-    if (hasMissing) {
+    if (missingAssets.length > 0) {
         missingAssetsIndicator.style.display = 'block';
     } else {
         missingAssetsIndicator.style.display = 'none';
     }
 }
 
-// 不足アセットリストモーダルの内容を更新
-function updateMissingAssetListModal() {
-    missingAssetListDiv.innerHTML = '';
-    let hasContent = false;
+// 不足アセットのプルダウンメニューを更新
+function populateMissingAssetSelect() {
+    missingAssetSelect.innerHTML = '';
+    if (missingAssets.length === 0) {
+        const option = document.createElement('option');
+        option.value = "";
+        option.textContent = "--不足アセットなし--";
+        missingAssetSelect.appendChild(option);
+        missingAssetSelect.disabled = true;
+    } else {
+        missingAssetSelect.disabled = false;
+        const defaultOption = document.createElement('option');
+        defaultOption.value = "";
+        defaultOption.textContent = "▼ アセットを選択してください";
+        missingAssetSelect.appendChild(defaultOption);
 
-    if (missingAssets.backgrounds.length > 0) {
-        const h3 = document.createElement('h3');
-        h3.textContent = '不足している背景画像:';
-        missingAssetListDiv.appendChild(h3);
-        missingAssets.backgrounds.forEach(tag => {
-            const p = document.createElement('p');
-            p.textContent = `・${tag}`;
-            missingAssetListDiv.appendChild(p);
+        missingAssets.forEach(asset => {
+            const option = document.createElement('option');
+            // 表示名
+            let displayName = asset.tag;
+            if (asset.type === 'background') displayName = `背景: ${asset.tag}`;
+            else if (asset.type === 'character') displayName = `キャラ: ${asset.tag.replace('_', ' (')})`; // hero_smile -> hero (smile)
+            else if (asset.type === 'special_image') displayName = `特殊: ${asset.tag}`;
+
+            option.value = `${asset.type}:${asset.tag}`; // valueはタイプとタグを結合
+            option.textContent = displayName;
+            missingAssetSelect.appendChild(option);
         });
-        hasContent = true;
-    }
-
-    const charKeys = Object.keys(missingAssets.characters);
-    if (charKeys.length > 0) {
-        const h3 = document.createElement('h3');
-        h3.textContent = '不足しているキャラクター画像:';
-        missingAssetListDiv.appendChild(h3);
-        charKeys.forEach(charName => {
-            missingAssets.characters[charName].forEach(faceTag => {
-                const p = document.createElement('p');
-                p.textContent = `・${charName} (${faceTag})`;
-                missingAssetListDiv.appendChild(p);
-            });
-        });
-        hasContent = true;
-    }
-
-    if (missingAssets.specialImages.length > 0) {
-        const h3 = document.createElement('h3');
-        h3.textContent = '不足している特殊画像/エフェクト:';
-        missingAssetListDiv.appendChild(h3);
-        missingAssets.specialImages.forEach(tag => {
-            const p = document.createElement('p');
-            p.textContent = `・${tag}`;
-            missingAssetListDiv.appendChild(p);
-        });
-        hasContent = true;
-    }
-
-    if (!hasContent) {
-        const p = document.createElement('p');
-        p.textContent = '不足しているアセットはありません。';
-        missingAssetListDiv.appendChild(p);
     }
 }
 
-
 // アセットアップロードモーダルを開く
 function openAssetUploadModal() {
-    updateMissingAssetListModal(); // 最新の不足リストを更新してから開く
+    populateMissingAssetSelect(); // 最新の不足リストを更新してから開く
     document.getElementById("asset-upload-modal").style.display = "flex";
+    document.getElementById("upload-single-asset-file").value = ""; // ファイル選択をクリア
 }
 
 // アセットアップロードモーダルを閉じる
@@ -997,108 +973,84 @@ function closeAssetUploadModal() {
     document.getElementById("asset-upload-modal").style.display = "none";
 }
 
-// ファイルアップロード処理
-async function handleAssetUpload(assetType) {
-    let fileInputId;
-    let baseAssetType = assetType; // microCMSに送るasset_type
+// 単一ファイルアップロード処理
+async function handleSingleAssetUpload() {
+    const selectedValue = missingAssetSelect.value;
+    const fileInput = document.getElementById('upload-single-asset-file');
+    const file = fileInput.files[0];
 
-    if (assetType === 'background') {
-        fileInputId = 'upload-bg-file';
-    } else if (assetType === 'character') {
-        fileInputId = 'upload-char-file';
-    } else if (assetType === 'special_image') {
-        fileInputId = 'upload-special-file';
-    } else {
-        console.error("無効なアセットタイプ:", assetType);
-        alert("無効なアセットタイプが指定されました。");
+    if (!selectedValue) {
+        alert("アップロードする不足アセットをプルダウンから選択してください。");
+        return;
+    }
+    if (!file) {
+        alert("画像ファイルを選択してください。");
         return;
     }
 
-    const files = document.getElementById(fileInputId).files;
-    if (files.length === 0) {
-        alert("ファイルを選択してください。");
-        return;
-    }
+    const [assetType, assetTag] = selectedValue.split(':'); // 'background:forest' から分割
 
     showLoadingOverlay(true);
-    let successfulUploads = 0;
-    let failedUploads = 0;
 
-    for (const file of files) {
+    try {
+        // 1. microCMSのアップロードエンドポイントにファイルを直接アップロード
         const formData = new FormData();
         formData.append('file', file);
 
-        try {
-            // microCMSのアップロードエンドポイントにファイルを直接アップロード
-            const uploadRes = await fetch(uploadApiBase, {
-                method: 'POST',
-                headers: { 'X-API-KEY': ASSETS_API_KEY },
-                body: formData
-            });
+        const uploadRes = await fetch(uploadApiBase, {
+            method: 'POST',
+            headers: { 'X-API-KEY': ASSETS_API_KEY },
+            body: formData
+        });
 
-            if (!uploadRes.ok) {
-                const errorData = await uploadRes.json();
-                throw new Error(`Upload failed for ${file.name}: ${JSON.stringify(errorData)}`);
-            }
-            const uploadedFile = await uploadRes.json();
-            const uploadedFileUrl = uploadedFile.url;
-            const fileNameWithoutExt = file.name.split('.').slice(0, -1).join('.');
-
-            let assetData = {
-                asset_type: baseAssetType,
-                tag: fileNameWithoutExt, // デフォルトでファイル名をタグとする
-            };
-
-            if (baseAssetType === 'background' || baseAssetType === 'special_image') {
-                assetData.image = { url: uploadedFileUrl };
-            } else if (baseAssetType === 'character') {
-                // ファイル名からキャラクター名と表情タグを推測 (例: hero_smile.png -> tag: hero, character_face_tag: smile)
-                const parts = fileNameWithoutExt.split('_');
-                if (parts.length > 1) {
-                    assetData.tag = parts[0]; // キャラクター名
-                    assetData.character_face_tag = parts.slice(1).join('_'); // 表情タグ
-                } else {
-                    assetData.character_face_tag = 'default'; // 表情タグがない場合はdefault
-                }
-                assetData.character_face_image = { url: uploadedFileUrl };
-            }
-
-            // assets APIに登録
-            const registerRes = await fetch(assetsApiBase, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-API-KEY': ASSETS_API_KEY
-                },
-                body: JSON.stringify(assetData)
-            });
-
-            if (!registerRes.ok) {
-                const errorData = await registerRes.json();
-                throw new Error(`Asset registration failed for ${file.name}: ${JSON.stringify(errorData)}`);
-            }
-            successfulUploads++;
-            console.log(`Successfully uploaded and registered: ${file.name}`);
-
-        } catch (error) {
-            console.error(`Error processing ${file.name}:`, error);
-            failedUploads++;
+        if (!uploadRes.ok) {
+            const errorData = await uploadRes.json();
+            throw new Error(`Upload failed for ${file.name}: ${JSON.stringify(errorData)}`);
         }
+        const uploadedFile = await uploadRes.json();
+        const uploadedFileUrl = uploadedFile.url;
+
+        let dataToRegister = {
+            asset_type: assetType,
+            tag: assetTag, 
+        };
+
+        if (assetType === 'background' || assetType === 'special_image') {
+            dataToRegister.image = { url: uploadedFileUrl };
+        } else if (assetType === 'character') {
+            // キャラクターの場合、assetTagからキャラクター名と表情タグを再度分離
+            const parts = assetTag.split('_');
+            dataToRegister.tag = parts[0]; // キャラクター名
+            dataToRegister.character_face_tag = parts.slice(1).join('_') || 'default'; // 表情タグ
+            dataToRegister.character_face_image = { url: uploadedFileUrl };
+        }
+
+        // 2. assets APIに登録
+        const registerRes = await fetch(assetsApiBase, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-API-KEY': ASSETS_API_KEY
+            },
+            body: JSON.stringify(dataToRegister)
+        });
+
+        if (!registerRes.ok) {
+            const errorData = await registerRes.json();
+            throw new Error(`Asset registration failed for ${assetTag}: ${JSON.stringify(errorData)}`);
+        }
+        
+        alert(`アセット「${assetTag}」を正常にアップロードし、登録しました！`);
+        closeAssetUploadModal();
+        await loadEpisodeData(currentEpisodeNumber); // アセットとシーンデータを再読み込み
+    } catch (error) {
+        console.error(`アセット「${assetTag}」のアップロード中にエラーが発生しました:`, error);
+        alert(`アセット「${assetTag}」のアップロードに失敗しました。\nエラー: ${error.message}`);
+    } finally {
+        showLoadingOverlay(false);
     }
-
-    showLoadingOverlay(false);
-    alert(`${successfulUploads} 個のファイルをアップロードし、${failedUploads} 個のファイルで失敗しました。`);
-
-    // アップロード後、アセットとシーンデータを再読み込みして不足チェックを更新
-    reloadAssetsAndCheck();
 }
 
-// アセットを再読み込みし、不足チェックを再度実行する
-async function reloadAssetsAndCheck() {
-    closeAssetUploadModal();
-    await loadEpisodeData(currentEpisodeNumber); // 現在のエピソードデータを再読み込み
-    checkMissingAssets(); // アセット不足チェックを再実行
-}
 
 // --- イベントリスナー ---
 const dialogueBox = document.getElementById('dialogue-box');
@@ -1139,7 +1091,7 @@ dialogueBox.addEventListener('touchend', e => {
 
 document.body.addEventListener('click', e => {
     if (document.getElementById("modal").style.display === "flex" || 
-        document.getElementById("asset-upload-modal").style.display === "flex" || // 追加
+        document.getElementById("asset-upload-modal").style.display === "flex" || 
         dialogueBox.classList.contains('expanded')) {
         return;
     }
