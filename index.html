@@ -72,7 +72,7 @@
 <script>
 let scenes = [], currentScene = 0, useVoice = false;
 const apiBase = "https://nvw9sy9y9b.microcms.io/api/v1/scenes";
-const apiKey = "fA7lEFFe3cPFr0zfmbnhckYWS79QT2QKdFiy"; // ⚠埋め込みリスク承知の上で
+const apiKey = "fA7lEFFe3cPFr0zfmbnhckYWS79QT2QKdFiy"; // ← あなたのmicroCMS APIキー
 
 async function loadScenes() {
   const res = await fetch(apiBase + "?limit=100", {
@@ -90,6 +90,7 @@ async function applyEdits() {
   s.face = document.getElementById("edit-face").value;
   s.background = document.getElementById("edit-bg").value;
   s.special = document.getElementById("edit-special").value;
+
   await fetch(`${apiBase}/${s.id}`, {
     method: 'PATCH',
     headers: {
@@ -101,142 +102,103 @@ async function applyEdits() {
   showScene(currentScene);
   collapseLog();
 }
-    let scenes = [], assets = {}, currentScene = 0, useVoice = false;
-    let startY = 0, startX = 0, touchStartTime = 0;
 
-    async function loadScenes() {
-      const res = await fetch('scenes.json');
-      scenes = await res.json();
-      const res2 = await fetch('assets.json');
-      assets = await res2.json();
-      populateFormOptions();
-      showScene(currentScene);
-    }
+function showScene(index) {
+  const s = scenes[index];
+  document.getElementById("scene-title").textContent = `第${s.episode}話`;
+  document.getElementById("speaker").textContent = s.speaker;
+  document.getElementById("text").textContent = s.text;
+  document.getElementById("background").style.backgroundImage = `url('assets/${s.background}.jpg')`;
+  document.getElementById("character").src = "assets/" + (s.character || "placeholder.png");
+  document.getElementById("character").classList.toggle("dimmed", s.speaker === "ナレーション");
 
-    function populateFormOptions() {
-      const speakerSel = document.getElementById("edit-speaker");
-      const faceSel = document.getElementById("edit-face");
-      const bgSel = document.getElementById("edit-bg");
+  document.getElementById("edit-speaker").value = s.speaker;
+  document.getElementById("edit-text").value = s.text;
+  document.getElementById("edit-face").value = s.face || "";
+  document.getElementById("edit-bg").value = s.background || "";
+  document.getElementById("edit-special").value = s.special || "";
 
-      speakerSel.innerHTML = Object.keys(assets.characters).map(c => <option value="${c}">${c}</option>).join("");
-      faceSel.innerHTML = Array.from(new Set(Object.values(assets.characters).flatMap(c => Object.keys(c.normal)))).map(f => <option value="${f}">${f}</option>).join("");
-      bgSel.innerHTML = Object.keys(assets.backgrounds).map(bg => <option value="${bg}">${bg}</option>).join("");
-    }
+  if (useVoice && s.speaker !== "ナレーション") speak(s.text);
+}
 
-    function showScene(index) {
-      const s = scenes[index];
-      document.getElementById("scene-title").textContent = 第${s.episode}話;
-      document.getElementById("speaker").textContent = s.speaker;
-      document.getElementById("text").textContent = s.text;
-      document.getElementById("background").style.backgroundImage = url('assets/${assets.backgrounds[s.background]}');
-      document.getElementById("character").src = "assets/" + (s.character || "placeholder.png");
-      document.getElementById("character").classList.toggle("dimmed", s.speaker === "ナレーション");
+function saveProgress() {
+  localStorage.setItem('yh_progress', currentScene);
+  alert('進行状況を保存しました。');
+}
 
-      document.getElementById("edit-speaker").value = s.speaker;
-      document.getElementById("edit-text").value = s.text;
-      document.getElementById("edit-face").value = s.face || "";
-      document.getElementById("edit-bg").value = s.background || "";
-      document.getElementById("edit-special").value = s.special || "";
+function loadProgress() {
+  const sv = localStorage.getItem('yh_progress');
+  if (sv !== null) {
+    currentScene = +sv;
+    showScene(currentScene);
+    alert('保存地点から再開');
+  } else {
+    alert('保存データがありません');
+  }
+}
 
-      if (useVoice && s.speaker !== "ナレーション") speak(s.text);
-    }
+function toggleVoice() {
+  useVoice = !useVoice;
+  document.getElementById("voice-status").textContent = useVoice ? "オン" : "オフ";
+  alert('読み上げ：' + (useVoice ? 'オン' : 'オフ'));
+}
 
-    function applyEdits() {
-      const s = scenes[currentScene];
-      s.speaker = document.getElementById("edit-speaker").value;
-      s.text = document.getElementById("edit-text").value;
-      s.face = document.getElementById("edit-face").value;
-      s.background = document.getElementById("edit-bg").value;
-      s.special = document.getElementById("edit-special").value;
+function speak(txt) {
+  const msg = new SpeechSynthesisUtterance(txt);
+  msg.lang = 'ja-JP';
+  speechSynthesis.cancel();
+  speechSynthesis.speak(msg);
+}
 
-      const form = s.special === "transform" ? "transform" : "normal";
-      const faceTag = s.face;
-      s.character = assets.characters[s.speaker]?.[form]?.[faceTag] || "placeholder.png";
+function expandLog() {
+  document.getElementById('dialogue-box').classList.add('expanded');
+}
 
-      showScene(currentScene);
-      collapseLog();
-    }
+function collapseLog() {
+  document.getElementById('dialogue-box').classList.remove('expanded');
+}
 
-    function saveProgress() {
-      localStorage.setItem('yh_progress', currentScene);
-      alert('進行状況を保存しました。');
-    }
+function openModal() {
+  document.getElementById("modal").style.display = "flex";
+}
 
-    function loadProgress() {
-      const sv = localStorage.getItem('yh_progress');
-      if (sv !== null) {
-        currentScene = +sv;
-        showScene(currentScene);
-        alert('保存地点から再開');
-      } else {
-        alert('保存データがありません');
-      }
-    }
+function closeModal() {
+  document.getElementById("modal").style.display = "none";
+}
 
-    function toggleVoice() {
-      useVoice = !useVoice;
-      alert('読み上げ：' + (useVoice ? 'オン' : 'オフ'));
-    }
+function downloadScenes() {
+  const blob = new Blob([JSON.stringify(scenes, null, 2)], { type: "application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "scenes.json";
+  a.click();
+}
 
-    function speak(txt) {
-      const msg = new SpeechSynthesisUtterance(txt);
-      msg.lang = 'ja-JP';
-      speechSynthesis.cancel();
-      speechSynthesis.speak(msg);
-    }
+const box = document.getElementById('dialogue-box');
+box.addEventListener('touchstart', e => {
+  startY = e.touches[0].clientY;
+  startX = e.touches[0].clientX;
+  touchStartTime = Date.now();
+});
+box.addEventListener('touchend', e => {
+  const endY = e.changedTouches[0].clientY;
+  const endX = e.changedTouches[0].clientX;
+  const dy = startY - endY, dx = startX - endX;
+  const dt = Date.now() - touchStartTime;
+  if (dy > 30) { expandLog(); return; }
+  if (Math.abs(dy) < 10 && Math.abs(dx) < 10 && dt > 500) { collapseLog(); return; }
+  if (box.classList.contains('expanded') && endY - startY > 30) { collapseLog(); return; }
+});
 
-    function expandLog() {
-      document.getElementById('dialogue-box').classList.add('expanded');
-    }
+document.body.addEventListener('click', e => {
+  if (box.classList.contains('expanded')) return;
+  const x = e.clientX, w = window.innerWidth;
+  x < w / 2 ? currentScene-- : currentScene++;
+  currentScene = Math.max(0, Math.min(currentScene, scenes.length - 1));
+  showScene(currentScene);
+});
 
-    function collapseLog() {
-      document.getElementById('dialogue-box').classList.remove('expanded');
-    }
-
-    function openModal() {
-      document.getElementById("modal").style.display = "flex";
-    }
-
-    function closeModal() {
-      document.getElementById("modal").style.display = "none";
-    }
-
-    function downloadScenes() {
-      const blob = new Blob([JSON.stringify(scenes, null, 2)], { type: "application/json" });
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(blob);
-      a.download = "scenes.json";
-      a.click();
-    }
-
-    const box = document.getElementById('dialogue-box');
-    box.addEventListener('touchstart', e => {
-      startY = e.touches[0].clientY;
-      startX = e.touches[0].clientX;
-      touchStartTime = Date.now();
-    });
-    box.addEventListener('touchend', e => {
-      const endY = e.changedTouches[0].clientY;
-      const endX = e.changedTouches[0].clientX;
-      const dy = startY - endY, dx = startX - endX;
-      const dt = Date.now() - touchStartTime;
-      if (dy > 30) { expandLog(); return; }
-      if (Math.abs(dy) < 10 && Math.abs(dx) < 10 && dt > 500) { collapseLog(); return; }
-      if (box.classList.contains('expanded') && endY - startY > 30) { collapseLog(); return; }
-    });
-
-    document.body.addEventListener('click', e => {
-      if (box.classList.contains('expanded')) return;
-      const x = e.clientX, w = window.innerWidth;
-      x < w / 2 ? currentScene-- : currentScene++;
-      currentScene = Math.max(0, Math.min(currentScene, scenes.length - 1));
-      showScene(currentScene);
-    });
-
-    loadScenes();
-  </script>
-</body>
-</html>
+loadScenes();
 </script>
 </body>
 </html>
