@@ -80,11 +80,10 @@
 <body>
 <div id="header">
     <div id="episode-navigation">
-        <button class="episode-nav-btn" onclick="changeEpisode(-1)">◀ 前の話へ</button>
+        <button class="episode-nav-btn" onclick="changeEpisode(-1)">◀ </button>
         <span id="current-episode-display">第1話</span>
-        <button class="episode-nav-btn" onclick="changeEpisode(1)">次の話へ ▶</button>
+        <button class="episode-nav-btn" onclick="changeEpisode(1)"> ▶</button>
     </div>
-    <div id="scene-title">#1</div>
     <div id="controls">
         <div id="settings-button-wrapper">
             <button onclick="openModal()">⚙️ 設定</button>
@@ -597,6 +596,7 @@ async function addScene() {
 
 // 選択肢（話者、表情、背景）を動的に生成
 function populateSelectOptions() {
+    const narationOption = `<option value="ナレーション">ナレーション</option>`;
     speakerSelect.innerHTML = '<option value="">--未選択--</option>';
     faceSelect.innerHTML = '<option value="">--未選択--</option>';
     bgSelect.innerHTML = '<option value="">--未選択--</option>';
