@@ -85,7 +85,7 @@ const apiKey = "fA7lEFFe3cPFr0zfmbnhckYWS79QT2QKdFiy"; // ← あなたのmicroC
 // microCMSからシーンデータをロード
 async function loadScenes() {
   try {
-    const res = await fetch(apiBase + "?limit=100", { // limitを増やし、より多くのシーンをロード
+    const res = await fetch(apiBase + "?limit=1", { // limitを増やし、より多くのシーンをロード
       headers: { 'X-API-KEY': apiKey }
     });
     if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
