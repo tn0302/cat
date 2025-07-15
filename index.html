@@ -128,7 +128,7 @@ async function applyEdits() {
       background: s.background,
       special: s.special,
       episode: s.episode || 1, // 新規シーンの場合、デフォルト値を設定
-      sceneNumber: s.sceneNumber || scenes.length // 新規シーンの場合、デフォルト値を設定
+      scene: s.scene || scenes.length // 新規シーンの場合、デフォルト値を設定
     };
 
     const res = await fetch(url, {
