@@ -847,7 +847,7 @@ function checkMissingAssets() {
 
     // 現在のシーンで使われているアセットを全て集める（重複なし）
     const requiredBackgrounds = new Set();
-    const requiredCharacters = new Set(); // { charName: Set<faceTag> }
+    const requiredCharacters = new Map();
     const requiredSpecialImages = new Set();
 
     currentEpisodeScenes.forEach(scene => {
