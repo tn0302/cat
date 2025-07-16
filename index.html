@@ -155,6 +155,8 @@
 
 <script>
 // microCMS API情報 - あなたの情報に置き換えてください！
+// ★ 重要: これらのAPIキーは直接クライアントサイドに記述するとセキュリティリスクがあります。
+//    閲覧専用のキーを使用するか、バックエンドサーバー経由でのアクセスを検討してください。
 const MICROCMS_SERVICE_ID = "nvw9sy9y9b";
 const SCENES_API_ENDPOINT = "scenes";
 const ASSETS_API_ENDPOINT = "assets"; 
@@ -222,6 +224,7 @@ async function loadEpisodeData(episodeNumber) {
         const requiredCharacterTags = new Set(); 
         const requiredFaceTags = new Set(); 
         const requiredSpecialImageTags = new Set(); 
+        const requiredEffectTags = new Set(); // 効果音用
 
         currentEpisodeScenes.forEach(scene => {
             if (scene.background && scene.background !== "なし") {
@@ -247,6 +250,10 @@ async function loadEpisodeData(episodeNumber) {
                 // specialが一枚絵のタグとして使われる場合も収集
                 requiredSpecialImageTags.add(scene.special);
             }
+            // 効果音の収集
+            if (scene.effect && scene.effect !== "なし") {
+                requiredEffectTags.add(scene.effect);
+            }
         });
 
         // 必要なアセットデータを読み込み、キャッシュに格納
@@ -254,35 +261,44 @@ async function loadEpisodeData(episodeNumber) {
 
         // 背景
         if (requiredBackgroundTags.size > 0) {
-            const bgFilter = `asset_type[equals]background[and](${Array.from(requiredBackgroundTags).map(tag => `tag[equals]${tag}`).join('[or]')})`;
+            const bgFilter = `asset_type[contains]background[and](${Array.from(requiredBackgroundTags).map(tag => `tag[equals]${tag}`).join('[or]')})`;
             const bgAssets = await fetchAllDataWithPagination(assetsApiBase, ASSETS_API_KEY, `filters=${bgFilter}`);
             bgAssets.forEach(asset => { if (asset.image) loadedAssets.backgrounds[asset.tag] = asset.image.url; });
         }
 
         // キャラクター
         if (requiredCharacterTags.size > 0) {
-            let charFilter = `asset_type[equals]character[and](${Array.from(requiredCharacterTags).map(tag => `tag[equals]${tag}`).join('[or]')})`;
+            let charFilter = `asset_type[contains]character[and](${Array.from(requiredCharacterTags).map(tag => `tag[equals]${tag}`).join('[or]')})`;
             // 表情タグも指定されている場合、より厳密にフィルターする
             if (requiredFaceTags.size > 0) { 
                 charFilter += `[and](${Array.from(requiredFaceTags).map(tag => `character_face_tag[equals]${tag}`).join('[or]')})`;
             }
             const charAssets = await fetchAllDataWithPagination(assetsApiBase, ASSETS_API_KEY, `filters=${charFilter}`);
             charAssets.forEach(asset => {
-                if (asset.character_face_image && asset.character_face_image.url) {
+                // ★ 修正: character_face_image.url から image.url に変更
+                if (asset.image && asset.image.url) { // imageフィールドが存在し、URLを持つか確認
                     if (!loadedAssets.characters[asset.tag]) {
                         loadedAssets.characters[asset.tag] = {};
                     }
-                    loadedAssets.characters[asset.tag][asset.character_face_tag || 'default'] = asset.character_face_image.url; 
+                    loadedAssets.characters[asset.tag][asset.character_face_tag || 'default'] = asset.image.url; 
                 }
             });
         }
 
         // 特殊画像 (一枚絵など)
         if (requiredSpecialImageTags.size > 0) {
-             const specialImageFilter = `asset_type[equals]special_image[and](${Array.from(requiredSpecialImageTags).map(tag => `tag[equals]${tag}`).join('[or]')})`;
+             const specialImageFilter = `asset_type[contains]special_image[and](${Array.from(requiredSpecialImageTags).map(tag => `tag[equals]${tag}`).join('[or]')})`;
              const specialImageAssets = await fetchAllDataWithPagination(assetsApiBase, ASSETS_API_KEY, `filters=${specialImageFilter}`);
              specialImageAssets.forEach(asset => { if (asset.image) loadedAssets.specialImages[asset.tag] = asset.image.url; });
         }
+
+        // 効果音
+        if (requiredEffectTags.size > 0) {
+            const effectFilter = `asset_type[contains]effect[and](${Array.from(requiredEffectTags).map(tag => `tag[equals]${tag}`).join('[or]')})`;
+            const effectAssets = await fetchAllDataWithPagination(assetsApiBase, ASSETS_API_KEY, `filters=${effectFilter}`);
+            effectAssets.forEach(asset => { if (asset.image) loadedAssets.effects[asset.tag] = asset.image.url; }); // effectもimageフィールドから取得
+        }
+
 
         console.log(`エピソード ${episodeNumber} で必要なアセットを読み込みました:`, loadedAssets);
         
@@ -329,7 +345,6 @@ async function fetchAllDataWithPagination(baseUrl, apiKey, filters = '') {
 // --- シーン表示と編集 ---
 
 // シーンを表示
-// シーンを表示
 function showScene(index) {
     if (currentEpisodeScenes.length === 0) {
         document.getElementById("scene-title").textContent = "シーンデータなし";
@@ -368,12 +383,8 @@ function showScene(index) {
         const charTag = parts[0];
         const faceTag = parts.slice(1).join('_');
         if (loadedAssets.characters[charTag] && loadedAssets.characters[charTag][faceTag]) {
-            // キャラクターの別姿として認識された場合は、一枚絵ではないのでisSpecialImageはfalseのまま
             isSpecialImage = false;
-        } else {
-            // どちらでもない場合、フォールバックとして特殊画像として試みる（ただし、本来はアセット登録されているべき）
-            // isSpecialImageはfalseのままにして、後続でキャラクターのplaceholderが表示されるようにする
-        }
+        } 
     }
 
 
@@ -437,7 +448,7 @@ function showScene(index) {
 
 // シーンの編集内容をmicroCMSに適用
 async function applyEdits() {
-    if (currentEpisodeScenes.length === 0 && !document.getElementById("edit-episode").value) {
+    if (currentEpisodeScenes.length === 0) { // ★ 修正: !document.getElementById("edit-episode").value の条件を削除
         alert("編集するシーンがありません。新しいシーンを追加してください。");
         return;
     }
@@ -849,6 +860,7 @@ function checkMissingAssets() {
     const requiredBackgrounds = new Set();
     const requiredCharacters = new Map();
     const requiredSpecialImages = new Set();
+    const requiredEffects = new Set();
 
     currentEpisodeScenes.forEach(scene => {
         if (scene.background && scene.background !== "なし" && scene.background !== "default_bg") {
@@ -863,7 +875,7 @@ function checkMissingAssets() {
                 const parts = scene.special.split('_');
                 const specialCharTag = parts[0];
                 const specialFaceTag = parts.slice(1).join('_');
-                if (charName === specialCharTag) { // current char name matches special char tag
+                if (charName === specialCharTag) { 
                     actualFaceTag = specialFaceTag;
                 }
             }
@@ -874,15 +886,16 @@ function checkMissingAssets() {
         }
 
         if (scene.special && scene.special !== "なし") {
-            // specialがキャラクターの別姿として使われているか確認
             const parts = scene.special.split('_');
             const specialCharTag = parts[0];
             const specialFaceTag = parts.slice(1).join('_');
             
-            // specialがキャラクターの別姿（既にrequiredCharactersで処理済み）ではない、かつ特殊画像として未登録の場合
             if (!(loadedAssets.characters[specialCharTag] && loadedAssets.characters[specialCharTag][specialFaceTag])) {
                  requiredSpecialImages.add(scene.special);
             }
+        }
+        if (scene.effect && scene.effect !== "なし") {
+            requiredEffects.add(scene.effect);
         }
     });
 
@@ -908,6 +921,14 @@ function checkMissingAssets() {
             missingAssets.push({ tag: tag, type: 'special_image' });
         }
     });
+
+    // 不足している効果音を`missingAssets`に追加
+    requiredEffects.forEach(tag => {
+        if (!loadedAssets.effects[tag]) {
+            missingAssets.push({ tag: tag, type: 'effect' });
+        }
+    });
+
 
     // ソート（見やすくするため）
     missingAssets.sort((a, b) => {
@@ -952,10 +973,11 @@ function populateMissingAssetSelect() {
             // 表示名
             let displayName = asset.tag;
             if (asset.type === 'background') displayName = `背景: ${asset.tag}`;
-            else if (asset.type === 'character') displayName = `キャラ: ${asset.tag.replace('_', ' (')})`; // hero_smile -> hero (smile)
+            else if (asset.type === 'character') displayName = `キャラ: ${asset.tag.replace('_', ' (')})`; 
             else if (asset.type === 'special_image') displayName = `特殊: ${asset.tag}`;
+            else if (asset.type === 'effect') displayName = `効果音: ${asset.tag}`; // 効果音の表示名も追加
 
-            option.value = `${asset.type}:${asset.tag}`; // valueはタイプとタグを結合
+            option.value = `${asset.type}:${asset.tag}`; 
             option.textContent = displayName;
             missingAssetSelect.appendChild(option);
         });
@@ -964,9 +986,9 @@ function populateMissingAssetSelect() {
 
 // アセットアップロードモーダルを開く
 function openAssetUploadModal() {
-    populateMissingAssetSelect(); // 最新の不足リストを更新してから開く
+    populateMissingAssetSelect(); 
     document.getElementById("asset-upload-modal").style.display = "flex";
-    document.getElementById("upload-single-asset-file").value = ""; // ファイル選択をクリア
+    document.getElementById("upload-single-asset-file").value = ""; 
 }
 
 // アセットアップロードモーダルを閉じる
@@ -989,7 +1011,7 @@ async function handleSingleAssetUpload() {
         return;
     }
 
-    const [assetType, assetTag] = selectedValue.split(':'); // 'background:forest' から分割
+    const [assetType, assetTag] = selectedValue.split(':'); 
 
     showLoadingOverlay(true);
 
@@ -1012,18 +1034,17 @@ async function handleSingleAssetUpload() {
         const uploadedFileUrl = uploadedFile.url;
 
         let dataToRegister = {
-            asset_type: assetType,
+            asset_type: [assetType], // ★ 修正: asset_type を配列形式で渡す
             tag: assetTag, 
         };
 
-        if (assetType === 'background' || assetType === 'special_image') {
+        if (assetType === 'background' || assetType === 'special_image' || assetType === 'effect') { // ★ 修正: effectもimageフィールドに直接
             dataToRegister.image = { url: uploadedFileUrl };
         } else if (assetType === 'character') {
-            // キャラクターの場合、assetTagからキャラクター名と表情タグを再度分離
             const parts = assetTag.split('_');
-            dataToRegister.tag = parts[0]; // キャラクター名
-            dataToRegister.character_face_tag = parts.slice(1).join('_') || 'default'; // 表情タグ
-            dataToRegister.character_face_image = { url: uploadedFileUrl };
+            dataToRegister.tag = parts[0]; 
+            dataToRegister.character_face_tag = parts.slice(1).join('_') || 'default'; 
+            dataToRegister.image = { url: uploadedFileUrl }; // ★ 修正: character_face_image を image に変更
         }
 
         // 2. assets APIに登録
@@ -1043,7 +1064,7 @@ async function handleSingleAssetUpload() {
         
         alert(`アセット「${assetTag}」を正常にアップロードし、登録しました！`);
         closeAssetUploadModal();
-        await loadEpisodeData(currentEpisodeNumber); // アセットとシーンデータを再読み込み
+        await loadEpisodeData(currentEpisodeNumber); 
     } catch (error) {
         console.error(`アセット「${assetTag}」のアップロード中にエラーが発生しました:`, error);
         alert(`アセット「${assetTag}」のアップロードに失敗しました。\nエラー: ${error.message}`);
