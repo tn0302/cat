@@ -154,15 +154,11 @@
 <div id="loading-overlay">データを読み込み中...</div>
 
 <script>
-// microCMS API情報 - あなたの情報に置き換えてください！
-// ★ 重要: これらのAPIキーは直接クライアントサイドに記述するとセキュリティリスクがあります。
-//    閲覧専用のキーを使用するか、バックエンドサーバー経由でのアクセスを検討してください。
-const MICROCMS_SERVICE_ID = "nvw9sy9y9b";
-const SCENES_API_ENDPOINT = "scenes";
-const ASSETS_API_ENDPOINT = "assets"; 
+// VercelのServerless Functionのエンドポイントを指す
+const SCENES_PROXY_PATH = "/api/scenes"; // api/index.jsが /api/scenes を処理するように設定する
+const ASSETS_PROXY_PATH = "/api/assets";
+const UPLOAD_PROXY_PATH = "/api/media"; // ファイルアップロードもプロキシ経由にする場合
 
-const SCENES_API_KEY = "fA7lEFFe3cPFr0zfmbnhckYWS79QT2QKdFiy"; 
-const ASSETS_API_KEY = "fA7lEFFe3cPFr0zfmbnhckYWS79QT2QKdFiy"; 
 
 const scenesApiBase = `https://${MICROCMS_SERVICE_ID}.microcms.io/api/v2/${SCENES_API_ENDPOINT}`;
 const assetsApiBase = `https://${MICROCMS_SERVICE_ID}.microcms.io/api/v2/${ASSETS_API_ENDPOINT}`;
@@ -206,7 +202,7 @@ async function loadEpisodeData(episodeNumber) {
 
     try {
         const sceneFilter = `filters=episode[equals]${episodeNumber}`;
-        currentEpisodeScenes = await fetchAllDataWithPagination(scenesApiBase, SCENES_API_KEY, sceneFilter);
+
         currentEpisodeScenes.sort((a, b) => (a.sceneNumber || 0) - (b.sceneNumber || 0));
         
         console.log(`エピソード ${episodeNumber} のシーンデータ:`, currentEpisodeScenes);
@@ -261,8 +257,8 @@ async function loadEpisodeData(episodeNumber) {
 
         // 背景
         if (requiredBackgroundTags.size > 0) {
-            const bgFilter = `asset_type[contains]background[and](${Array.from(requiredBackgroundTags).map(tag => `tag[equals]${tag}`).join('[or]')})`;
-            const bgAssets = await fetchAllDataWithPagination(assetsApiBase, ASSETS_API_KEY, `filters=${bgFilter}`);
+            const bgFilter = `asset_type[contains]background[and](${Array.from(requiredBackgroundTags).map(tag => `tag[equals]${tag}`).join('[or]')})`
+            
             bgAssets.forEach(asset => { if (asset.image) loadedAssets.backgrounds[asset.tag] = asset.image.url; });
         }
 
@@ -318,16 +314,18 @@ async function loadEpisodeData(episodeNumber) {
     }
 }
 
-// ページネーションに対応したデータ取得ヘルパー関数
-async function fetchAllDataWithPagination(baseUrl, apiKey, filters = '') {
+async function fetchAllDataWithPagination(proxyPath, filters = '') { // APIキーはここでは不要になる
     let allContents = [];
     let offset = 0;
     const limit = 100;
     let totalCount = 0;
 
     do {
-        const url = `${baseUrl}?limit=${limit}&offset=${offset}${filters ? '&' + filters : ''}`;
-        const res = await fetch(url, { headers: { 'X-API-KEY': apiKey } });
+        // クライアントはプロキシパスにアクセス
+        const url = `${proxyPath}?limit=${limit}&offset=${offset}${filters ? '&' + filters : ''}`;
+        
+        // ★重要: ヘッダーからAPIキーを削除
+        const res = await fetch(url); // APIキーはServerless Function側で追加される
         if (!res.ok) {
             const errorData = await res.json();
             throw new Error(`API Error (${url}): ${res.status} - ${JSON.stringify(errorData)}`);
@@ -1019,12 +1017,6 @@ async function handleSingleAssetUpload() {
         // 1. microCMSのアップロードエンドポイントにファイルを直接アップロード
         const formData = new FormData();
         formData.append('file', file);
-
-        const uploadRes = await fetch(uploadApiBase, {
-            method: 'POST',
-            headers: { 'X-API-KEY': ASSETS_API_KEY },
-            body: formData
-        });
 
         if (!uploadRes.ok) {
             const errorData = await uploadRes.json();
