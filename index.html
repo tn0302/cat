@@ -80,17 +80,20 @@
 <body>
 <div id="header">
     <div id="episode-navigation">
-        <button class="episode-nav-btn" onclick="changeEpisode(-1)">◀ 前の話へ</button>
+        <button class="episode-nav-btn" onclick="changeEpisode(-1)">◀</button>
         <span id="current-episode-display">第1話</span>
-        <button class="episode-nav-btn" onclick="changeEpisode(1)">次の話へ ▶</button>
+        <button class="episode-nav-btn" onclick="changeEpisode(1)"> ▶</button>
     </div>
-    <div id="scene-title">#1</div>
-    <div id="controls">
+    <div id="scene-title">#1</div>  <div id="controls">
         <div id="settings-button-wrapper">
             <button onclick="openModal()">⚙️ 設定</button>
             <span id="missing-assets-indicator" onclick="openAssetUploadModal()">❗</span>
         </div>
     </div>
+</div>
+<div id="novel-container">
+    <div id="dialogue-box">
+        <div id="speaker"></div> <div id="text"></div>     </div>
 </div>
 <div id="novel-container">
     <div id="background"></div>
@@ -104,8 +107,6 @@
             <label>表情：<select id="edit-face"></select></label>
             <label>背景：<select id="edit-bg"></select></label>
             <label>特殊：<input type="text" id="edit-special" placeholder="特殊効果やアセットタグ" /></label>
-            <label>エピソード：<input type="number" id="edit-episode" min="1" value="1" /></label>
-            <label>シーン番号：<input type="number" id="edit-scene-number" min="1" value="1" /></label>
             <button onclick="applyEdits()">✅ 適用</button>
             <button onclick="deleteScene()" style="background: #a00; margin-left: 8px;">🗑️ このシーンを削除</button>
             <button onclick="addScene()" style="background: #0a0; margin-left: 8px;">➕ シーンを追加</button>
