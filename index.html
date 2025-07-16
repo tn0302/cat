@@ -329,6 +329,7 @@ async function fetchAllDataWithPagination(baseUrl, apiKey, filters = '') {
 // --- シーン表示と編集 ---
 
 // シーンを表示
+// シーンを表示
 function showScene(index) {
     if (currentEpisodeScenes.length === 0) {
         document.getElementById("scene-title").textContent = "シーンデータなし";
@@ -425,13 +426,14 @@ function showScene(index) {
     document.getElementById("edit-face").value = s.face || "";
     document.getElementById("edit-bg").value = s.background || "";
     document.getElementById("edit-special").value = s.special || "";
-    document.getElementById("edit-episode").value = s.episode || 1;
-    document.getElementById("edit-scene-number").value = s.sceneNumber || (currentSceneIndex + 1);
+    // document.getElementById("edit-episode").value = s.episode || 1; // 削除
+    // document.getElementById("edit-scene-number").value = s.sceneNumber || (currentSceneIndex + 1); // 削除
 
     if (useVoice && s.speaker !== "ナレーション" && s.text) {
         speak(s.text);
     }
 }
+
 
 // シーンの編集内容をmicroCMSに適用
 async function applyEdits() {
