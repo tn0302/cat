@@ -159,16 +159,6 @@ const SCENES_PROXY_PATH = "/api/scenes";
 const ASSETS_PROXY_PATH = "/api/assets";
 const UPLOAD_PROXY_PATH = "/api/media"; // ファイルアップロードもプロキシ経由にする場合
 
-// ★ microCMSのサービスIDやAPIキーは、Serverless Function側で管理するため、ここでは削除します。
-// const MICROCMS_SERVICE_ID = "YOUR_MICROCMS_SERVICE_ID"; 
-// const SCENES_API_KEY = "YOUR_SCENES_API_KEY";
-// const ASSETS_API_KEY = "YOUR_ASSETS_API_KEY";
-// microCMSへの直接のURL定義も不要になります。
-// const scenesApiBase = `https://${MICROCMS_SERVICE_ID}.microcms.io/api/v2/${SCENES_API_ENDPOINT}`;
-// const assetsApiBase = `https://${MICROCMS_SERVICE_ID}.microcms.io/api/v2/${ASSETS_API_ENDPOINT}`;
-// const uploadApiBase = `https://${MICROCMS_SERVICE_ID}.microcms.io/api/v2/media`;
-
-
 let currentEpisodeScenes = [];
 let loadedAssets = { backgrounds: {}, characters: {}, effects: {}, specialImages: {} };
 let currentSceneIndex = 0;
