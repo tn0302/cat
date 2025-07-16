@@ -448,9 +448,7 @@ async function applyEdits() {
     s.face = document.getElementById("edit-face").value;
     s.background = document.getElementById("edit-bg").value;
     s.special = document.getElementById("edit-special").value;
-    s.episode = parseInt(document.getElementById("edit-episode").value) || 1;
-    s.sceneNumber = parseInt(document.getElementById("edit-scene-number").value) || (currentSceneIndex + 1);
-
+   
     try {
         const method = s.id ? 'PATCH' : 'POST'; 
         const url = s.id ? `${scenesApiBase}/${s.id}` : scenesApiBase;
