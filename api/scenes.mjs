@@ -13,12 +13,12 @@ async function fetchAllDataWithPagination(endpoint, filters = [], limit = 100, o
 
     // MicroCMSのベースURLを関数外で一度定義、または各ループで正しく構築
     // ここで正しいベースURLを構築します
+  // MicroCMSのベースURLを正しく構築
     if (!MICROCMS_SERVICE_ID || !MICROCMS_API_KEY) {
         throw new Error('MicroCMS environment variables (MICROCMS_API_BASE_URL or MICROCMS_API_KEY) are not set.');
     }
     const baseApiUrl = `https://${MICROCMS_SERVICE_ID}.microcms.io/api/v1/${endpoint}`;
-
-    while (hasMore) {
+     while (hasMore) {
         const url = new URL(baseApiUrl); // 正しいベースURLからURLオブジェクトを作成
         url.searchParams.append('limit', limit);
         url.searchParams.append('offset', currentOffset);
@@ -26,14 +26,12 @@ async function fetchAllDataWithPagination(endpoint, filters = [], limit = 100, o
 
         console.log(`Fetching data from: ${url.toString()}`);
 
-        try {
-            // ここをaxios.getに置き換え
-            const response = await axios.get(url.toString(), {
-                headers: {
-                    'X-MICROCMS-API-KEY': MICROCMS_API_KEY, // 正しいヘッダー名とAPIキーを使用
-                },
-            });
-
+       try {
+        const response = await axios.get(url.toString(), {
+            headers: {
+                'X-MICROCMS-API-KEY': MICROCMS_API_KEY, // microCMSのヘッダーは 'X-MICROCMS-API-KEY' が推奨
+            },
+        });
             // axiosはresponse.okではなくstatusコードで成功を判断します
             if (response.status !== 200) {
                 throw new Error(`HTTP error! Status: ${response.status}, Message: ${response.statusText}`);
