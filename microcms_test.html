@@ -18,17 +18,32 @@
     <pre id="data-output"></pre>
 
     <script>
-        // ★★★ ここにあなたのmicroCMS API情報を入力してください ★★★
-        const YOUR_SERVICE_ID = "nvw9sy9y9b"; // あなたのmicroCMSサービスID
+        // Vercelで設定された環境変数を参照します
+        // 注意: クライアントサイドでAPIキーを直接扱うのはセキュリティリスクがあります。
+        // 本番環境では、APIキーをサーバーサイドで管理し、プロキシ経由でアクセスすることをお勧めします。
+        const YOUR_SERVICE_ID = process.env.MICROCMS_API_BASE_URL; // Vercelの環境変数 MICROCMS_API_BASE_URL を参照
         const YOUR_API_ENDPOINT = "scenes";    // あなたのAPIエンドポイント名 (例: 'scenes', 'blogs' など)
-        const YOUR_API_KEY = "fA7lEFFe3cPFr0zfmbnhckYWS79QT2QKdFiy"; // あなたのmicroCMS APIキー
-        // ★★★ ここまで ★★★
+        const YOUR_API_KEY = process.env.MICROCMS_API_KEY; // Vercelの環境変数 MICROCMS_API_KEY を参照
 
         const apiBase = `https://${YOUR_SERVICE_ID}.microcms.io/api/v1/${YOUR_API_ENDPOINT}`;
         const statusElement = document.getElementById('status');
         const dataOutputElement = document.getElementById('data-output');
 
         async function testMicroCMSConnection() {
+            // 環境変数が正しく設定されているかを確認するためのログ
+            console.log("Service ID:", YOUR_SERVICE_ID);
+            console.log("API Key:", YOUR_API_KEY);
+            console.log("API Base URL:", apiBase);
+
+            // 環境変数が未設定の場合のチェック
+            if (!YOUR_SERVICE_ID || !YOUR_API_KEY) {
+                statusElement.textContent = '❌ microCMSの環境変数 (MICROCMS_API_BASE_URL または MICROCMS_API_KEY) が設定されていません。';
+                statusElement.className = 'error';
+                dataOutputElement.textContent = 'Vercelの環境変数設定を確認してください。';
+                console.error("microCMS環境変数エラー: 環境変数が設定されていません。");
+                return;
+            }
+
             try {
                 const res = await fetch(apiBase, {
                     headers: { 'X-API-KEY': YOUR_API_KEY }
