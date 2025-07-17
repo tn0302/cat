@@ -166,7 +166,6 @@ let useVoice = false;
 let currentEpisodeNumber = 1;
 let missingAssets = []; // 不足アセットリストを統一
 
-
 // UI要素の取得
 const speakerSelect = document.getElementById("edit-speaker");
 const faceSelect = document.getElementById("edit-face");
@@ -197,14 +196,11 @@ async function loadEpisodeData(episodeNumber) {
     localStorage.setItem('yh_current_episode', currentEpisodeNumber);
 
     try {
-        // APIルートから直接配列を受け取るようになったため、fetchAllDataWithPaginationの呼び出し方を変更
-        // 第二引数の`episodeNumber`はAPIルートにクエリパラメータとして渡される
-        // 第三引数の`filters`は`api/scenes.js`が内部で処理するため、ここでは不要
-        currentEpisodeScenes = await fetchAllDataWithPagination(SCENES_PROXY_PATH, episodeNumber); 
+        currentEpisodeScenes = await fetchAllDataWithPagination(SCENES_PROXY_PATH, episodeNumber, `filters=episode[equals]${episodeNumber}`); // 第2引数に episodeNumber、第3引数にフィルターを渡す
         currentEpisodeScenes.sort((a, b) => (a.sceneNumber || 0) - (b.sceneNumber || 0));
 
-        console.log(`エピソード ${episodeNumber} のシーンデータ:`, currentEpisodeScenes);
-
+          console.log(`エピソード ${episodeNumber} のシーンデータ:`, currentEpisodeScenes); 
+    
         if (currentEpisodeScenes.length === 0) {
             alert(`エピソード ${episodeNumber} にシーンデータがありません。新しいシーンを追加してください。`);
             showLoadingOverlay(false);
@@ -221,9 +217,7 @@ async function loadEpisodeData(episodeNumber) {
         const requiredEffectTags = new Set(); // 効果音用
 
         currentEpisodeScenes.forEach(scene => {
-            // ★ 修正: scene.background が直接URLの場合と文字列（タグ）の場合を両方考慮する
-            // APIルートが常にURLを返している場合は、以下のtag収集ロジックは簡素化できます
-            if (typeof scene.background === 'string' && !scene.background.startsWith('http') && scene.background !== "なし") {
+            if (scene.background && scene.background !== "なし") {
                 requiredBackgroundTags.add(scene.background);
             }
             if (scene.speaker && scene.speaker !== "ナレーション") {
@@ -255,39 +249,12 @@ async function loadEpisodeData(episodeNumber) {
         // 必要なアセットデータを読み込み、キャッシュに格納
         loadedAssets = { backgrounds: {}, characters: {}, effects: {}, specialImages: {} };
 
-        // 背景 (APIルートがURLを返しているので、ここではloadedAssetsに直接URLを格納する)
-        // もしAPIルートが文字列タグを返しているなら、この部分でASSETS_PROXY_PATHを叩く
-        // 現状、APIルートがURLに変換しているため、ここでは不要、あるいは簡素化
-        currentEpisodeScenes.forEach(scene => {
-            if (scene.background && typeof scene.background === 'string' && scene.background.startsWith('http')) {
-                // APIルートがすでにURLを返している場合
-                // backgroundのtagが不明なので、単純にURLをセット
-                // これは厳密にはloadedAssets.backgrounds[tag] = url; の構造に合わないが、
-                // showSceneで直接利用するため許容
-                // より厳密なら、APIルートからtagも一緒に返してもらう方が良い
-                // とりあえず、backgroundElement.style.backgroundImage = `url('${s.background}')`; のように直接使う
-            }
-            // もしAPIルートがタグ文字列を返しているなら、以下のようにASSETS_PROXY_PATHを叩く
-            // if (requiredBackgroundTags.size > 0) {
-            //     const bgFilter = `asset_type[contains]background[and](${Array.from(requiredBackgroundTags).map(tag => `tag[equals]${tag}`).join('[or]')})`
-            //     const bgAssets = await fetchAllDataWithPagination(ASSETS_PROXY_PATH, null, `filters=${bgFilter}`);
-            //     bgAssets.forEach(asset => { if (asset.image) loadedAssets.backgrounds[asset.tag] = asset.image.url; });
-            // }
-        });
-        // 既存の背景アセットの loadedAssets.backgrounds のデータ構造は、APIから取得したURLを直接使う場合、用途が限定的になる。
-        // `showScene`関数で`s.background`を直接背景URLとして使うことに変更するので、
-        // ここでの`loadedAssets.backgrounds`への明示的な格納は、主に`populateSelectOptions`のためのものとなる。
-        // そのため、ここでは`bgSelect`のための既存の背景タグと、そのURLを収集する。
+        // 背景
         if (requiredBackgroundTags.size > 0) {
-            // filtersでasset_typeがbackgroundかつtagが該当するものを取得
-            const bgAssets = await fetchAllDataWithPagination(ASSETS_PROXY_PATH, null, `filters=asset_type[contains]background[and](${Array.from(requiredBackgroundTags).map(tag => `tag[equals]${tag}`).join('[or]')})`);
-            bgAssets.forEach(asset => { 
-                if (asset.image) {
-                    loadedAssets.backgrounds[asset.tag] = asset.image.url;
-                }
-            });
+            const bgFilter = `asset_type[contains]background[and](${Array.from(requiredBackgroundTags).map(tag => `tag[equals]${tag}`).join('[or]')})`
+            const bgAssets = await fetchAllDataWithPagination(ASSETS_PROXY_PATH, `filters=${bgFilter}`);
+            bgAssets.forEach(asset => { if (asset.image) loadedAssets.backgrounds[asset.tag] = asset.image.url; });
         }
-
 
         // キャラクター
         if (requiredCharacterTags.size > 0) {
@@ -296,7 +263,7 @@ async function loadEpisodeData(episodeNumber) {
             if (requiredFaceTags.size > 0) {
                 charFilter += `[and](${Array.from(requiredFaceTags).map(tag => `character_face_tag[equals]${tag}`).join('[or]')})`;
             }
-            const charAssets = await fetchAllDataWithPagination(ASSETS_PROXY_PATH, null, `filters=${charFilter}`);
+            const charAssets = await fetchAllDataWithPagination(ASSETS_PROXY_PATH, `filters=${charFilter}`);
             charAssets.forEach(asset => {
                 // ★ 修正: character_face_image.url から image.url に変更
                 if (asset.image && asset.image.url) { // imageフィールドが存在し、URLを持つか確認
@@ -311,14 +278,14 @@ async function loadEpisodeData(episodeNumber) {
         // 特殊画像 (一枚絵など)
         if (requiredSpecialImageTags.size > 0) {
              const specialImageFilter = `asset_type[contains]special_image[and](${Array.from(requiredSpecialImageTags).map(tag => `tag[equals]${tag}`).join('[or]')})`;
-             const specialImageAssets = await fetchAllDataWithPagination(ASSETS_PROXY_PATH, null, `filters=${specialImageFilter}`);
+             const specialImageAssets = await fetchAllDataWithPagination(ASSETS_PROXY_PATH, `filters=${specialImageFilter}`);
              specialImageAssets.forEach(asset => { if (asset.image) loadedAssets.specialImages[asset.tag] = asset.image.url; });
         }
 
         // 効果音
         if (requiredEffectTags.size > 0) {
             const effectFilter = `asset_type[contains]effect[and](${Array.from(requiredEffectTags).map(tag => `tag[equals]${tag}`).join('[or]')})`;
-            const effectAssets = await fetchAllDataWithPagination(ASSETS_PROXY_PATH, null, `filters=${effectFilter}`);
+            const effectAssets = await fetchAllDataWithPagination(ASSETS_PROXY_PATH, `filters=${effectFilter}`);
             effectAssets.forEach(asset => { if (asset.image) loadedAssets.effects[asset.tag] = asset.image.url; }); // effectもimageフィールドから取得
         }
 
@@ -341,44 +308,32 @@ async function loadEpisodeData(episodeNumber) {
     }
 }
 
-// fetchAllDataWithPagination関数をAPIルートが直接配列を返すように修正
-async function fetchAllDataWithPagination(proxyPath, episode = null, filters = '') { // episodeはscenesパスのみで使用。assetsパスでは不要なのでデフォルトnull
-    let url = proxyPath;
-    const params = new URLSearchParams();
+// fetchAllDataWithPagination関数は既にプロキシパスを受け取る形になっているため、変更なし
+async function fetchAllDataWithPagination(proxyPath, episode, filters = '') { // ここに episode を追加
+    let allContents = [];
+    let offset = 0;
+    const limit = 100;
+    let totalCount = 0;
 
-    // scenes_proxy_pathの場合のみepisodeを追加
-    if (proxyPath === SCENES_PROXY_PATH && episode !== null) {
-        params.append('episode', episode);
-    }
-    
-    // filtersがあれば追加
-    if (filters) {
-        // filtersはすでにURLエンコードされていると仮定し、そのまま追加
-        // URLSearchParamsは自動でエンコードするので、ここではそのまま追加
-        const filterParams = new URLSearchParams(filters);
-        filterParams.forEach((value, key) => params.append(key, value));
-    }
-    
-    // パラメータがあればURLに結合
-    if (params.toString()) {
-        url += '?' + params.toString();
-    }
+    do {
+        // ★ 修正: URLに `episode=${episode}` を追加
+        const url = `${proxyPath}?episode=${episode}&limit=${limit}&offset=${offset}${filters ? '&' + filters : ''}`;
 
-    // APIキーはServerless Function側で追加されるため、ここでは不要
-    const res = await fetch(url);
-    if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(`API Error (${url}): ${res.status} - ${JSON.stringify(errorData)}`);
-    }
-    // APIルートはすでに全データを配列として返しているため、そのまま返す
-    const data = await res.json(); 
-    
-    // 戻り値が配列でない場合のエラーハンドリング
-    if (!Array.isArray(data)) {
-        throw new Error(`API returned invalid data format. Expected an array but got: ${JSON.stringify(data)}`);
-    }
+        // APIキーはServerless Function側で追加されるため、ここでは不要
+        const res = await fetch(url);
+        if (!res.ok) {
+            const errorData = await res.json();
+            throw new Error(`API Error (${url}): ${res.status} - ${JSON.stringify(errorData)}`);
+        }
+        const data = await res.json();
+        // ★ 問題の箇所: ここで data.contents を allContents に concat している
+        // しかし、APIルートが直接配列を返すようになったため、data.contents は存在しない
+        allContents = allContents.concat(data.contents); 
+        totalCount = data.totalCount; // ★ 問題の箇所: data.totalCount も存在しない
+        offset += limit;
+    } while (offset < totalCount);
 
-    return data; // APIルートから返された配列をそのまま返す
+    return allContents;
 }
 
 
@@ -443,14 +398,8 @@ function showScene(index) {
         specialImageElement.src = "";
 
         // 背景画像の設定
-        // ★ 修正: item.backgroundではなく、s.backgroundを直接URLとして使う
-        const backgroundUrl = s.background; 
-        if (backgroundUrl) {
-            backgroundElement.style.backgroundImage = `url('${backgroundUrl}')`;
-        } else {
-            backgroundElement.style.backgroundImage = `url('assets/default_bg.jpg')`; // フォールバック
-        }
-        
+        const backgroundUrl = item.background; 
+
         // キャラクター画像の設定
         const charName = s.character || s.speaker;
         let actualFaceTag = s.face || 'normal';
@@ -480,31 +429,10 @@ function showScene(index) {
     document.getElementById("edit-speaker").value = s.speaker || "";
     document.getElementById("edit-text").value = s.text || "";
     document.getElementById("edit-face").value = s.face || "";
-    // ★ 修正: background はAPIからURLが来るが、edit-bg はタグ名を期待するので、そのマッピングが必要
-    // 現状は s.background がURLになっているため、select の option value と一致しない
-    // ここは、loadedAssets.backgrounds から URL に対応するタグを逆引きする必要があるが、
-    // 一旦 s.background (URL) を直接セットし、ユーザーが手動で選ぶ形式にする
-    // あるいは、APIルートで background_tag のようなフィールドも返すようにするか。
-    // 最も簡単なのは、background編集はタグ名で、表示はURLという使い分け。
-    // このエディタで背景を編集する場合、ユーザーはタグ名を知っている必要がある。
-    // なので、edit-bg には URL ではなくタグ名を設定するのが自然。
-    // しかし、APIルートがURLを返しているので、ここにURLを設定するとselectが合わない。
-    // 一時的に s.background の値がURLの場合、tag名を特定する処理が必要。
-    // 簡単化のため、一旦 s.background をそのままセットするが、ここは要検討
-    // 現状、populatedSelectOptions で loadedAssets.backgrounds からタグを生成しているので、
-    // ここで s.background (URL) に対応するタグを逆引きしてセットする。
-    let currentBgTag = "";
-    if (s.background) {
-        for (const tag in loadedAssets.backgrounds) {
-            if (loadedAssets.backgrounds[tag] === s.background) {
-                currentBgTag = tag;
-                break;
-            }
-        }
-    }
-    document.getElementById("edit-bg").value = currentBgTag || ""; // URLからタグに変換してセット
-
+    document.getElementById("edit-bg").value = s.background || "";
     document.getElementById("edit-special").value = s.special || "";
+    // document.getElementById("edit-episode").value = s.episode || 1; // 削除
+    // document.getElementById("edit-scene-number").value = s.sceneNumber || (currentSceneIndex + 1); // 削除
 
     if (useVoice && s.speaker !== "ナレーション" && s.text) {
         speak(s.text);
@@ -514,7 +442,7 @@ function showScene(index) {
 
 // シーンの編集内容をmicroCMSに適用 (プロキシ経由に変更)
 async function applyEdits() {
-    if (currentEpisodeScenes.length === 0) {
+    if (currentEpisodeScenes.length === 0) { // ★ 修正: !document.getElementById("edit-episode").value の条件を削除
         alert("編集するシーンがありません。新しいシーンを追加してください。");
         return;
     }
@@ -525,9 +453,7 @@ async function applyEdits() {
     s.speaker = document.getElementById("edit-speaker").value;
     s.text = document.getElementById("edit-text").value;
     s.face = document.getElementById("edit-face").value;
-    // ★ 修正: edit-bg はタグ名なので、APIに送信する際はそのタグ名
-    s.background = document.getElementById("edit-bg").value; // ここはタグ名
-
+    s.background = document.getElementById("edit-bg").value;
     s.special = document.getElementById("edit-special").value;
 
     try {
@@ -539,7 +465,7 @@ async function applyEdits() {
             speaker: s.speaker,
             text: s.text,
             face: s.face,
-            background: s.background, // ここはタグ名のままでOK
+            background: s.background,
             special: s.special,
             episode: s.episode,
             sceneNumber: s.sceneNumber,
@@ -549,6 +475,7 @@ async function applyEdits() {
             method: method,
             headers: {
                 'Content-Type': 'application/json',
+                // 'X-API-KEY': SCENES_API_KEY // ★ APIキーはプロキシ側で追加するため削除
             },
             body: JSON.stringify(dataToSend)
         });
@@ -567,15 +494,9 @@ async function applyEdits() {
             alert(`シーンのエピソード番号が変更されました。\n現在のエピソードを再読み込みします。`);
             await loadEpisodeData(currentEpisodeNumber);
         } else {
-            // ★ 修正: 更新後に再度データを読み込み、現在のシーンインデックスを保持
-            await loadEpisodeData(currentEpisodeNumber); // データ再読み込み
+            await loadEpisodeData(currentEpisodeNumber);
             const updatedIndex = currentEpisodeScenes.findIndex(scene => scene.id === s.id);
-            if (updatedIndex !== -1) {
-                currentSceneIndex = updatedIndex;
-            } else {
-                // シーンが見つからない場合は先頭に
-                currentSceneIndex = 0;
-            }
+            if (updatedIndex !== -1) currentSceneIndex = updatedIndex;
             showScene(currentSceneIndex);
             collapseLog();
             if (originalSpeaker !== s.speaker) {
@@ -626,6 +547,7 @@ async function deleteSceneFromMicroCMS(sceneId) {
     // プロキシパスを使用
     const res = await fetch(`${SCENES_PROXY_PATH}/${sceneId}`, {
         method: 'DELETE',
+        // headers: { 'X-API-KEY': SCENES_API_KEY } // ★ APIキーはプロキシ側で追加するため削除
     });
     if (!res.ok) {
         const errorData = await res.json();
@@ -635,21 +557,14 @@ async function deleteSceneFromMicroCMS(sceneId) {
 
 // 新しいシーンの追加機能 (プロキシ経由に変更)
 async function addScene() {
-    // 新しいシーンの `episode` と `sceneNumber` を適切に設定
-    let newSceneNumber = 1;
-    if (currentEpisodeScenes.length > 0) {
-        // 現在のシーンの次の番号、または現在のエピソードの最大シーン番号 + 1
-        newSceneNumber = Math.max(...currentEpisodeScenes.map(s => s.sceneNumber || 0)) + 1;
-    }
-
     const newScene = {
         speaker: "新しい話者",
         text: "新しいセリフ",
         face: "",
-        background: "default_bg", // 初期値はタグ名
+        background: "default_bg",
         special: "",
-        episode: currentEpisodeNumber, // 現在のエピソード番号をセット
-        sceneNumber: newSceneNumber
+        episode: currentEpisodeScenes[currentSceneIndex]?.episode || currentEpisodeNumber,
+        sceneNumber: (currentEpisodeScenes[currentSceneIndex]?.sceneNumber || 0) + 1
     };
 
     try {
@@ -658,6 +573,7 @@ async function addScene() {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
+                // 'X-API-KEY': SCENES_API_KEY // ★ APIキーはプロキシ側で追加するため削除
             },
             body: JSON.stringify(newScene)
         });
@@ -666,17 +582,16 @@ async function addScene() {
             const errorData = await res.json();
             throw new Error(`API error! status: ${res.status}, message: ${JSON.stringify(errorData)}`);
         }
-        const createdScene = await res.json(); // 作成されたシーンの情報を取得
-        newScene.id = createdScene.id; // IDを反映
+        const createdScene = await res.json();
+        newScene.id = createdScene.id;
 
-        await loadEpisodeData(currentEpisodeNumber); // データを再読み込み
+        await loadEpisodeData(currentEpisodeNumber);
 
-        // 追加されたシーンのインデックスを見つけて移動
         const addedIndex = currentEpisodeScenes.findIndex(scene => scene.id === newScene.id);
         if (addedIndex !== -1) {
             currentSceneIndex = addedIndex;
         } else {
-            currentSceneIndex = currentEpisodeScenes.length - 1; // 見つからない場合は最後へ
+            currentSceneIndex = currentEpisodeScenes.length - 1;
         }
         showScene(currentSceneIndex);
         populateSelectOptions();
@@ -740,18 +655,7 @@ function populateSelectOptions() {
     if (s) {
         speakerSelect.value = s.speaker || "";
         faceSelect.value = s.face || "";
-        
-        // ★ 修正: edit-bg にはタグを設定する。s.backgroundはURLなので逆引き
-        let currentBgTagForEdit = "";
-        if (s.background) {
-            for (const tag in loadedAssets.backgrounds) {
-                if (loadedAssets.backgrounds[tag] === s.background) {
-                    currentBgTagForEdit = tag;
-                    break;
-                }
-            }
-        }
-        document.getElementById("edit-bg").value = currentBgTagForEdit || "";
+        bgSelect.value = s.background || "";
     }
 }
 
@@ -850,8 +754,8 @@ async function downloadAllScenes() {
     showLoadingOverlay(true);
     try {
         // プロキシパスを使用
-        // episodeパラメータにnullを渡すことで、api/scenes.jsのすべてのシーンを取得する
-        const allNovelScenes = await fetchAllDataWithPagination(SCENES_PROXY_PATH, null); 
+        // ★ 修正: episodeパラメータとして null を渡す
+        const allNovelScenes = await fetchAllDataWithPagination(SCENES_PROXY_PATH, null); // ここを修正
         if (allNovelScenes.length === 0) {
             alert("ダウンロードするシーンがありません。");
             return;
@@ -892,8 +796,7 @@ async function handleFileUpload(event) {
             }
 
             // プロキシパスを使用
-            // null を渡すことで全シーンを取得
-            const existingMicroCMSSchemas = await fetchAllDataWithPagination(SCENES_PROXY_PATH, null);
+            const existingMicroCMSSchemas = await fetchAllDataWithPagination(SCENES_PROXY_PATH);
             const existingIdMap = new Map(existingMicroCMSSchemas.map(s => [s.id, s]));
 
             const uploadedIds = new Set(uploadedData.map(s => s.id).filter(Boolean));
@@ -910,15 +813,11 @@ async function handleFileUpload(event) {
                 // プロキシパスを使用
                 const url = method === 'PATCH' ? `${SCENES_PROXY_PATH}/${scene.id}` : SCENES_PROXY_PATH;
 
-                // background フィールドはタグ名で送信されるべき。
-                // uploadされたJSONの background がURLの場合、これをタグに変換するか、
-                // あるいは upload API が URL を受け付けてタグに変換する仕組みが必要。
-                // 現状は、uploadedDataの background がタグ名であると仮定。
                 const dataToSend = {
                     speaker: scene.speaker,
                     text: scene.text,
                     face: scene.face,
-                    background: scene.background, 
+                    background: scene.background,
                     special: scene.special,
                     episode: scene.episode || 1,
                     sceneNumber: scene.sceneNumber || 1
@@ -928,6 +827,7 @@ async function handleFileUpload(event) {
                     method: method,
                     headers: {
                         'Content-Type': 'application/json',
+                        // 'X-API-KEY': SCENES_API_KEY // ★ APIキーはプロキシ側で追加するため削除
                     },
                     body: JSON.stringify(dataToSend)
                 });
@@ -964,36 +864,9 @@ function checkMissingAssets() {
     const requiredEffects = new Set();
 
     currentEpisodeScenes.forEach(scene => {
-        // ★ 修正: scene.background が URL として渡されていることを考慮
-        // loadedAssets.backgrounds にはタグ -> URL のマッピングがあるため、
-        // 逆引きしてタグがなければ不足アセットとみなす
-        if (scene.background && scene.background !== "なし" && !scene.background.startsWith('http://') && !scene.background.startsWith('https://')) {
-            // background がタグ文字列の場合（例: default_bg）
+        if (scene.background && scene.background !== "なし" && scene.background !== "default_bg") {
             requiredBackgrounds.add(scene.background);
-        } else if (scene.background && scene.background.startsWith('http')) {
-            // background が URL の場合、対応するタグがあるかloadedAssets.backgroundsを逆引きしてチェック
-            let foundTag = false;
-            for (const tag in loadedAssets.backgrounds) {
-                if (loadedAssets.backgrounds[tag] === scene.background) {
-                    foundTag = true;
-                    break;
-                }
-            }
-            if (!foundTag) {
-                // URLは存在するがloadedAssetsにそのタグがない場合
-                // これは「タグが不明なアセット」となるため、不足とは異なるが、
-                // 一旦「不足」としてユーザーに知らせるため、URL自体をタグとして扱う
-                // あるいは、APIルートで background_tag を返すようにするのが理想的
-                console.warn("APIから直接URLが返されたが、対応するタグがloadedAssetsにありません:", scene.background);
-                // ここで不足アセットとして扱うかは検討の余地あり。今回は一旦タグとして追加してチェック
-                // （ただしこのケースではアップロード先となるタグ名が不明なため、アップロードはできない）
-                // 実際には、API側が常にタグを返すか、URLとタグ両方を返すのが理想
-                // ここでは、`background`がURLであっても、対応するタグが`loadedAssets.backgrounds`に存在しない場合は、
-                // `populateMissingAssetSelect`でタグ名がURLになってしまうが、ユーザーに確認させるため追加
-                requiredBackgrounds.add(scene.background); // URL自体をタグとして追加
-            }
         }
-
 
         const charName = scene.character || scene.speaker;
         if (charName && charName !== "なし" && charName !== "ナレーション") {
@@ -1029,10 +902,7 @@ function checkMissingAssets() {
 
     // 不足している背景を`missingAssets`に追加
     requiredBackgrounds.forEach(tag => {
-        // loadedAssets.backgrounds[tag] に URL が含まれるかチェック
-        // APIから返されたURLに対応するタグが存在しない場合も不足とみなす
         if (!loadedAssets.backgrounds[tag]) {
-            // ここで tag が URL の場合は、アップロードできないので注意が必要
             missingAssets.push({ tag: tag, type: 'background' });
         }
     });
@@ -1144,12 +1014,6 @@ async function handleSingleAssetUpload() {
 
     const [assetType, assetTag] = selectedValue.split(':');
 
-    // ★ 修正: assetTag がURLの場合、アップロードできないため警告
-    if (assetTag.startsWith('http://') || assetTag.startsWith('https://')) {
-        alert("URL形式の背景アセットは直接アップロードできません。MicroCMSの管理画面でURLに対応するタグを持つアセットを作成してください。");
-        return;
-    }
-
     showLoadingOverlay(true);
 
     try {
@@ -1159,6 +1023,7 @@ async function handleSingleAssetUpload() {
 
         const uploadRes = await fetch(UPLOAD_PROXY_PATH, { // プロキシパスを使用
             method: 'POST',
+            // headers: { 'X-API-KEY': UPLOAD_API_KEY } // ★ APIキーはプロキシ側で追加するため削除
             body: formData
         });
 
@@ -1188,6 +1053,7 @@ async function handleSingleAssetUpload() {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
+                // 'X-API-KEY': ASSETS_API_KEY // ★ APIキーはプロキシ側で追加するため削除
             },
             body: JSON.stringify(dataToRegister)
         });
