@@ -1,11 +1,11 @@
--// api/media.js
-// microCMSの「メディアアップロード」エンドポイントへのプロキシ
+// api/media.js
+// Cloudinaryへの画像アップロードを処理するプロキシ
 
-import fetch from 'node-fetch';
-import { IncomingForm } from 'formidable'; // ファイルアップロードを処理するためのライブラリ
+import { IncomingForm } from 'formidable';
+import { v2 as cloudinary } from 'cloudinary'; // Cloudinary SDKをインポート
 import fs from 'fs';
 
-// formidableの設定 (VercelのServerless Functionの制限に合わせてbodyParseをfalseにする)
+// formidableの設定 (ファイルアップロードのbody解析を無効にする)
 export const config = {
   api: {
     bodyParser: false,
@@ -13,14 +13,21 @@ export const config = {
 };
 
 export default async function (req, res) {
-  const MICROCMS_SERVICE_ID = process.env.MICROCMS_SERVICE_ID;
-  const UPLOAD_API_KEY = process.env.MICROCMS_MANAGEMENT_API_KEY; // アップロードには管理APIキーが必要
+  // Cloudinaryの環境変数をVercelから取得
+  const CLOUDINARY_CLOUD_NAME = process.env.CLOUDINARY_CLOUD_NAME;
+  const CLOUDINARY_API_KEY = process.env.CLOUDINARY_API_KEY;
+  const CLOUDINARY_API_SECRET = process.env.CLOUDINARY_API_SECRET;
 
-  if (!MICROCMS_SERVICE_ID || !UPLOAD_API_KEY) {
-    return res.status(500).json({ error: 'Server configuration error: microCMS environment variables are not set for media upload.' });
+  if (!CLOUDINARY_CLOUD_NAME || !CLOUDINARY_API_KEY || !CLOUDINARY_API_SECRET) {
+    return res.status(500).json({ error: 'Server configuration error: Cloudinary environment variables are not set.' });
   }
 
-  const microCMSUrl = `https://${MICROCMS_SERVICE_ID}.microcms.io/api/v2/media`;
+  // Cloudinaryの設定
+  cloudinary.config({
+    cloud_name: CLOUDINARY_CLOUD_NAME,
+    api_key: CLOUDINARY_API_KEY,
+    api_secret: CLOUDINARY_API_SECRET,
+  });
 
   if (req.method === 'POST') {
     const form = new IncomingForm();
@@ -40,29 +47,26 @@ export default async function (req, res) {
         return res.status(400).json({ error: 'No file found in upload.' });
       }
       
-      const fileStream = fs.createReadStream(file.filepath);
+      const filePath = file.filepath; // formidableが一時保存したファイルのパス
 
       try {
-        const microCMSRes = await fetch(microCMSUrl, {
-          method: 'POST',
-          headers: {
-            'X-MICROCMS-API-KEY': UPLOAD_API_KEY,
-            // 'Content-Type': 'multipart/form-data' はnode-fetchが自動で設定するため不要
-          },
-          body: fileStream, // ストリームを直接bodyに渡す
+        // Cloudinaryにアップロード
+        const result = await cloudinary.uploader.upload(filePath, {
+            folder: 'novel-game-assets', // Cloudinaryに保存するフォルダ名を指定
+            resource_type: 'auto' // 画像、動画、Rawファイルなどを自動判別
         });
 
-        const data = await microCMSRes.json();
-        res.status(microCMSRes.status).json(data);
+        // アップロード成功後の一時ファイルを削除 (formidableが自動で処理することもあるが、念のため)
+        fs.unlink(filePath, (unlinkErr) => {
+            if (unlinkErr) console.error('Error deleting temp file:', unlinkErr);
+        });
+
+        // クライアントにCloudinaryのURLを返す
+        res.status(200).json({ url: result.secure_url });
 
       } catch (error) {
-        console.error('Proxy error for media upload API:', error);
-        res.status(500).json({ error: 'Failed to proxy media upload request to microCMS.' });
-      } finally {
-        // アップロード後に一時ファイルを削除 (formidableが自動で処理することもあるが、念のため)
-        // fs.unlink(file.filepath, (unlinkErr) => {
-        //   if (unlinkErr) console.error('Error deleting temp file:', unlinkErr);
-        // });
+        console.error('Cloudinary upload error:', error);
+        res.status(500).json({ error: `Failed to upload to Cloudinary: ${error.message}` });
       }
     });
   } else {
