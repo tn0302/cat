@@ -199,8 +199,8 @@ async function loadEpisodeData(episodeNumber) {
         currentEpisodeScenes = await fetchAllDataWithPagination(SCENES_PROXY_PATH, episodeNumber, `filters=episode[equals]${episodeNumber}`); // 第2引数に episodeNumber、第3引数にフィルターを渡す
         currentEpisodeScenes.sort((a, b) => (a.sceneNumber || 0) - (b.sceneNumber || 0));
 
-        console.log(`エピソード ${episodeNumber} のシーンデータ:`, currentEpisodeScenes);
-
+          console.log(`エピソード ${episodeNumber} のシーンデータ:`, currentEpisodeScenes); 
+    
         if (currentEpisodeScenes.length === 0) {
             alert(`エピソード ${episodeNumber} にシーンデータがありません。新しいシーンを追加してください。`);
             showLoadingOverlay(false);
@@ -326,8 +326,10 @@ async function fetchAllDataWithPagination(proxyPath, episode, filters = '') { //
             throw new Error(`API Error (${url}): ${res.status} - ${JSON.stringify(errorData)}`);
         }
         const data = await res.json();
-        allContents = allContents.concat(data.contents);
-        totalCount = data.totalCount;
+        // ★ 問題の箇所: ここで data.contents を allContents に concat している
+        // しかし、APIルートが直接配列を返すようになったため、data.contents は存在しない
+        allContents = allContents.concat(data.contents); 
+        totalCount = data.totalCount; // ★ 問題の箇所: data.totalCount も存在しない
         offset += limit;
     } while (offset < totalCount);
 
@@ -397,7 +399,7 @@ function showScene(index) {
 
         // 背景画像の設定
         const backgroundUrl = item.background; 
-        
+
         // キャラクター画像の設定
         const charName = s.character || s.speaker;
         let actualFaceTag = s.face || 'normal';
