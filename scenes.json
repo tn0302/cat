@@ -1,0 +1,32 @@
+[
+    {
+        "episode": 1,
+        "scene": 1,
+        "speaker": "チハル",
+        "text": "君は、もう逃げられないよ。",
+        "face": "冷笑",
+        "background": "forest_day",
+        "effect": "dark_aura",
+        "special": "normal"
+    },
+    {
+        "episode": 1,
+        "scene": 2,
+        "speaker": "アリスティア",
+        "text": "わたくしの加護を授けましょう。",
+        "face": "微笑",
+        "background": "temple_light",
+        "effect": "glow",
+        "special": "normal"
+    },
+    {
+        "episode": 2,
+        "scene": 1,
+        "speaker": "チハル",
+        "text": "見せてあげるよ、俺の力を。",
+        "face": "怒り",
+        "background": "battlefield",
+        "effect": "explosion",
+        "special": "transform"
+    }
+]

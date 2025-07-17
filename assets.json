@@ -1,0 +1,21 @@
+{
+  "backgrounds": {
+    "forest_day": "bg_forest_day.jpg",
+    "temple_night": "bg_temple_night.jpg"
+  },
+  "characters": {
+    "チハル": {
+      "normal": {
+        "微笑": "chiharu_smile.png",
+        "冷笑": "chiharu_cold.png",
+        "怒り": "chiharu_angry.png"
+      }
+    },
+    "アリスティア": {
+      "normal": {
+        "微笑": "aristia_smile.png",
+        "涙目": "aristia_tear.png"
+      }
+    }
+  }
+}

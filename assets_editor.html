@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <title>アセット管理ページ v4</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body { background: #111; color: #fff; font-family: sans-serif; padding: 20px; margin: 0; }
+    h1 { font-size: 1.8em; margin-bottom: 20px; }
+    section { margin-top: 30px; padding: 15px; border: 1px solid #333; border-radius: 8px; background: #222; }
+    h2 { font-size: 1.3em; margin-top: 0; margin-bottom: 15px; color: #0f0; }
+    label { display: block; width: 100%; font-size: 1em; margin-bottom: 5px; color: #bbb; }
+    select, input[type="text"], input[type="file"] {
+      display: block; width: calc(100% - 12px); /* Padding考慮 */
+      font-size: 1em; margin-top: 5px; margin-bottom: 10px;
+      padding: 8px 6px; border: 1px solid #444; border-radius: 4px;
+      background: #333; color: #fff;
+    }
+    input[type="file"] { padding: 5px; } /* ファイル入力は少し小さめに */
+    button {
+      background: #007bff; /* 青系のボタン */
+      color: #fff; border: none; padding: 10px 15px; cursor: pointer;
+      margin-top: 15px; border-radius: 4px; font-weight: bold;
+      transition: background 0.2s ease;
+    }
+    button:hover { background: #0056b3; }
+    button.delete-btn { background: #dc3545; margin-left: 10px; }
+    button.delete-btn:hover { background: #c82333; }
+    textarea {
+      width: calc(100% - 20px); /* Padding考慮 */
+      height: 200px; margin-top: 15px;
+      background: #000; color: #0f0; font-family: monospace;
+      border: 1px solid #444; border-radius: 4px; padding: 10px;
+      resize: vertical; /* リサイズ可能に */
+    }
+    .entry {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-top: 10px; padding: 8px 0; border-bottom: 1px dashed #444;
+    }
+    .entry:last-child { border-bottom: none; }
+    .entry-info { flex: 1; display: flex; align-items: center; }
+    .thumb { height: 50px; width: 50px; object-fit: contain; margin-right: 10px; border-radius: 4px; background: #444; }
+    .placeholder-thumb { background-color: #666; display: flex; align-items: center; justify-content: center; font-size: 0.8em; color: #ccc; }
+    .input-group { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+    .input-group input[type="text"] { flex-grow: 1; margin-top: 0; margin-bottom: 0; }
+    .input-group button { margin-top: 0; margin-bottom: 0; flex-shrink: 0; }
+    .current-value-label {
+      font-size: 0.9em;
+      color: #aaa;
+      margin-bottom: 5px;
+    }
+  </style>
+</head>
+<body>
+  <h1>🧩 アセット管理 v4</h1>
+  <button onclick="loadAssetsFromJson()">📂 assets.json 読込</button>
+  <button onclick="loadScenes()">📄 scenes.json からタグ抽出</button>
+
+  <section>
+    <h2>背景画像</h2>
+    <div class="input-group">
+      <input type="text" id="bg-new-tag" placeholder="新しいタグ名を入力 (例: forest_day)" />
+      <button onclick="addCustomOption('bg-tag', 'bg-new-tag')">タグ追加</button>
+    </div>
+    <label for="bg-tag">既存のタグを選択 / または新規タグ名を入力:</label>
+    <select id="bg-tag"></select>
+    <input type="file" id="bg-file" accept="image/*" />
+    <button onclick="addBackground()">🖼️ 背景画像を追加/更新</button>
+    <div id="bg-list"></div>
+  </section>
+
+  <section>
+    <h2>キャラクター画像</h2>
+    <div class="input-group">
+      <input type="text" id="char-new-name" placeholder="新しいキャラクター名を入力 (例: hero)" />
+      <button onclick="addCustomOption('char-name', 'char-new-name')">名前追加</button>
+    </div>
+    <label for="char-name">既存のキャラクター名を選択 / または新規キャラクター名を入力:</label>
+    <select id="char-name"></select>
+
+    <div class="input-group">
+      <input type="text" id="char-new-face" placeholder="新しい表情名を入力 (例: smile)" />
+      <button onclick="addCustomOption('char-face', 'char-new-face')">表情追加</button>
+    </div>
+    <label for="char-face">既存の表情を選択 / または新規表情名を入力:</label>
+    <select id="char-face"></select>
+
+    <input type="file" id="char-file" accept="image/*" />
+    <button onclick="addCharacter()">👤 キャラクター画像を追加/更新</button>
+    <div id="char-list"></div>
+  </section>
+
+  <section>
+    <h2>エフェクト画像</h2>
+    <div class="input-group">
+      <input type="text" id="effect-new-tag" placeholder="新しいタグ名を入力 (例: dark_aura)" />
+      <button onclick="addCustomOption('effect-tag', 'effect-new-tag')">タグ追加</button>
+    </div>
+    <label for="effect-tag">既存のタグを選択 / または新規タグ名を入力:</label>
+    <select id="effect-tag"></select>
+    <input type="file" id="effect-file" accept="image/*" />
+    <button onclick="addEffect()">✨ エフェクト画像を追加/更新</button>
+    <div id="effect-list"></div>
+  </section>
+
+  <section>
+    <h2>アセットデータのエクスポート/インポート</h2>
+    <button onclick="downloadAssets()">💾 assets.json をダウンロード</button>
+    <input type="file" id="assets-file-input" accept=".json" style="display: none;" onchange="handleAssetsUpload(event)" />
+    <button onclick="document.getElementById('assets-file-input').click()">⬆️ assets.json をアップロード</button>
+    <textarea id="assets-json" readonly></textarea>
+  </section>
+
+  <script>
+    let assets = { backgrounds: {}, characters: {}, effects: {} };
+    // assets.jsonのファイル名 (存在する場合)
+    const ASSETS_JSON_FILENAME = "assets.json"; 
+    const SCENES_JSON_FILENAME = "scenes.json"; // scenes.jsonのファイル名
+
+    /**
+     * ファイルをBase64形式で読み込むヘルパー関数
+     * @param {File} file - 読み込むファイルオブジェクト
+     * @param {Function} cb - 読み込み完了後に呼び出されるコールバック関数 (引数: Base64文字列)
+     */
+    function readFileAsBase64(file, cb) {
+      if (!file) {
+        cb(null); // ファイルがない場合はnullを返す
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = () => cb(reader.result);
+      reader.onerror = () => {
+        console.error("ファイルの読み込み中にエラーが発生しました:", reader.error);
+        alert("ファイルの読み込みに失敗しました。");
+        cb(null);
+      };
+      reader.readAsDataURL(file);
+    }
+
+    /**
+     * scenes.jsonを読み込み、含まれるアセットタグを抽出してSelectボックスに反映します。
+     * microCMSから読み込むように変更する場合は、APIキーとエンドポイントが必要です。
+     */
+    async function loadScenes() {
+      try {
+        const res = await fetch(SCENES_JSON_FILENAME);
+        if (!res.ok) {
+          throw new Error(`scenes.jsonの読み込みに失敗しました: ${res.statusText}`);
+        }
+        const data = await res.json();
+        const uniq = arr => [...new Set(arr)].filter(x => x && x !== 'なし' && x !== 'ナレーション'); // 空値や特殊なタグを除外
+
+        const speakers = uniq(data.map(s => s.speaker));
+        const faces = uniq(data.map(s => s.face));
+        const backgrounds = uniq(data.map(s => s.background));
+        const effects = uniq(data.map(s => s.effect));
+
+        // 既存のオプションを保持しつつ、新しいタグを追加
+        fillSelect("char-name", speakers, true);
+        fillSelect("char-face", faces, true);
+        fillSelect("bg-tag", backgrounds, true);
+        fillSelect("effect-tag", effects, true);
+
+        alert(`${SCENES_JSON_FILENAME} からタグを読み込みました。`);
+      } catch (error) {
+        console.error("scenes.json の読み込み中にエラーが発生しました:", error);
+        alert(`${SCENES_JSON_FILENAME} の読み込みに失敗しました。ファイルが存在するか、形式が正しいか確認してください。`);
+      }
+    }
+
+    /**
+     * Selectボックスにオプションを追加します。
+     * @param {string} id - SelectボックスのID
+     * @param {Array<string>} items - 追加するアイテムの配列
+     * @param {boolean} keepExisting - 既存のオプションを保持するかどうか (true: 保持し追加, false: 全て置き換え)
+     */
+    function fillSelect(id, items, keepExisting = false) {
+      const select = document.getElementById(id);
+      const existingValues = keepExisting ? new Set(Array.from(select.options).map(opt => opt.value)) : new Set();
+
+      if (!keepExisting) {
+        select.innerHTML = ''; // 既存のオプションをクリア
+        // デフォルトの「未選択」オプションを追加
+        const defaultOption = document.createElement("option");
+        defaultOption.value = "";
+        defaultOption.textContent = "-- 選択してください --";
+        select.appendChild(defaultOption);
+      }
+
+      items.forEach(item => {
+        if (item && !existingValues.has(item)) { // 空でない、かつ既存でないアイテムのみ追加
+          const option = document.createElement("option");
+          option.value = item;
+          option.textContent = item;
+          select.appendChild(option);
+          existingValues.add(item); // 追加した値を記録
+        }
+      });
+    }
+
+    /**
+     * 新しいタグ名/キャラクター名/表情名を入力フィールドから取得し、Selectボックスに追加します。
+     * @param {string} selectId - 対象のSelectボックスのID
+     * @param {string} inputId - タグ名を入力するInputフィールドのID
+     */
+    function addCustomOption(selectId, inputId) {
+      const input = document.getElementById(inputId);
+      const newOptionValue = input.value.trim();
+      if (newOptionValue === "") {
+        alert("新しいタグ/名前を入力してください。");
+        return;
+      }
+      
+      const select = document.getElementById(selectId);
+      // 既に同じ値が存在しないかチェック
+      const exists = Array.from(select.options).some(option => option.value === newOptionValue);
+      
+      if (!exists) {
+        const option = document.createElement("option");
+        option.value = newOptionValue;
+        option.textContent = newOptionValue;
+        select.appendChild(option);
+        select.value = newOptionValue; // 追加後、そのオプションを選択状態にする
+        input.value = ""; // 入力フィールドをクリア
+      } else {
+        alert(`'${newOptionValue}' は既に存在します。`);
+        select.value = newOptionValue; // 既存のものを選択
+      }
+    }
+
+    /**
+     * 背景画像を追加/更新します。
+     */
+    async function addBackground() {
+      const tag = document.getElementById("bg-tag").value;
+      const file = document.getElementById("bg-file").files[0];
+
+      if (!tag) {
+        alert("背景タグを選択または入力してください。");
+        return;
+      }
+
+      if (!file && !assets.backgrounds[tag]) { // 新規かつファイルなし
+        alert("ファイルを選択してください。");
+        return;
+      }
+      
+      if (file) { // ファイルが選択された場合のみBase64で読み込む
+        readFileAsBase64(file, data => {
+          if (data) {
+            assets.backgrounds[tag] = data;
+            updateOutput();
+            updateList("bg-list", assets.backgrounds, 'backgrounds');
+            alert(`背景画像 '${tag}' を追加/更新しました。`);
+            document.getElementById("bg-file").value = ""; // ファイル選択をクリア
+          }
+        });
+      } else { // ファイルが選択されていないが、既存のタグの場合は何もしない（更新なし）
+        alert("ファイルが選択されていないため、既存の背景画像の更新は行いませんでした。");
+      }
+    }
+
+    /**
+     * キャラクター画像を追加/更新します。
+     */
+    async function addCharacter() {
+      const name = document.getElementById("char-name").value;
+      const face = document.getElementById("char-face").value;
+      const file = document.getElementById("char-file").files[0];
+
+      if (!name || !face) {
+        alert("キャラクター名と表情を選択または入力してください。");
+        return;
+      }
+
+      // キャラクター名がまだ存在しない場合、オブジェクトを初期化
+      if (!assets.characters[name]) {
+        assets.characters[name] = {};
+      }
+      // キャラクター名の下に表情のセットがない場合、オブジェクトを初期化
+      if (!assets.characters[name].normal) { // 例として'normal'セットを持つ
+        assets.characters[name].normal = {};
+      }
+
+      if (!file && !assets.characters[name].normal[face]) { // 新規かつファイルなし
+        alert("ファイルを選択してください。");
+        return;
+      }
+
+      if (file) { // ファイルが選択された場合のみBase64で読み込む
+        readFileAsBase64(file, data => {
+          if (data) {
+            assets.characters[name].normal[face] = data;
+            updateOutput();
+            updateCharList();
+            alert(`キャラクター画像 '${name} (${face})' を追加/更新しました。`);
+            document.getElementById("char-file").value = ""; // ファイル選択をクリア
+          }
+        });
+      } else {
+        alert("ファイルが選択されていないため、既存のキャラクター画像の更新は行いませんでした。");
+      }
+    }
+
+    /**
+     * エフェクト画像を追加/更新します。
+     */
+    async function addEffect() {
+      const tag = document.getElementById("effect-tag").value;
+      const file = document.getElementById("effect-file").files[0];
+
+      if (!tag) {
+        alert("エフェクトタグを選択または入力してください。");
+        return;
+      }
+
+      if (!file && !assets.effects[tag]) { // 新規かつファイルなし
+        alert("ファイルを選択してください。");
+        return;
+      }
+
+      if (file) { // ファイルが選択された場合のみBase64で読み込む
+        readFileAsBase64(file, data => {
+          if (data) {
+            assets.effects[tag] = data;
+            updateOutput();
+            updateList("effect-list", assets.effects, 'effects');
+            alert(`エフェクト画像 '${tag}' を追加/更新しました。`);
+            document.getElementById("effect-file").value = ""; // ファイル選択をクリア
+          }
+        });
+      } else {
+        alert("ファイルが選択されていないため、既存のエフェクト画像の更新は行いませんでした。");
+      }
+    }
+    
+    /**
+     * 特定のリスト表示を更新します。（背景、エフェクト用）
+     * @param {string} id - リストのコンテナID
+     * @param {Object} data - 表示するデータオブジェクト (例: assets.backgrounds)
+     * @param {string} assetType - アセットのタイプ ('backgrounds', 'effects')
+     */
+    function updateList(id, data, assetType) {
+      const container = document.getElementById(id);
+      container.innerHTML = "";
+      for (const [k, v] of Object.entries(data)) {
+        // base64データは非常に長いため、一部だけ表示するか、画像として表示する
+        container.innerHTML += `
+          <div class="entry">
+            <div class="entry-info">
+              <img src="${v}" class="thumb" alt="${k}" title="${k}"/>
+              ${k}
+            </div>
+            <button class="delete-btn" onclick="deleteAsset('${assetType}', '${k}')">削除</button>
+          </div>
+        `;
+      }
+    }
+
+    /**
+     * キャラクターリストの表示を更新します。
+     */
+    function updateCharList() {
+      const container = document.getElementById("char-list");
+      container.innerHTML = "";
+      for (const [name, set] of Object.entries(assets.characters)) {
+        for (const [face, img] of Object.entries(set.normal)) { // 'normal'セットを前提
+          container.innerHTML += `
+            <div class="entry">
+              <div class="entry-info">
+                <img src="${img}" class="thumb" alt="${name} (${face})" title="${name} (${face})"/>
+                ${name}（${face}）
+              </div>
+              <button class="delete-btn" onclick="deleteAsset('characters', '${name}', '${face}')">削除</button>
+            </div>
+          `;
+        }
+      }
+    }
+
+    /**
+     * アセットデータをJSON形式で整形し、テキストエリアに表示します。
+     */
+    function updateOutput() {
+      document.getElementById("assets-json").value = JSON.stringify(assets, null, 2);
+    }
+
+    /**
+     * 現在のアセットデータをassets.jsonとしてダウンロードします。
+     */
+    function downloadAssets() {
+      const blob = new Blob([JSON.stringify(assets, null, 2)], { type: "application/json" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = ASSETS_JSON_FILENAME;
+      document.body.appendChild(a); // Firefox対応
+      a.click();
+      document.body.removeChild(a); // Firefox対応
+      URL.revokeObjectURL(a.href); // オブジェクトURLを解放
+      alert(`${ASSETS_JSON_FILENAME} をダウンロードしました。`);
+    }
+
+    /**
+     * assets.jsonをアップロードし、アセットデータを読み込みます。
+     * @param {Event} event - ファイル選択イベント
+     */
+    function handleAssetsUpload(event) {
+      const file = event.target.files[0];
+      if (!file) {
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const uploadedData = JSON.parse(e.target.result);
+          if (uploadedData.backgrounds && uploadedData.characters && uploadedData.effects) {
+            assets = uploadedData;
+            updateOutput();
+            updateAllLists();
+            // 選択肢も更新 (既存アセットのタグが選択肢に表示されるように)
+            populateInitialSelectsFromAssets();
+            alert(`${ASSETS_JSON_FILENAME} を正常に読み込みました。`);
+          } else {
+            throw new Error("JSONの形式が正しくありません。");
+          }
+        } catch (error) {
+          console.error("assets.jsonの読み込み中にエラーが発生しました:", error);
+          alert(`assets.jsonの読み込みに失敗しました。形式が正しいか確認してください。\nエラー: ${error.message}`);
+        }
+      };
+      reader.onerror = () => {
+        console.error("ファイルの読み込み中にエラーが発生しました:", reader.error);
+        alert("ファイルの読み込みに失敗しました。");
+      };
+      reader.readAsText(file);
+    }
+
+    /**
+     * アセットを削除します。
+     * @param {string} type - アセットのタイプ ('backgrounds', 'characters', 'effects')
+     * @param {string} key - アセットのキー (背景/エフェクトのタグ、キャラクター名)
+     * @param {string} [subKey] - キャラクターの場合のサブキー (表情名)
+     */
+    function deleteAsset(type, key, subKey = null) {
+      if (!confirm(`本当に'${key}${subKey ? ' (' + subKey + ')' : ''}'を削除しますか？`)) {
+        return;
+      }
+
+      if (type === 'backgrounds') {
+        delete assets.backgrounds[key];
+        updateList("bg-list", assets.backgrounds, 'backgrounds');
+        fillSelect('bg-tag', Object.keys(assets.backgrounds), false); // Selectボックスも更新
+      } else if (type === 'effects') {
+        delete assets.effects[key];
+        updateList("effect-list", assets.effects, 'effects');
+        fillSelect('effect-tag', Object.keys(assets.effects), false); // Selectボックスも更新
+      } else if (type === 'characters' && subKey) {
+        if (assets.characters[key] && assets.characters[key].normal) {
+          delete assets.characters[key].normal[subKey];
+          // もしそのキャラクターに表情がなくなったら、キャラクター自体を削除することも検討
+          if (Object.keys(assets.characters[key].normal).length === 0) {
+            delete assets.characters[key];
+          }
+        }
+        updateCharList();
+        fillSelect('char-name', Object.keys(assets.characters), false); // Selectボックスも更新
+        fillSelect('char-face', getUniqueFaces(), false); // 表情の選択肢も更新
+      }
+      updateOutput();
+      alert("アセットを削除しました。");
+    }
+
+    /**
+     * 全てのアセットリスト表示を更新します。
+     */
+    function updateAllLists() {
+      updateList("bg-list", assets.backgrounds, 'backgrounds');
+      updateCharList();
+      updateList("effect-list", assets.effects, 'effects');
+    }
+
+    /**
+     * アセットデータから初期の選択肢をpopulateします。
+     * assets.jsonロード後や、assetsオブジェクト更新後に呼び出します。
+     */
+    function populateInitialSelectsFromAssets() {
+      fillSelect('bg-tag', Object.keys(assets.backgrounds), false);
+      fillSelect('char-name', Object.keys(assets.characters), false);
+      fillSelect('char-face', getUniqueFaces(), false);
+      fillSelect('effect-tag', Object.keys(assets.effects), false);
+    }
+
+    /**
+     * 登録されている全キャラクターのユニークな表情リストを取得します。
+     */
+    function getUniqueFaces() {
+        const uniqueFaces = new Set();
+        for (const name in assets.characters) {
+            if (assets.characters[name].normal) {
+                for (const face in assets.characters[name].normal) {
+                    uniqueFaces.add(face);
+                }
+            }
+        }
+        return Array.from(uniqueFaces);
+    }
+
+    // ページロード時の処理
+    document.addEventListener('DOMContentLoaded', () => {
+        // assets.json が存在すれば自動で読み込む
+        loadAssetsFromJson();
+    });
+
+    /**
+     * assets.json ファイルを自動で読み込みます。
+     */
+    async function loadAssetsFromJson() {
+        try {
+            const res = await fetch(ASSETS_JSON_FILENAME);
+            if (!res.ok) {
+                // ファイルが存在しない、または読み込みに失敗してもエラーとはしない
+                // 初回アクセス時など、ファイルがない場合があるため
+                console.warn(`${ASSETS_JSON_FILENAME} が見つからないか、読み込みに失敗しました。新規作成を開始します。`);
+                updateOutput(); // 空のassetsオブジェクトでJSONを初期化
+                return;
+            }
+            const data = await res.json();
+            if (data.backgrounds && data.characters && data.effects) {
+                assets = data;
+                updateOutput();
+                updateAllLists();
+                populateInitialSelectsFromAssets();
+                alert(`${ASSETS_JSON_FILENAME} を自動で読み込みました。`);
+            } else {
+                console.warn(`${ASSETS_JSON_FILENAME} の形式が不正です。新規作成を開始します。`);
+                updateOutput();
+            }
+        } catch (error) {
+            console.error(`${ASSETS_JSON_FILENAME} の自動読み込み中にエラーが発生しました:`, error);
+            alert(`自動読み込みに失敗しました。手動で ${ASSETS_JSON_FILENAME} をアップロードするか、新規作成してください。`);
+            updateOutput();
+        }
+    }
+  </script>
+</body>
+</html>
