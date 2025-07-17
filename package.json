@@ -13,7 +13,6 @@
     "axios": "^1.10.0",
     "cloudinary": "^2.7.0",
     "dotenv": "^17.2.0",
-    "microcms-js-sdk": "^3.2.0",
-    "node-fetch": "^3.3.2"
+    "microcms-js-sdk": "^3.2.0"
   }
 }

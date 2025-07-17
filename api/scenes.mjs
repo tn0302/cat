@@ -1,12 +1,11 @@
-import fetch from 'node-fetch'; // ファイルの先頭にこの行を追加
+import axios from 'axios'; // ファイルの先頭にこの行を追加
 
 // 以下は既存の microCMS_API_BASE_URL と microCMS_API_KEY の定義
 const MICROCMS_API_BASE_URL = process.env.MICROCMS_API_BASE_URL;
 const MICROCMS_API_KEY = process.env.MICROCMS_API_KEY;
 
-// fetchAllDataWithPagination 関数はそのまま
+// fetchAllDataWithPagination 関数をaxiosを使用するように修正
 async function fetchAllDataWithPagination(endpoint, filters = [], limit = 100, offset = 0) {
-    // const { default: fetch } = await import('node-fetch'); // この行は削除します
     let allData = [];
     let currentOffset = offset;
     let hasMore = true;
@@ -20,18 +19,19 @@ async function fetchAllDataWithPagination(endpoint, filters = [], limit = 100, o
         console.log(`Fetching data from: ${url.toString()}`);
 
         try {
-            const response = await fetch(url.toString(), { // fetchはファイル先頭でインポートされたものを使用
+            // ここをaxios.getに置き換え
+            const response = await axios.get(url.toString(), {
                 headers: {
                     'X-MICROCMS-API-KEY': MICROCMS_API_KEY,
                 },
             });
 
-            if (!response.ok) {
-                const errorText = await response.text();
-                throw new Error(`HTTP error! Status: ${response.status}, Message: ${errorText}`);
+            // axiosはresponse.okではなくstatusコードで成功を判断します
+            if (response.status !== 200) {
+                throw new Error(`HTTP error! Status: ${response.status}, Message: ${response.statusText}`);
             }
 
-            const data = await response.json();
+            const data = response.data; // axiosはJSONを自動でパースしてくれます
             allData = allData.concat(data.contents);
 
             if (data.contents.length < limit) {
@@ -40,13 +40,18 @@ async function fetchAllDataWithPagination(endpoint, filters = [], limit = 100, o
                 currentOffset += limit;
             }
         } catch (error) {
-            console.error(`Error fetching data from microCMS: ${error}`);
+            console.error(`Error fetching data from microCMS with axios: ${error}`);
+            // axiosのエラーはresponseプロパティを持つ場合があります
+            if (error.response) {
+                console.error('Axios error response data:', error.response.data);
+                console.error('Axios error response status:', error.response.status);
+                console.error('Axios error response headers:', error.response.headers);
+            }
             throw error;
         }
     }
     return allData;
 }
-
 
 export default async (req, res) => {
     try {
