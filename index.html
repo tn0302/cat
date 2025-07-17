@@ -396,9 +396,8 @@ function showScene(index) {
         specialImageElement.src = "";
 
         // 背景画像の設定
-        const backgroundUrl = loadedAssets.backgrounds[s.background] || 'assets/default_bg.jpg';
-        backgroundElement.style.backgroundImage = `url('${backgroundUrl}')`;
-
+        const backgroundUrl = item.background; 
+        
         // キャラクター画像の設定
         const charName = s.character || s.speaker;
         let actualFaceTag = s.face || 'normal';
