@@ -196,10 +196,7 @@ async function loadEpisodeData(episodeNumber) {
     localStorage.setItem('yh_current_episode', currentEpisodeNumber);
 
     try {
-        const sceneFilter = `filters=episode[equals]${episodeNumber}`;
-
-        // シーンデータをプロキシ経由で取得
-        currentEpisodeScenes = await fetchAllDataWithPagination(SCENES_PROXY_PATH, sceneFilter);
+        currentEpisodeScenes = await fetchAllDataWithPagination(SCENES_PROXY_PATH, episodeNumber, `filters=episode[equals]${episodeNumber}`); // 第2引数に episodeNumber、第3引数にフィルターを渡す
         currentEpisodeScenes.sort((a, b) => (a.sceneNumber || 0) - (b.sceneNumber || 0));
 
         console.log(`エピソード ${episodeNumber} のシーンデータ:`, currentEpisodeScenes);
@@ -312,14 +309,15 @@ async function loadEpisodeData(episodeNumber) {
 }
 
 // fetchAllDataWithPagination関数は既にプロキシパスを受け取る形になっているため、変更なし
-async function fetchAllDataWithPagination(proxyPath, filters = '') {
+async function fetchAllDataWithPagination(proxyPath, episode, filters = '') { // ここに episode を追加
     let allContents = [];
     let offset = 0;
     const limit = 100;
     let totalCount = 0;
 
     do {
-        const url = `${proxyPath}?limit=${limit}&offset=${offset}${filters ? '&' + filters : ''}`;
+        // ★ 修正: URLに `episode=${episode}` を追加
+        const url = `${proxyPath}?episode=${episode}&limit=${limit}&offset=${offset}${filters ? '&' + filters : ''}`;
 
         // APIキーはServerless Function側で追加されるため、ここでは不要
         const res = await fetch(url);
@@ -755,7 +753,8 @@ async function downloadAllScenes() {
     showLoadingOverlay(true);
     try {
         // プロキシパスを使用
-        const allNovelScenes = await fetchAllDataWithPagination(SCENES_PROXY_PATH);
+        // ★ 修正: episodeパラメータとして null を渡す
+        const allNovelScenes = await fetchAllDataWithPagination(SCENES_PROXY_PATH, null); // ここを修正
         if (allNovelScenes.length === 0) {
             alert("ダウンロードするシーンがありません。");
             return;
