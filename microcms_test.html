@@ -3,70 +3,112 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>microCMS Connection Test</title>
+    <title>microCMS API Route Test (scenes.mjs)</title>
     <style>
         body { font-family: sans-serif; margin: 20px; background: #f4f4f4; color: #333; }
         pre { background: #eee; padding: 15px; border-radius: 8px; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word; }
         .success { color: green; font-weight: bold; }
         .error { color: red; font-weight: bold; }
+        .scene-item {
+            border: 1px solid #ccc;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 5px;
+            background: white;
+        }
+        .scene-item img {
+            max-width: 100%;
+            height: auto;
+            display: block;
+            margin-top: 10px;
+            border-radius: 4px;
+        }
     </style>
 </head>
 <body>
-    <h1>microCMS 接続テスト</h1>
-    <p>このページは microCMS からデータを取得し、表示します。</p>
-    <div id="status">テスト中...</div>
-    <pre id="data-output"></pre>
+    <h1>MicroCMS API Route テスト (scenes.mjs 経由)</h1>
+    <p>このページはVercel上の `/api/scenes` APIルートからデータを取得し、表示します。</p>
+    <div>
+        <label for="episodeSelect">エピソードを選択: </label>
+        <select id="episodeSelect">
+            <option value="1">エピソード 1</option>
+            <option value="2">エピソード 2</option>
+            <option value="3">エピソード 3</option>
+            </select>
+        <button id="loadDataButton">データをロード</button>
+    </div>
+    <div id="status">準備完了</div>
+    <div id="data-output"></div>
 
     <script>
-        // Vercelで設定された環境変数を参照します
-        // 注意: クライアントサイドでAPIキーを直接扱うのはセキュリティリスクがあります。
-        // 本番環境では、APIキーをサーバーサイドで管理し、プロキシ経由でアクセスすることをお勧めします。
-        const YOUR_SERVICE_ID = process.env.MICROCMS_API_BASE_URL; // Vercelの環境変数 MICROCMS_API_BASE_URL を参照
-        const YOUR_API_ENDPOINT = "scenes";    // あなたのAPIエンドポイント名 (例: 'scenes', 'blogs' など)
-        const YOUR_API_KEY = process.env.MICROCMS_API_KEY; // Vercelの環境変数 MICROCMS_API_KEY を参照
-
-        const apiBase = `https://${YOUR_SERVICE_ID}.microcms.io/api/v1/${YOUR_API_ENDPOINT}`;
         const statusElement = document.getElementById('status');
         const dataOutputElement = document.getElementById('data-output');
+        const episodeSelect = document.getElementById('episodeSelect');
+        const loadDataButton = document.getElementById('loadDataButton');
 
-        async function testMicroCMSConnection() {
-            // 環境変数が正しく設定されているかを確認するためのログ
-            console.log("Service ID:", YOUR_SERVICE_ID);
-            console.log("API Key:", YOUR_API_KEY);
-            console.log("API Base URL:", apiBase);
+        loadDataButton.addEventListener('click', () => {
+            const selectedEpisode = episodeSelect.value;
+            testApiRouteConnection(selectedEpisode);
+        });
 
-            // 環境変数が未設定の場合のチェック
-            if (!YOUR_SERVICE_ID || !YOUR_API_KEY) {
-                statusElement.textContent = '❌ microCMSの環境変数 (MICROCMS_API_BASE_URL または MICROCMS_API_KEY) が設定されていません。';
-                statusElement.className = 'error';
-                dataOutputElement.textContent = 'Vercelの環境変数設定を確認してください。';
-                console.error("microCMS環境変数エラー: 環境変数が設定されていません。");
-                return;
-            }
+        // Vercel上のAPIルートを呼び出す関数
+        async function testApiRouteConnection(episode) {
+            statusElement.textContent = `エピソード ${episode} のデータを読み込み中...`;
+            statusElement.className = '';
+            dataOutputElement.innerHTML = ''; // 以前の表示をクリア
 
             try {
-                const res = await fetch(apiBase, {
-                    headers: { 'X-API-KEY': YOUR_API_KEY }
-                });
+                // MicroCMSに直接アクセスする代わりに、VercelのAPIルートを呼び出す
+                const apiUrl = `/api/scenes?episode=${episode}`;
+                console.log(`Calling API Route: ${apiUrl}`);
+
+                const res = await fetch(apiUrl);
 
                 if (!res.ok) {
-                    const errorBody = await res.text(); // エラーレスポンスの本体を取得
-                    throw new Error(`HTTPエラー！ステータス: ${res.status}, レスポンス: ${errorBody}`);
+                    const errorBody = await res.text();
+                    throw new Error(`APIルートエラー！ステータス: ${res.status}, レスポンス: ${errorBody}`);
                 }
 
                 const data = await res.json();
-                statusElement.textContent = '✅ microCMSへの接続に成功しました！';
+                console.log(`APIルートからのデータ:`, data);
+
+                if (!data || !Array.isArray(data) || data.length === 0) {
+                    statusElement.textContent = '⚠️ APIルートからデータが返されませんでした、またはデータが空です。';
+                    statusElement.className = 'error';
+                    dataOutputElement.textContent = 'APIルートが正しいデータを返しているか確認してください。';
+                    return;
+                }
+
+                statusElement.textContent = `✅ APIルートからのデータ取得に成功しました！`;
                 statusElement.className = 'success';
-                dataOutputElement.textContent = JSON.stringify(data, null, 2); // データを整形して表示
+
+                data.forEach((item, index) => {
+                    const sceneDiv = document.createElement('div');
+                    sceneDiv.className = 'scene-item';
+
+                    // background が直接URLであることを期待
+                    const backgroundUrl = item.background; 
+
+                    sceneDiv.innerHTML = `
+                        <h2>シーン ${item.sceneNumber || (index + 1)}</h2>
+                        <p><strong>話者:</strong> ${item.speaker || 'N/A'}</p>
+                        <p><strong>セリフ:</strong> ${item.text || 'N/A'}</p>
+                        <p><strong>背景データ:</strong> <pre>${JSON.stringify(item.background, null, 2)}</pre></p>
+                        ${backgroundUrl ? `<img src="${backgroundUrl}" alt="背景画像">` : '<p>背景画像がありません</p>'}
+                    `;
+                    dataOutputElement.appendChild(sceneDiv);
+                });
+
             } catch (error) {
-                statusElement.textContent = `❌ microCMSへの接続に失敗しました。エラー: ${error.message}`;
+                statusElement.textContent = `❌ APIルートからのデータ取得に失敗しました。エラー: ${error.message}`;
                 statusElement.className = 'error';
-                dataOutputElement.textContent = 'データ取得に失敗しました。詳細を上記エラーメッセージで確認してください。';
-                console.error("microCMS接続テストエラー:", error);
+                dataOutputElement.textContent = '詳細を上記エラーメッセージとコンソールで確認してください。';
+                console.error("APIルート接続テストエラー:", error);
             }
         }
 
-        testMicroCMSConnection();
+        // ページロード時にエピソード1のデータを自動でロード
+        testApiRouteConnection(episodeSelect.value);
     </script>
 </body>
 </html>
