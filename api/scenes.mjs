@@ -1,17 +1,12 @@
-// import fetch from 'node-fetch'; は削除します
+import fetch from 'node-fetch'; // ファイルの先頭にこの行を追加
 
 // 以下は既存の microCMS_API_BASE_URL と microCMS_API_KEY の定義
-// .env を使用する場合
 const MICROCMS_API_BASE_URL = process.env.MICROCMS_API_BASE_URL;
 const MICROCMS_API_KEY = process.env.MICROCMS_API_KEY;
 
-// あるいは、ハードコードされている場合 (非推奨ですが、デバッグ用)
-// const MICROCMS_API_BASE_URL = 'YOUR_MICROCMS_SERVICE_ID.microcms.io/api/v1'; // サービスIDを置き換える
-// const MICROCMS_API_KEY = 'YOUR_API_KEY'; // APIキーを置き換える
-
 // fetchAllDataWithPagination 関数はそのまま
 async function fetchAllDataWithPagination(endpoint, filters = [], limit = 100, offset = 0) {
-    const { default: fetch } = await import('node-fetch'); // ここで動的にインポート！
+    // const { default: fetch } = await import('node-fetch'); // この行は削除します
     let allData = [];
     let currentOffset = offset;
     let hasMore = true;
@@ -25,7 +20,7 @@ async function fetchAllDataWithPagination(endpoint, filters = [], limit = 100, o
         console.log(`Fetching data from: ${url.toString()}`);
 
         try {
-            const response = await fetch(url.toString(), {
+            const response = await fetch(url.toString(), { // fetchはファイル先頭でインポートされたものを使用
                 headers: {
                     'X-MICROCMS-API-KEY': MICROCMS_API_KEY,
                 },
@@ -67,7 +62,6 @@ export default async (req, res) => {
         res.status(200).json(data);
     } catch (error) {
         console.error('Error in API route:', error);
-        // エラーレスポンスをより具体的にするため、エラーメッセージを含める
         res.status(500).json({ error: 'A server error occurred while fetching episode data.', details: error.message });
     }
 };
