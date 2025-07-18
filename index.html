@@ -964,33 +964,28 @@ function checkMissingAssets() {
     const requiredEffects = new Set();
 
     currentEpisodeScenes.forEach(scene => {
-        // ★ 修正: scene.background が URL として渡されていることを考慮
-        // loadedAssets.backgrounds にはタグ -> URL のマッピングがあるため、
-        // 逆引きしてタグがなければ不足アセットとみなす
-        if (scene.background && scene.background !== "なし" && !scene.background.startsWith('http://') && !scene.background.startsWith('https://')) {
-            // background がタグ文字列の場合（例: default_bg）
-            requiredBackgrounds.add(scene.background);
-        } else if (scene.background && scene.background.startsWith('http')) {
-            // background が URL の場合、対応するタグがあるかloadedAssets.backgroundsを逆引きしてチェック
-            let foundTag = false;
-            for (const tag in loadedAssets.backgrounds) {
-                if (loadedAssets.backgrounds[tag] === scene.background) {
-                    foundTag = true;
-                    break;
+   if (scene.background && scene.background !== "なし") {
+            // もし背景が直接URLの場合、APIによって既に解決済みと見なす
+            // そのため、これを「不足アセットのタグ」としてチェックする必要はない
+            if (!scene.background.startsWith('http://') && !scene.background.startsWith('https://')) {
+                // 背景がタグ文字列の場合（例: default_bg）、不足アセットの候補として追加
+                requiredBackgrounds.add(scene.background);
+            } else {
+                // 背景がURLの場合
+                // このURLに対応するタグがloadedAssetsに存在するかチェック
+                // これは主に編集時の背景選択プルダウンの表示のため
+                let foundTagForUrl = false;
+                for (const tag in loadedAssets.backgrounds) {
+                    if (loadedAssets.backgrounds[tag] === scene.background) {
+                        foundTagForUrl = true;
+                        break;
+                    }
                 }
-            }
-            if (!foundTag) {
-                // URLは存在するがloadedAssetsにそのタグがない場合
-                // これは「タグが不明なアセット」となるため、不足とは異なるが、
-                // 一旦「不足」としてユーザーに知らせるため、URL自体をタグとして扱う
-                // あるいは、APIルートで background_tag を返すようにするのが理想的
-                console.warn("APIから直接URLが返されたが、対応するタグがloadedAssetsにありません:", scene.background);
-                // ここで不足アセットとして扱うかは検討の余地あり。今回は一旦タグとして追加してチェック
-                // （ただしこのケースではアップロード先となるタグ名が不明なため、アップロードはできない）
-                // 実際には、API側が常にタグを返すか、URLとタグ両方を返すのが理想
-                // ここでは、`background`がURLであっても、対応するタグが`loadedAssets.backgrounds`に存在しない場合は、
-                // `populateMissingAssetSelect`でタグ名がURLになってしまうが、ユーザーに確認させるため追加
-                requiredBackgrounds.add(scene.background); // URL自体をタグとして追加
+                if (!foundTagForUrl) {
+                    // URLは存在するが、loadedAssetsにそのURLに対応するタグがない場合、警告を出す
+                    // ただし、これを「不足アセット」としてアップロードリストには追加しない（URLはアップロードできないため）
+                    console.warn("APIから直接URLが返された背景アセットについて、対応するタグがloadedAssetsにありません。編集時の背景選択に影響する可能性があります。", scene.background);
+                }
             }
         }
 
