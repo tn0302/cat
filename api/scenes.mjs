@@ -1,113 +1,121 @@
-// api/assets.js
+import axios from 'axios';
 
-// microCMSの「アセット」エンドポイントへのプロキシ
+// 環境変数からサービスIDとAPIキーを取得
+// Vercelの環境変数 MICROCMS_API_BASE_URL にサービスID (例: "nvw9sy9y9b") が設定されていると仮定
+const MICROCMS_SERVICE_ID = process.env.MICROCMS_API_BASE_URL;
+const MICROCMS_API_KEY = process.env.MICROCMS_API_KEY;
 
+// MicroCMSからデータをページネーションで全て取得する汎用関数
+async function fetchAllDataWithPagination(endpoint, filters = [], limit = 100, offset = 0) {
+    let allData = [];
+    let currentOffset = offset;
+    let hasMore = true;
 
+    if (!MICROCMS_SERVICE_ID || !MICROCMS_API_KEY) {
+        throw new Error('MicroCMS environment variables (MICROCMS_API_BASE_URL or MICROCMS_API_KEY) are not set.');
+    }
+    const baseApiUrl = `https://${MICROCMS_SERVICE_ID}.microcms.io/api/v1/${endpoint}`;
 
-export default async function handler(req, res) { // 関数名を 'handler' に変更するとVercelでより一般的な慣習に沿います
+    while (hasMore) {
+        const url = new URL(baseApiUrl);
+        url.searchParams.append('limit', limit);
+        url.searchParams.append('offset', currentOffset);
+        filters.forEach(filter => url.searchParams.append('filters', filter));
 
-// 環境変数からサービスIDとコンテンツAPIキーを取得
+        console.log(`Fetching data from: ${url.toString()}`);
 
-// ★ここを修正: MICROCMS_API_BASE_URL ではなく MICROCMS_SERVICE_ID から取得します
+        try {
+            const response = await axios.get(url.toString(), {
+                headers: {
+                    'X-MICROCMS-API-KEY': MICROCMS_API_KEY,
+                },
+            });
 
-const MICROCMS_SERVICE_ID = process.env.MICROCMS_SERVICE_ID;
+            if (response.status !== 200) {
+                throw new Error(`HTTP error! Status: ${response.status}, Message: ${response.statusText}`);
+            }
 
-const MICROCMS_API_KEY = process.env.MICROCMS_API_KEY; // コンテンツAPIキーを使用
+            const data = response.data;
+            allData = allData.concat(data.contents);
 
-
-
-if (!MICROCMS_SERVICE_ID || !MICROCMS_API_KEY) {
-
-console.error('Server configuration error: MicroCMS environment variables (SERVICE_ID or API_KEY) are not set.');
-
-return res.status(500).json({ error: 'Server configuration error: MicroCMS environment variables are not set.' });
-
+            if (data.contents.length < limit) {
+                hasMore = false;
+            } else {
+                currentOffset += limit;
+            }
+        } catch (error) {
+            console.error(`Error fetching data from microCMS with axios: ${error}`);
+            if (error.response) {
+                console.error('Axios error response data:', error.response.data);
+                console.error('Axios error response status:', error.response.status);
+                console.error('Axios error response headers:', error.response.headers);
+            }
+            throw error;
+        }
+    }
+    return allData;
 }
 
+// MicroCMSのassetsからタグを使って画像URLを取得するヘルパー関数
+async function fetchAssetImageUrlByTag(tag) {
+    if (!MICROCMS_SERVICE_ID || !MICROCMS_API_KEY) {
+        throw new Error('MicroCMS environment variables are not set.');
+    }
+    const assetApiUrl = `https://${MICROCMS_SERVICE_ID}.microcms.io/api/v1/assets?filters=tag[equals]${tag}`;
+    console.log(`Fetching asset by tag: ${tag} from ${assetApiUrl}`);
 
-
-const { filters } = req.query; // クライアントから渡されたfiltersクエリパラメータを取得
-
-
-
-// MicroCMSのコンテンツAPI v1のエンドポイントを使用
-
-// ★サービスIDを使って正しいMicroCMSのAPIベースURLを構築します
-
-const baseApiUrl = `https://${MICROCMS_SERVICE_ID}.microcms.io/api/v1/assets`;
-
-
-
-const url = new URL(baseApiUrl);
-
-url.searchParams.append('limit', 100); // 一度に取得する件数 (必要に応じて調整)
-
-
-
-// filtersが存在する場合、URLに結合
-
-if (filters) {
-
-url.searchParams.append('filters', filters);
-
+    try {
+        const response = await axios.get(assetApiUrl, {
+            headers: {
+                'X-MICROCMS-API-KEY': MICROCMS_API_KEY,
+            },
+        });
+        if (response.status !== 200) {
+            throw new Error(`HTTP error! Status: ${response.status}, Message: ${response.statusText}`);
+        }
+        const assets = response.data.contents;
+        if (assets && assets.length > 0) {
+            // 最初のマッチしたアセットのimage.urlを返す
+            return assets[0].image;
+        }
+        console.warn(`No asset found for tag: ${tag}`);
+        return null; // アセットが見つからない場合
+    } catch (error) {
+        console.error(`Error fetching asset by tag "${tag}":`, error);
+        throw error;
+    }
 }
 
+// APIルートのハンドラー
+export default async (req, res) => {
+    try {
+        const { episode } = req.query;
+        if (!episode) {
+            return res.status(400).json({ error: 'Episode parameter is required.' });
+        }
 
+        const filters = [`episode[equals]${episode}`];
+        console.log(`Loading scenes data for episode: ${episode}`);
+        // まず、シーンデータを取得
+        const scenesData = await fetchAllDataWithPagination('scenes', filters);
 
-console.log(`Fetching assets from MicroCMS: ${url.toString()}`);
+        // シーンデータ内の background フィールドを、対応するアセットの画像URLに変換
+        const enrichedScenes = await Promise.all(scenesData.map(async (scene) => {
+            // background が文字列（タグ名）であり、かつ存在する場合のみ処理
+            if (scene.background && typeof scene.background === 'string') {
+                const imageUrl = await fetchAssetImageUrlByTag(scene.background);
+                if (imageUrl) {
+                    // background フィールドを画像URLに置き換える
+                    return { ...scene, background: imageUrl };
+                }
+            }
+            // background がない、または文字列でない、またはアセットが見つからない場合はそのまま返す
+            return scene;
+        }));
 
-
-
-try {
-
-const microCMSRes = await fetch(url.toString(), {
-
-method: 'GET', // アセット取得はGETメソッド
-
-headers: {
-
-'X-MICROCMS-API-KEY': MICROCMS_API_KEY, // コンテンツAPIキーをヘッダーに設定
-
-},
-
-});
-
-
-
-// HTTPステータスが200番台でなければエラーとして処理
-
-if (!microCMSRes.ok) {
-
-const errorText = await microCMSRes.text(); // エラーレスポンスをテキストとして取得
-
-console.error(`MicroCMS API returned non-OK status for assets: ${microCMSRes.status}, ${microCMSRes.statusText}`);
-
-console.error('MicroCMS error response body:', errorText);
-
-return res.status(microCMSRes.status).json({ error: microCMSRes.statusText, details: errorText });
-
-}
-
-
-
-const data = await microCMSRes.json();
-
-
-
-// MicroCMSのAPIは { contents: [...], totalCount: N } 形式で返すため、
-
-// `index.html`の`fetchAllDataWithPagination`が期待する直接配列の形式で返す
-
-res.status(200).json(data.contents); // contents配列のみを返す
-
-
-
-} catch (error) {
-
-console.error('Proxy error for assets API:', error);
-
-res.status(500).json({ error: 'Failed to proxy request to MicroCMS assets API.', details: error.message });
-
-}
-
-}
+        res.status(200).json(enrichedScenes);
+    } catch (error) {
+        console.error('Error in API route:', error);
+        res.status(500).json({ error: 'A server error occurred while fetching episode data.', details: error.message });
+    }
+};
