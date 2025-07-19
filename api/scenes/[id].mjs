@@ -1,19 +1,19 @@
 // your-project-root/api/scenes/[id].mjs
 import { createClient } from 'microcms-js-sdk';
 
-// 環境変数を直接ログ出力して、ランタイムでの値を確認
+// 環境変数を直接ログ出力して、ランタイムでの値を確認 (デバッグ専用)
 const serviceId = process.env.MICROCMS_SERVICE_ID;
 const apiKey = process.env.MICROCMS_API_KEY;
 
-console.log('--- Environment Variable Check ---'); // 新しいログ
-console.log('MICROCMS_SERVICE_ID:', serviceId ? '****** (set)' : 'UNDEFINED/EMPTY'); // 値を直接表示しないが、セットされているか確認
-console.log('MICROCMS_API_KEY:', apiKey ? '****** (set)' : 'UNDEFINED/EMPTY'); // 値を直接表示しないが、セットされているか確認
-console.log('---------------------------------'); // 新しいログ
+console.log('--- Environment Variable Actual Values (FOR DEBUGGING - DO NOT EXPOSE IN PRODUCTION) ---');
+console.log('MICROCMS_SERVICE_ID (raw):', serviceId); // ★この行で実際の値が出力されます
+console.log('MICROCMS_API_KEY (raw):', apiKey);       // ★この行で実際の値が出力されます
+console.log('---------------------------------------------------------------------------------------');
 
 if (!serviceId || !apiKey) {
-  console.error('MicroCMS serviceId または apiKey がVercelの環境変数に設定されていません。');
-  // ここでリクエストを終了させないことで、createClientの後のエラーメッセージを見やすくします。
-  // ただし、この場合も createClient は失敗します。
+  console.error('MicroCMS serviceId または apiKey がVercelの環境変数に設定されていないか、値が不正です。');
+  // このエラーログはSDKのエラーの前に出るはずですが、SDKエラーがプロセスを終了させるため、
+  // この createClient() 呼び出しが失敗します。
 }
 
 const client = createClient({
