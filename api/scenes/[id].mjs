@@ -1,23 +1,22 @@
 // your-project-root/api/scenes/[id].mjs
 import { createClient } from 'microcms-js-sdk';
 
-// 環境変数を直接ログ出力して、ランタイムでの値を確認 (デバッグ専用)
 const serviceId = process.env.MICROCMS_SERVICE_ID;
 const apiKey = process.env.MICROCMS_API_KEY;
 
-console.log('--- Environment Variable Actual Values (FOR DEBUGGING - DO NOT EXPOSE IN PRODUCTION) ---');
-console.log('MICROCMS_SERVICE_ID (raw):', serviceId); // ★この行で実際の値が出力されます
-console.log('MICROCMS_API_KEY (raw):', apiKey);       // ★この行で実際の値が出力されます
-console.log('---------------------------------------------------------------------------------------');
+// デバッグログはもう不要なので削除するか、コメントアウトしてください
+// console.log('--- Environment Variable Actual Values (FOR DEBUGGING - DO NOT EXPOSE IN PRODUCTION) ---');
+// console.log('MICROCMS_SERVICE_ID (raw):', serviceId);
+// console.log('MICROCMS_API_KEY (raw):', apiKey);
+// console.log('---------------------------------------------------------------------------------------');
 
 if (!serviceId || !apiKey) {
   console.error('MicroCMS serviceId または apiKey がVercelの環境変数に設定されていないか、値が不正です。');
-  // このエラーログはSDKのエラーの前に出るはずですが、SDKエラーがプロセスを終了させるため、
-  // この createClient() 呼び出しが失敗します。
 }
 
+// ★ここを修正しました: serviceId を serviceDomain に変更し、ドメイン形式に変換
 const client = createClient({
-  serviceId: serviceId,
+  serviceDomain: `${serviceId}.microcms.io`,
   apiKey: apiKey,
 });
 
