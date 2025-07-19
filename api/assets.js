@@ -1,9 +1,8 @@
 // api/assets.js
-import axios from 'axios'; // axiosをインポート
+// microCMSの「アセット」エンドポイントへのプロキシ (axiosなし版)
 
-export default async (req, res) => {
+export default async function (req, res) {
     // 環境変数からサービスIDとコンテンツAPIキーを取得
-    // MICROCMS_API_BASE_URL はサービスID、MICROCMS_API_KEY はコンテンツAPIキーを想定
     const MICROCMS_SERVICE_ID = process.env.MICROCMS_API_BASE_URL; // 例: "nvw9sy9y9b"
     const MICROCMS_API_KEY = process.env.MICROCMS_API_KEY; // コンテンツAPIキーを使用
 
@@ -22,36 +21,35 @@ export default async (req, res) => {
 
     // filtersが存在する場合、URLに結合
     if (filters) {
-        // filtersパラメータは文字列としてURLSearchParamsに追加
         url.searchParams.append('filters', filters);
     }
 
     console.log(`Fetching assets from MicroCMS: ${url.toString()}`);
 
     try {
-        const response = await axios.get(url.toString(), {
+        const microCMSRes = await fetch(url.toString(), {
+            method: 'GET', // アセット取得はGETメソッド
             headers: {
                 'X-MICROCMS-API-KEY': MICROCMS_API_KEY, // コンテンツAPIキーをヘッダーに設定
             },
         });
 
-        if (response.status !== 200) {
-            console.error(`MicroCMS API returned non-200 status for assets: ${response.status}, ${response.statusText}`);
-            return res.status(response.status).json({ error: response.statusText, details: response.data });
+        // HTTPステータスが200番台でなければエラーとして処理
+        if (!microCMSRes.ok) {
+            const errorText = await microCMSRes.text(); // エラーレスポンスをテキストとして取得
+            console.error(`MicroCMS API returned non-OK status for assets: ${microCMSRes.status}, ${microCMSRes.statusText}`);
+            console.error('MicroCMS error response body:', errorText);
+            return res.status(microCMSRes.status).json({ error: microCMSRes.statusText, details: errorText });
         }
+
+        const data = await microCMSRes.json();
 
         // MicroCMSのAPIは { contents: [...], totalCount: N } 形式で返すため、
         // `index.html`の`fetchAllDataWithPagination`が期待する直接配列の形式で返す
-        res.status(200).json(response.data.contents); // contents配列のみを返す
+        res.status(200).json(data.contents); // contents配列のみを返す
 
     } catch (error) {
         console.error('Proxy error for assets API:', error);
-        if (error.response) {
-            // Axiosからの詳細なエラーレスポンスをログに出力
-            console.error('Axios error response data:', error.response.data);
-            console.error('Axios error response status:', error.response.status);
-            console.error('Axios error response headers:', error.response.headers);
-        }
         res.status(500).json({ error: 'Failed to proxy request to MicroCMS assets API.', details: error.message });
     }
-};
+}
