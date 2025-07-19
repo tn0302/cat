@@ -1,80 +1,121 @@
-// your-project-root/api/scenes.mjs
-import { createClient } from 'microcms-js-sdk';
+import axios from 'axios';
 
-const serviceId = process.env.MICROCMS_SERVICE_ID;
-const apiKey = process.env.MICROCMS_API_KEY;
+// 環境変数からサービスIDとAPIキーを取得
+// Vercelの環境変数 MICROCMS_API_BASE_URL にサービスID (例: "nvw9sy9y9b") が設定されていると仮定
+const MICROCMS_SERVICE_ID = process.env.MICROCMS_API_BASE_URL;
+const MICROCMS_API_KEY = process.env.MICROCMS_API_KEY;
 
-// デバッグログはもう不要なので削除するか、コメントアウトしてください
-// console.log('--- Environment Variable Actual Values (FOR DEBUGGING - DO NOT EXPOSE IN PRODUCTION) ---');
-// console.log('MICROCMS_SERVICE_ID (raw):', serviceId);
-// console.log('MICROCMS_API_KEY (raw):', apiKey);
-// console.log('---------------------------------------------------------------------------------------');
+// MicroCMSからデータをページネーションで全て取得する汎用関数
+async function fetchAllDataWithPagination(endpoint, filters = [], limit = 100, offset = 0) {
+    let allData = [];
+    let currentOffset = offset;
+    let hasMore = true;
 
-if (!serviceId || !apiKey) {
-  console.error('MicroCMS serviceId または apiKey がVercelの環境変数に設定されていません。');
+    if (!MICROCMS_SERVICE_ID || !MICROCMS_API_KEY) {
+        throw new Error('MicroCMS environment variables (MICROCMS_API_BASE_URL or MICROCMS_API_KEY) are not set.');
+    }
+    const baseApiUrl = `https://${MICROCMS_SERVICE_ID}.microcms.io/api/v1/${endpoint}`;
+
+    while (hasMore) {
+        const url = new URL(baseApiUrl);
+        url.searchParams.append('limit', limit);
+        url.searchParams.append('offset', currentOffset);
+        filters.forEach(filter => url.searchParams.append('filters', filter));
+
+        console.log(`Fetching data from: ${url.toString()}`);
+
+        try {
+            const response = await axios.get(url.toString(), {
+                headers: {
+                    'X-MICROCMS-API-KEY': MICROCMS_API_KEY,
+                },
+            });
+
+            if (response.status !== 200) {
+                throw new Error(`HTTP error! Status: ${response.status}, Message: ${response.statusText}`);
+            }
+
+            const data = response.data;
+            allData = allData.concat(data.contents);
+
+            if (data.contents.length < limit) {
+                hasMore = false;
+            } else {
+                currentOffset += limit;
+            }
+        } catch (error) {
+            console.error(`Error fetching data from microCMS with axios: ${error}`);
+            if (error.response) {
+                console.error('Axios error response data:', error.response.data);
+                console.error('Axios error response status:', error.response.status);
+                console.error('Axios error response headers:', error.response.headers);
+            }
+            throw error;
+        }
+    }
+    return allData;
 }
 
-// ★ここを修正しました: serviceId を serviceDomain に変更し、ドメイン形式に変換
-const client = createClient({
-  serviceDomain: `${serviceId}.microcms.io`,
-  apiKey: apiKey,
-});
-
-export default async function handler(req, res) {
-  // ... 既存の GET および POST のハンドラーロジック ...
-  if (req.method === 'GET') {
-    const { episode } = req.query; 
-
-    if (!episode) {
-      return res.status(400).json({ error: 'Episode parameter is required.' });
+// MicroCMSのassetsからタグを使って画像URLを取得するヘルパー関数
+async function fetchAssetImageUrlByTag(tag) {
+    if (!MICROCMS_SERVICE_ID || !MICROCMS_API_KEY) {
+        throw new Error('MicroCMS environment variables are not set.');
     }
+    const assetApiUrl = `https://${MICROCMS_SERVICE_ID}.microcms.io/api/v1/assets?filters=tag[equals]${tag}`;
+    console.log(`Fetching asset by tag: ${tag} from ${assetApiUrl}`);
 
     try {
-      const data = await client.get({
-        endpoint: 'scenes',
-        queries: { filters: `episode[equals]${episode}`, limit: 999 },
-      });
-      return res.status(200).json(data.contents);
-    } catch (error) {
-      console.error('Error fetching scenes:', error);
-      return res.status(500).json({ error: 'Failed to fetch scenes.' });
-    }
-  }
-  else if (req.method === 'POST') {
-    try {
-      const { episode, ...newSceneData } = req.body;
-      console.log('POST request received with data:', req.body);
-
-      if (!episode) {
-        return res.status(400).json({ error: 'Episode parameter is required.' });
-      }
-
-      const sceneToCreate = {
-        episode: parseInt(episode, 10),
-        ...newSceneData,
-      };
-
-      const createdScene = await client.create({
-        endpoint: 'scenes',
-        content: sceneToCreate,
-      });
-
-      console.log('Scene created successfully:', createdScene);
-      return res.status(201).json(createdScene);
-
-    } catch (error) {
-      console.error('Error creating scene:', error);
-      if (error.response && error.response.data) {
-        return res.status(error.response.status || 500).json({
-          error: 'Failed to create scene in MicroCMS.',
-          details: error.response.data,
+        const response = await axios.get(assetApiUrl, {
+            headers: {
+                'X-MICROCMS-API-KEY': MICROCMS_API_KEY,
+            },
         });
-      }
-      return res.status(500).json({ error: 'Internal server error while creating scene.' });
+        if (response.status !== 200) {
+            throw new Error(`HTTP error! Status: ${response.status}, Message: ${response.statusText}`);
+        }
+        const assets = response.data.contents;
+        if (assets && assets.length > 0) {
+            // 最初のマッチしたアセットのimage.urlを返す
+            return assets[0].image;
+        }
+        console.warn(`No asset found for tag: ${tag}`);
+        return null; // アセットが見つからない場合
+    } catch (error) {
+        console.error(`Error fetching asset by tag "${tag}":`, error);
+        throw error;
     }
-  }
-  else {
-    res.setHeader('Allow', ['GET', 'POST']);
-    return res.status(405).end(`Method ${req.method} Not Allowed`);
-  }
 }
+
+// APIルートのハンドラー
+export default async (req, res) => {
+    try {
+        const { episode } = req.query;
+        if (!episode) {
+            return res.status(400).json({ error: 'Episode parameter is required.' });
+        }
+
+        const filters = [`episode[equals]${episode}`];
+        console.log(`Loading scenes data for episode: ${episode}`);
+        // まず、シーンデータを取得
+        const scenesData = await fetchAllDataWithPagination('scenes', filters);
+
+        // シーンデータ内の background フィールドを、対応するアセットの画像URLに変換
+        const enrichedScenes = await Promise.all(scenesData.map(async (scene) => {
+            // background が文字列（タグ名）であり、かつ存在する場合のみ処理
+            if (scene.background && typeof scene.background === 'string') {
+                const imageUrl = await fetchAssetImageUrlByTag(scene.background);
+                if (imageUrl) {
+                    // background フィールドを画像URLに置き換える
+                    return { ...scene, background: imageUrl };
+                }
+            }
+            // background がない、または文字列でない、またはアセットが見つからない場合はそのまま返す
+            return scene;
+        }));
+
+        res.status(200).json(enrichedScenes);
+    } catch (error) {
+        console.error('Error in API route:', error);
+        res.status(500).json({ error: 'A server error occurred while fetching episode data.', details: error.message });
+    }
+};
