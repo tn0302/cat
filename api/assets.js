@@ -1,9 +1,10 @@
 // api/assets.js
-// microCMSの「アセット」エンドポイントへのプロキシ (axiosなし版)
+// microCMSの「アセット」エンドポイントへのプロキシ
 
-export default async function (req, res) {
+export default async function handler(req, res) { // 関数名を 'handler' に変更するとVercelでより一般的な慣習に沿います
     // 環境変数からサービスIDとコンテンツAPIキーを取得
-    const MICROCMS_SERVICE_ID = process.env.MICROCMS_API_BASE_URL; // 例: "nvw9sy9y9b"
+    // ★ここを修正: MICROCMS_API_BASE_URL ではなく MICROCMS_SERVICE_ID から取得します
+    const MICROCMS_SERVICE_ID = process.env.MICROCMS_SERVICE_ID;
     const MICROCMS_API_KEY = process.env.MICROCMS_API_KEY; // コンテンツAPIキーを使用
 
     if (!MICROCMS_SERVICE_ID || !MICROCMS_API_KEY) {
@@ -12,8 +13,9 @@ export default async function (req, res) {
     }
 
     const { filters } = req.query; // クライアントから渡されたfiltersクエリパラメータを取得
-    
+
     // MicroCMSのコンテンツAPI v1のエンドポイントを使用
+    // ★サービスIDを使って正しいMicroCMSのAPIベースURLを構築します
     const baseApiUrl = `https://${MICROCMS_SERVICE_ID}.microcms.io/api/v1/assets`;
 
     const url = new URL(baseApiUrl);
