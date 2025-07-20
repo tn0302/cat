@@ -291,14 +291,16 @@ async function loadEpisodeData(episodeNumber) {
 
 
         // キャラクター
-        if (requiredCharacterTags.size > 0) {
-            let charFilter = `asset_type[contains]character[and](${Array.from(requiredCharacterTags).map(tag => `tag[equals]${tag}`).join('[or]')})`;
-            // 表情タグも指定されている場合、より厳密にフィルターする
-            if (requiredFaceTags.size > 0) {
-                charFilter += `[and](${Array.from(requiredFaceTags).map(tag => `character_face_tag[equals]${tag}`).join('[or]')})`;
-            }
-            const charAssets = await fetchAllDataWithPagination(ASSETS_PROXY_PATH, null, `filters=${charFilter}`);
-            charAssets.forEach(asset => {
+      // キャラクター
+            if (requiredCharacterTags.size > 0) {
+                // ここを修正: asset_type[contains] を asset_type[equals] に変更
+                let charFilter = `asset_type[equals]character[and](${Array.from(requiredCharacterTags).map(tag => `tag[equals]${tag}`).join('[or]')})`;
+                // 表情タグも指定されている場合、より厳密にフィルターする
+                if (requiredFaceTags.size > 0) {
+                    charFilter += `[and](${Array.from(requiredFaceTags).map(tag => `character_face_tag[equals]${tag}`).join('[or]')})`;
+                }
+                const charAssets = await fetchAllDataWithPagination(ASSETS_PROXY_PATH, null, `filters=${charFilter}`);
+                charAssets.forEach(asset => {
                 // ★ 修正: character_face_image.url から image.url に変更
                 if (asset.image && asset.image.url) { // imageフィールドが存在し、URLを持つか確認
                     if (!loadedAssets.characters[asset.tag]) {
