@@ -2,41 +2,50 @@
 import { createClient } from 'microcms-js-sdk';
 
 // 環境変数からAPIキーと、BASE_URL（サービスIDを含む）を取得
-// MICROCMS_API_BASE_URL は "your-service-id.microcms.io/api/v1" の形式で設定されていると仮定
+// これらの変数はトップレベルで定義されますが、チェックとエラー応答はhandler関数内で行います
 const microcmsApiBaseUrl = process.env.MICROCMS_API_BASE_URL;
 const apiKey = process.env.MICROCMS_API_KEY;
 
-// 環境変数が正しく設定されていない場合の早期リターン
-if (!microcmsApiBaseUrl || !apiKey) {
-  console.error('MicroCMS environment variables (MICROCMS_API_BASE_URL or MICROCMS_API_KEY) are not set.');
-  return res.status(500).json({ error: 'Server configuration error: MicroCMS environment variables are not set.' });
-}
-
-// microcms-js-sdk の serviceDomain には "your-service-id.microcms.io" の形式が必要
-// MICROCMS_API_BASE_URL からドメイン部分を抽出します
+// microCMSクライアントは一度だけ初期化します
+let client;
 let serviceDomain = '';
-try {
-  // "https://your-service-id.microcms.io/api/v1" から "your-service-id.microcms.io" を取得
-  // 'https://' プレフィックスを考慮して、URLオブジェクトを使うのが最も安全です
-  const url = new URL(`https://${microcmsApiBaseUrl}`); // 仮にhttpsを付けてパース
-  serviceDomain = url.host; // ホスト名のみを取得 (例: "your-service-id.microcms.io")
 
-  if (!serviceDomain.includes('.microcms.io')) {
-      throw new Error('Invalid MICROCMS_API_BASE_URL format. Expected "your-service-id.microcms.io/api/v1".');
-  }
+// handler関数が初めて呼び出されたときにクライアントを初期化するように変更
+// または、トップレベルでtry-catchを使って初期化
+try {
+    // MICROCMS_API_BASE_URL が設定されていない場合は、後のhandler関数内でエラーを返す
+    if (microcmsApiBaseUrl) {
+        // serviceDomain を MICROCMS_API_BASE_URL から抽出
+        const url = new URL(`https://${microcmsApiBaseUrl}`); // 仮にhttpsを付けてパース
+        serviceDomain = url.host;
+
+        if (!serviceDomain.includes('.microcms.io')) {
+            // 不正な形式の場合もエラーを投げてクライアント初期化を阻止
+            throw new Error('Invalid MICROCMS_API_BASE_URL format for serviceDomain.');
+        }
+
+        // 全てが正しければクライアントを初期化
+        client = createClient({
+            serviceDomain: serviceDomain,
+            apiKey: apiKey,
+        });
+    }
 } catch (e) {
-  console.error('Error parsing MICROCMS_API_BASE_URL for serviceDomain:', e.message);
-  return res.status(500).json({ error: 'Failed to parse MICROCMS_API_BASE_URL for serviceDomain. Check environment variable format.' });
+    console.error('MicroCMS client initialization failed at top level:', e.message);
+    // 初期化に失敗した場合、clientはundefinedのままにしておく
+    client = null; // 明示的にnullを設定
 }
 
-const client = createClient({
-  serviceDomain: serviceDomain, // 抽出した正しいドメインを使用
-  apiKey: apiKey,
-});
 
 export default async function handler(req, res) {
   console.log('--- api/scenes/[id].mjs handler started ---');
   console.log('Request method:', req.method);
+
+  // 環境変数とクライアント初期化のチェックをhandler関数内で行う
+  if (!microcmsApiBaseUrl || !apiKey || !client) {
+      console.error('Server configuration error: MicroCMS environment variables are not set or client initialization failed.');
+      return res.status(500).json({ error: 'Server configuration error: MicroCMS variables are missing or invalid, or client failed to initialize.' });
+  }
 
   // [id].mjs の場合、IDは req.query.id で取得されます
   const { id } = req.query;
