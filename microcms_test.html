@@ -1,114 +1,123 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>microCMS API Route Test (scenes.mjs)</title>
-    <style>
-        body { font-family: sans-serif; margin: 20px; background: #f4f4f4; color: #333; }
-        pre { background: #eee; padding: 15px; border-radius: 8px; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word; }
-        .success { color: green; font-weight: bold; }
-        .error { color: red; font-weight: bold; }
-        .scene-item {
-            border: 1px solid #ccc;
-            padding: 15px;
-            margin-bottom: 10px;
-            border-radius: 5px;
-            background: white;
-        }
-        .scene-item img {
-            max-width: 100%;
-            height: auto;
-            display: block;
-            margin-top: 10px;
-            border-radius: 4px;
-        }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>ノベルビューア</title>
+  <style>
+    body { margin: 0; background: #000; color: #fff; font-family: sans-serif; }
+    #background { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-size: cover; background-position: center; z-index: -1; }
+    #character { position: absolute; bottom: 0; left: 50%; transform: translateX(-50%); max-height: 80%; z-index: 1; }
+    #message-box { position: absolute; bottom: 0; width: 100%; background: rgba(0,0,0,0.7); padding: 1em; box-sizing: border-box; }
+    #speaker { font-weight: bold; }
+  </style>
 </head>
 <body>
-    <h1>MicroCMS API Route テスト (scenes.mjs 経由)</h1>
-    <p>このページはVercel上の `/api/scenes` APIルートからデータを取得し、表示します。</p>
-    <div>
-        <label for="episodeSelect">エピソードを選択: </label>
-        <select id="episodeSelect">
-            <option value="1">エピソード 1</option>
-            <option value="2">エピソード 2</option>
-            <option value="3">エピソード 3</option>
-            </select>
-        <button id="loadDataButton">データをロード</button>
-    </div>
-    <div id="status">準備完了</div>
-    <div id="data-output"></div>
+  <div id="background"></div>
+  <img id="character" src="" alt="character" style="display:none;" />
+  <div id="message-box">
+    <div id="speaker"></div>
+    <div id="text"></div>
+  </div>
 
-    <script>
-        const statusElement = document.getElementById('status');
-        const dataOutputElement = document.getElementById('data-output');
-        const episodeSelect = document.getElementById('episodeSelect');
-        const loadDataButton = document.getElementById('loadDataButton');
+  <script>
+    const GAS_BASE_URL = 'https://script.google.com/macros/s/AKfycbws8iWylo3bDjp7nlALpjNlGxS5En8AZtxMnF43pZZ5htZxqydHO4iVKjVOfudyfnnIGA/exec';
 
-        loadDataButton.addEventListener('click', () => {
-            const selectedEpisode = episodeSelect.value;
-            testApiRouteConnection(selectedEpisode);
-        });
+    let currentEpisodeScenes = [];
+    let loadedAssets = { backgrounds: {}, characters: {}, effects: {}, specialImages: {} };
+    let currentEpisodeNumber = 1;
+    let currentSceneIndex = 0;
 
-        // Vercel上のAPIルートを呼び出す関数
-        async function testApiRouteConnection(episode) {
-            statusElement.textContent = `エピソード ${episode} のデータを読み込み中...`;
-            statusElement.className = '';
-            dataOutputElement.innerHTML = ''; // 以前の表示をクリア
+    async function fetchAllScenesFromGAS(episodeNumber) {
+        const url = `${GAS_BASE_URL}?type=scenes&episode=${episodeNumber}`;
+        const res = await fetch(url);
+        if (!res.ok) throw new Error('Failed to fetch scenes from GAS');
+        return await res.json();
+    }
 
-            try {
-                // MicroCMSに直接アクセスする代わりに、VercelのAPIルートを呼び出す
-                const apiUrl = `/api/scenes?episode=${episode}`;
-                console.log(`Calling API Route: ${apiUrl}`);
+    async function fetchAssetsFromGAS(tag = '') {
+        const url = `${GAS_BASE_URL}?type=assets${tag ? `&tag=${encodeURIComponent(tag)}` : ''}`;
+        const res = await fetch(url);
+        if (!res.ok) throw new Error('Failed to fetch asset: ' + tag);
+        return await res.json();
+    }
 
-                const res = await fetch(apiUrl);
+    async function loadEpisodeData(episodeNumber) {
+        currentEpisodeScenes = await fetchAllScenesFromGAS(episodeNumber);
+        currentEpisodeScenes.sort((a, b) => (a.sceneNumber || 0) - (b.sceneNumber || 0));
 
-                if (!res.ok) {
-                    const errorBody = await res.text();
-                    throw new Error(`APIルートエラー！ステータス: ${res.status}, レスポンス: ${errorBody}`);
+        const backgroundTags = new Set();
+        const characterTags = new Set();
+        const faceTags = new Set();
+        const specialTags = new Set();
+
+        for (const scene of currentEpisodeScenes) {
+            if (scene.background && scene.background !== "なし") backgroundTags.add(scene.background);
+            if (scene.character && scene.character !== "なし") characterTags.add(scene.character);
+            if (scene.speaker && scene.speaker !== "ナレーション") characterTags.add(scene.speaker);
+            if (scene.face) faceTags.add(scene.face);
+            if (scene.special) specialTags.add(scene.special);
+        }
+
+        for (const tag of backgroundTags) {
+            const result = await fetchAssetsFromGAS(tag);
+            if (result.length > 0) loadedAssets.backgrounds[tag] = result[0].image;
+        }
+
+        for (const charTag of characterTags) {
+            loadedAssets.characters[charTag] = {};
+            for (const face of faceTags) {
+                const result = await fetchAssetsFromGAS(charTag);
+                for (const asset of result) {
+                    if (asset.character_face_tag === face) {
+                        loadedAssets.characters[charTag][face] = asset.image;
+                    }
                 }
-
-                const data = await res.json();
-                console.log(`APIルートからのデータ:`, data);
-
-                if (!data || !Array.isArray(data) || data.length === 0) {
-                    statusElement.textContent = '⚠️ APIルートからデータが返されませんでした、またはデータが空です。';
-                    statusElement.className = 'error';
-                    dataOutputElement.textContent = 'APIルートが正しいデータを返しているか確認してください。';
-                    return;
-                }
-
-                statusElement.textContent = `✅ APIルートからのデータ取得に成功しました！`;
-                statusElement.className = 'success';
-
-                data.forEach((item, index) => {
-                    const sceneDiv = document.createElement('div');
-                    sceneDiv.className = 'scene-item';
-
-                    // background が直接URLであることを期待
-                    const backgroundUrl = item.background; 
-
-                    sceneDiv.innerHTML = `
-                        <h2>シーン ${item.sceneNumber || (index + 1)}</h2>
-                        <p><strong>話者:</strong> ${item.speaker || 'N/A'}</p>
-                        <p><strong>セリフ:</strong> ${item.text || 'N/A'}</p>
-                        <p><strong>背景データ:</strong> <pre>${JSON.stringify(item.background, null, 2)}</pre></p>
-                        ${backgroundUrl ? `<img src="${backgroundUrl}" alt="背景画像">` : '<p>背景画像がありません</p>'}
-                    `;
-                    dataOutputElement.appendChild(sceneDiv);
-                });
-
-            } catch (error) {
-                statusElement.textContent = `❌ APIルートからのデータ取得に失敗しました。エラー: ${error.message}`;
-                statusElement.className = 'error';
-                dataOutputElement.textContent = '詳細を上記エラーメッセージとコンソールで確認してください。';
-                console.error("APIルート接続テストエラー:", error);
             }
         }
 
-        // ページロード時にエピソード1のデータを自動でロード
-        testApiRouteConnection(episodeSelect.value);
-    </script>
+        for (const tag of specialTags) {
+            const result = await fetchAssetsFromGAS(tag);
+            if (result.length > 0) loadedAssets.specialImages[tag] = result[0].image;
+        }
+
+        currentSceneIndex = 0;
+        showScene(currentSceneIndex);
+    }
+
+    function showScene(index) {
+        const scene = currentEpisodeScenes[index];
+        if (!scene) return;
+
+        document.getElementById("speaker").textContent = scene.speaker || "";
+        document.getElementById("text").textContent = scene.text || "";
+
+        const bgUrl = loadedAssets.backgrounds[scene.background] || 'assets/default_bg.jpg';
+        document.getElementById("background").style.backgroundImage = `url('${bgUrl}')`;
+
+        const charName = scene.character || scene.speaker;
+        const face = scene.face || 'normal';
+        const charImage = (loadedAssets.characters[charName] && loadedAssets.characters[charName][face]) || '';
+
+        const charEl = document.getElementById("character");
+        if (charImage) {
+            charEl.src = charImage;
+            charEl.style.display = 'block';
+        } else {
+            charEl.style.display = 'none';
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', async () => {
+        await loadEpisodeData(currentEpisodeNumber);
+    });
+
+    document.addEventListener('click', () => {
+        currentSceneIndex++;
+        if (currentSceneIndex < currentEpisodeScenes.length) {
+            showScene(currentSceneIndex);
+        }
+    });
+  </script>
 </body>
 </html>
