@@ -27,11 +27,8 @@
         #dialogue-text { font-size: 1.1em; line-height: 1.5; text-shadow: 1px 1px 2px rgba(0,0,0,0.5); user-select: text; /* テキスト選択可能に */ }
         #next-indicator { position: absolute; bottom: 10px; right: 20px; font-size: 2em; animation: bounce 1s infinite; }
         @keyframes bounce { 0%, 20%, 50%, 80%, 100% { transform: translateY(0); } 40% { transform: translateY(-10px); } 60% { transform: translateY(-5px); } }
-        #controls {
-            position: absolute; bottom: 0; width: 100%; height: 50px;
-            background: rgba(0,0,0,0.9); display: flex; justify-content: space-around;
-            align-items: center; z-index: 100;
-        }
+        /* #controls styles removed as the element is being removed */
+
         .control-button { background: #333; color: #fff; border: none; padding: 10px 15px; cursor: pointer; border-radius: 5px; font-size: 0.9em; }
         .control-button:hover { background: #555; }
 
@@ -165,11 +162,7 @@
             <div id="next-indicator">▼</div>
         </div>
 
-        <div id="controls">
-            <button id="prev-button" class="control-button">←戻る</button>
-            <button id="next-button" class="control-button">次へ→</button>
         </div>
-    </div>
 
     <div id="modal">
         <div id="edit-form-container">
@@ -243,7 +236,7 @@
 
     <script>
         // Google Apps Script WebアプリのデプロイURLをここに設定
-        const GAS_BASE_URL = 'https://script.google.com/macros/s/AKfycbws8iWylo3bDjp7nlALpjNlGxS5En8AZtxMnF43pZZ5htZxqydHO4iVKjVOfudyfnnIGA/exec'; // 例: 'https://script.google.com/macros/s/AKfycb.../exec'
+        const GAS_BASE_URL = 'YOUR_GAS_WEB_APP_URL_HERE'; // 例: 'https://script.google.com/macros/s/AKfycb.../exec'
 
         // APIエンドポイント
         const SCENES_PROXY_PATH = `${GAS_BASE_URL}?api=scenes`;
@@ -277,8 +270,9 @@
         const assetUploadForm = document.getElementById('asset-upload-form');
 
         // イベントリスナー
-        document.getElementById('next-button').addEventListener('click', () => nextScene());
-        document.getElementById('prev-button').addEventListener('click', () => prevScene());
+        // Removed: document.getElementById('next-button').addEventListener('click', () => nextScene());
+        // Removed: document.getElementById('prev-button').addEventListener('click', () => prevScene());
+        
         document.getElementById('add-scene-button').addEventListener('click', () => openEditModal('add'));
         document.getElementById('edit-scene-button').addEventListener('click', () => openEditModal('edit'));
         document.getElementById('delete-scene-button').addEventListener('click', () => openEditModal('delete'));
@@ -357,7 +351,8 @@
                 return;
             }
 
-            if (e.target.closest('#edit-form') || e.target.closest('#controls') || e.target.closest('#header')) {
+            // Removed: e.target.closest('#controls')
+            if (e.target.closest('#edit-form') || e.target.closest('#header')) {
                 return;
             }
 
@@ -979,8 +974,8 @@
             document.getElementById('prev-episode-button').disabled = (currentEpisodeIndex <= 0);
             document.getElementById('next-episode-button').disabled = (currentEpisodeIndex >= allEpisodeNumbers.length - 1);
 
-            document.getElementById('prev-button').disabled = (currentSceneIndex <= 0);
-            document.getElementById('next-button').disabled = (currentSceneIndex >= currentEpisodeData.length - 1 && currentEpisodeIndex >= allEpisodeNumbers.length - 1);
+            // Removed: document.getElementById('prev-button').disabled = (currentSceneIndex <= 0);
+            // Removed: document.getElementById('next-button').disabled = (currentSceneIndex >= currentEpisodeData.length - 1 && currentEpisodeIndex >= allEpisodeNumbers.length - 1);
         }
 
         // エピソードを切り替える
