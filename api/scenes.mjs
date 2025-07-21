@@ -1,39 +1,19 @@
 import axios from 'axios';
 
-// 環境変数から完全なAPIベースURLとAPIキーを取得
-// Vercelの環境変数 MICROCMS_API_BASE_URL には "your-service-id.microcms.io/api/v1" が設定されていると仮定
-const MICROCMS_API_BASE_URL_FULL = process.env.MICROCMS_API_BASE_URL;
+// 環境変数からサービスIDとAPIキーを取得
+const MICROCMS_SERVICE_ID = process.env.MICROCMS_API_BASE_URL;
 const MICROCMS_API_KEY = process.env.MICROCMS_API_KEY;
 
-// MICROCMS_API_BASE_URL_FULL からサービスID（例: "nvw9sy9y9b"）を抽出
-let MICROCMS_SERVICE_ID_ONLY = '';
-if (MICROCMS_API_BASE_URL_FULL) {
-    try {
-        // "https://your-service-id.microcms.io/api/v1" から "your-service-id" を抽出
-        const urlParts = MICROCMS_API_BASE_URL_FULL.split('.');
-        if (urlParts.length > 0) {
-            MICROCMS_SERVICE_ID_ONLY = urlParts[0];
-        }
-    } catch (e) {
-        console.error('Error parsing MICROCMS_API_BASE_URL_FULL for service ID:', e.message);
-        // エラーハンドリングは後続のチェックに任せる
-    }
-}
-
-
-// MicroCMSからデータをページネーションで全て取得する汎用関数
+// MicroCMSからデータをページネーションで全て取得する汎用関数 (変更なし)
 async function fetchAllDataWithPagination(endpoint, filters = [], limit = 100, offset = 0) {
     let allData = [];
     let currentOffset = offset;
     let hasMore = true;
 
-    // 環境変数のチェック
-    if (!MICROCMS_API_BASE_URL_FULL || !MICROCMS_API_KEY || !MICROCMS_SERVICE_ID_ONLY) {
-        throw new Error('MicroCMS environment variables are not correctly set or parsed.');
+    if (!MICROCMS_SERVICE_ID || !MICROCMS_API_KEY) {
+        throw new Error('MicroCMS environment variables (MICROCMS_API_BASE_URL or MICROCMS_API_KEY) are not set.');
     }
-    
-    // 抽出したサービスIDを使用してURLを構築
-    const baseApiUrl = `https://${MICROCMS_SERVICE_ID_ONLY}.microcms.io/api/v1/${endpoint}`;
+    const baseApiUrl = `https://${MICROCMS_SERVICE_ID}.microcms.io/api/v1/${endpoint}`;
 
     while (hasMore) {
         const url = new URL(baseApiUrl);
@@ -75,14 +55,12 @@ async function fetchAllDataWithPagination(endpoint, filters = [], limit = 100, o
     return allData;
 }
 
-// MicroCMSのassetsからタグを使って画像URLを取得するヘルパー関数
+// MicroCMSのassetsからタグを使って画像URLを取得するヘルパー関数 (変更なし)
 async function fetchAssetImageUrlByTag(tag) {
-    // 環境変数のチェック
-    if (!MICROCMS_API_BASE_URL_FULL || !MICROCMS_API_KEY || !MICROCMS_SERVICE_ID_ONLY) {
-        throw new Error('MicroCMS environment variables are not correctly set or parsed.');
+    if (!MICROCMS_SERVICE_ID || !MICROCMS_API_KEY) {
+        throw new Error('MicroCMS environment variables are not set.');
     }
-    // 抽出したサービスIDを使用してURLを構築
-    const assetApiUrl = `https://${MICROCMS_SERVICE_ID_ONLY}.microcms.io/api/v1/assets?filters=tag[equals]${tag}`;
+    const assetApiUrl = `https://${MICROCMS_SERVICE_ID}.microcms.io/api/v1/assets?filters=tag[equals]${tag}`;
     console.log(`Fetching asset by tag: ${tag} from ${assetApiUrl}`);
 
     try {
@@ -109,10 +87,10 @@ async function fetchAssetImageUrlByTag(tag) {
 // APIルートのハンドラー
 export default async (req, res) => {
     try {
-        // --- 環境変数と抽出されたサービスIDの最終チェック ---
-        if (!MICROCMS_API_BASE_URL_FULL || !MICROCMS_API_KEY || !MICROCMS_SERVICE_ID_ONLY) {
-            console.error('MicroCMS environment variables (MICROCMS_API_BASE_URL or MICROCMS_API_KEY) are not set or improperly formatted.');
-            return res.status(500).json({ error: 'Server configuration error: MicroCMS environment variables are not set or invalid.' });
+        // --- 環境変数チェック ---
+        if (!MICROCMS_SERVICE_ID || !MICROCMS_API_KEY) {
+            console.error('MicroCMS environment variables (MICROCMS_API_BASE_URL or MICROCMS_API_KEY) are not set.');
+            return res.status(500).json({ error: 'Server configuration error: MicroCMS environment variables are not set.' });
         }
 
         // --- リクエストメソッドによる分岐 ---
@@ -140,14 +118,8 @@ export default async (req, res) => {
             res.status(200).json(enrichedScenes);
 
         } else if (req.method === 'PATCH') {
-            // ★重要★ api/scenes/[id].mjs が PATCH リクエストを処理するため、
-            // こちらの PATCH ブロックは削除するか、コメントアウトしてください。
-            // 現在、このブロックは不要であり、混乱の原因となります。
-            console.warn('Attempted PATCH request on api/scenes.mjs, but it should be handled by api/scenes/[id].mjs. This block should be removed.');
-            res.status(405).json({ error: 'Method Not Allowed - PATCH requests for specific IDs are handled by /api/scenes/[id].' });
-
-            // 以下のコードは削除するか、完全にコメントアウトしてください
-            /*
+            // --- PATCHリクエストの処理 ---
+            // URLからシーンIDを抽出 (例: /api/scenes/hkc2mgy70 -> hkc2mgy70)
             const pathSegments = req.url.split('?')[0].split('/');
             const sceneId = pathSegments[pathSegments.length - 1]; 
 
@@ -155,6 +127,7 @@ export default async (req, res) => {
                 return res.status(400).json({ error: 'Scene ID is required for update.' });
             }
 
+            // リクエストボディから更新データを取得 (Vercelはreq.bodyを自動でパースします)
             const updatedData = req.body; 
 
             if (!updatedData || Object.keys(updatedData).length === 0) {
@@ -164,9 +137,10 @@ export default async (req, res) => {
             console.log(`Updating scene ID: ${sceneId} with data:`, updatedData);
 
             try {
-                // ここでも MICROCMS_SERVICE_ID_ONLY を使うべき
-                const microCMSUpdateUrl = `https://${MICROCMS_SERVICE_ID_ONLY}.microcms.io/api/v1/scenes/${sceneId}`;
+                const microCMSUpdateUrl = `https://${MICROCMS_SERVICE_ID}.microcms.io/api/v1/scenes/${sceneId}`;
                 
+                // MicroCMSはPUTメソッドを推奨しますが、PATCHも利用可能です。
+                // PUTは全体更新ですが、MicroCMSではPATCHと同様に部分更新のように振る舞うことが多いです。
                 const response = await axios.put(microCMSUpdateUrl, updatedData, { 
                     headers: {
                         'X-MICROCMS-API-KEY': MICROCMS_API_KEY,
@@ -189,7 +163,6 @@ export default async (req, res) => {
                 }
                 res.status(500).json({ error: 'Internal server error while updating scene.', details: updateError.message });
             }
-            */
 
         } else {
             // --- 未対応のメソッドの場合 ---
