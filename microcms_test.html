@@ -33,16 +33,10 @@
         .control-button:hover { background: #555; }
 
         /* ログ表示スタイル */
-        #log-area { flex-grow: 1; overflow-y: auto; margin-top: 10px; padding-right: 10px; /* スクロールバーのための余白 */ }
-        .log-entry { margin-bottom: 10px; }
+       .log-entry { margin-bottom: 10px; }
         .log-speaker { font-weight: bold; color: #ffd700; margin-bottom: 2px; }
         .log-text { font-size: 1em; line-height: 1.4; }
-        /* スクロールバーのカスタマイズ */
-        #log-area::-webkit-scrollbar { width: 8px; }
-        #log-area::-webkit-scrollbar-track { background: rgba(255,255,255,0.1); border-radius: 4px; }
-        #log-area::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.3); border-radius: 4px; }
-        #log-area::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.5); }
-
+    
         /* 編集フォームのモーダル */
         #modal { display: none; position: fixed; z-index: 200; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.7); justify-content: center; align-items: center; }
         #edit-form-container { background: #222; padding: 25px; border-radius: 8px; width: 90%; max-width: 500px; box-sizing: border-box; max-height: 90vh; overflow-y: auto; }
@@ -156,7 +150,6 @@
         <img id="effect-image" src="" alt="" style="display: none;">
 
         <div id="dialogue-box">
-            <div id="log-area"></div>
             <div id="speaker-name"></div>
             <div id="dialogue-text"></div>
             <div id="next-indicator">▼</div>
@@ -256,8 +249,7 @@
         const specialImage = document.getElementById('special-image');
         const effectImage = document.getElementById('effect-image');
         const dialogueBox = document.getElementById('dialogue-box');
-        const logArea = document.getElementById('log-area');
-
+   
         // モーダル関連の要素
         const modal = document.getElementById('modal');
         const editForm = document.getElementById('edit-form');
