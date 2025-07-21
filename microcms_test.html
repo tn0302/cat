@@ -35,12 +35,13 @@
         return await res.json();
     }
 
-    async function fetchAssetsFromGAS(tag = '') {
-        const url = `${GAS_BASE_URL}?type=assets${tag ? `&tag=${encodeURIComponent(tag)}` : ''}`;
-        const res = await fetch(url);
-        if (!res.ok) throw new Error('Failed to fetch asset: ' + tag);
-        return await res.json();
-    }
+async function fetchAssetsFromGAS(category, tag = '', face = '') {
+    const url = `${GAS_BASE_URL}?type=assets&category=${category}&tag=${encodeURIComponent(tag)}${face ? `&face=${encodeURIComponent(face)}` : ''}`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('Failed to fetch asset');
+    return await res.json();
+}
+
 
     async function loadEpisodeData(episodeNumber) {
         currentEpisodeScenes = await fetchAllScenesFromGAS(episodeNumber);
@@ -118,6 +119,46 @@
             showScene(currentSceneIndex);
         }
     });
+    async function preloadAssets(scenes) {
+    const tags = { character: new Set(), face: new Set(), background: new Set(), effect: new Set(), special: new Set() };
+
+    scenes.forEach(scene => {
+        if (scene.character) tags.character.add(scene.character);
+        if (scene.speaker) tags.character.add(scene.speaker);
+        if (scene.face) tags.face.add(scene.face);
+        if (scene.background) tags.background.add(scene.background);
+        if (scene.effect) tags.effect.add(scene.effect);
+        if (scene.special) tags.special.add(scene.special);
+    });
+
+    for (const bg of tags.background) {
+        const result = await fetchAssetsFromGAS('background', bg);
+        if (result[0]) loadedAssets.background[bg] = result[0].image;
+    }
+
+    for (const name of tags.character) {
+        loadedAssets.character[name] = {};
+        for (const face of tags.face) {
+            const result = await fetchAssetsFromGAS('character', name, face);
+            for (const asset of result) {
+                if (asset.face === face) {
+                    loadedAssets.character[name][face] = asset.image;
+                }
+            }
+        }
+    }
+
+    for (const tag of tags.effect) {
+        const result = await fetchAssetsFromGAS('effect', tag);
+        if (result[0]) loadedAssets.effect[tag] = result[0].image;
+    }
+
+    for (const tag of tags.special) {
+        const result = await fetchAssetsFromGAS('special_image', tag);
+        if (result[0]) loadedAssets.special[tag] = result[0].image;
+    }
+}
+
   </script>
 </body>
 </html>
