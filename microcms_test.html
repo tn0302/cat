@@ -12,20 +12,6 @@
         #special-image { object-fit: contain; background: none; } /* 一枚絵の場合 */
         #character { position: absolute; bottom: -10%; left: 50%; transform: translateX(-50%); max-height: 70%; max-width: 100%; object-fit: contain; z-index: 1; transition: filter 0.3s ease; }
         #character.dimmed { filter: brightness(0.5); }
-        #dialogue-box {
-            position: absolute; bottom: 0; width: 100%; min-height: 25%; max-height: 50%;
-            background: rgba(0,0,0,0.8); padding: 20px; box-sizing: border-box; z-index: 10;
-            display: flex; flex-direction: column; transition: all 0.3s ease;
-            overflow: hidden; /* ログ展開時に隠れる部分 */
-        }
-        #dialogue-box.expanded {
-            height: 100%; max-height: 100%;
-            justify-content: flex-start; /* 展開時は上から */
-            padding-bottom: 50px; /* 下部操作ボタンとの重なり回避 */
-        }
-        #speaker-name { font-size: 1.2em; font-weight: bold; margin-bottom: 5px; color: #ffd700; }
-        #dialogue-text { font-size: 1.1em; line-height: 1.5; text-shadow: 1px 1px 2px rgba(0,0,0,0.5); user-select: text; /* テキスト選択可能に */ }
-        #next-indicator { position: absolute; bottom: 10px; right: 20px; font-size: 2em; animation: bounce 1s infinite; }
         @keyframes bounce { 0%, 20%, 50%, 80%, 100% { transform: translateY(0); } 40% { transform: translateY(-10px); } 60% { transform: translateY(-5px); } }
         /* #controls styles removed as the element is being removed */
 
@@ -33,15 +19,9 @@
         .control-button:hover { background: #555; }
 
         /* ログ表示スタイル */
-        #log-area { flex-grow: 1; overflow-y: auto; margin-top: 10px; padding-right: 10px; /* スクロールバーのための余白 */ }
         .log-entry { margin-bottom: 10px; }
-        .log-speaker { font-weight: bold; color: #ffd700; margin-bottom: 2px; }
+        .log-speaker { font-weight: bold; color: #ffffff; margin-bottom: 2px; }
         .log-text { font-size: 1em; line-height: 1.4; }
-        /* スクロールバーのカスタマイズ */
-        #log-area::-webkit-scrollbar { width: 8px; }
-        #log-area::-webkit-scrollbar-track { background: rgba(255,255,255,0.1); border-radius: 4px; }
-        #log-area::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.3); border-radius: 4px; }
-        #log-area::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.5); }
 
         /* 編集フォームのモーダル */
         #modal { display: none; position: fixed; z-index: 200; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.7); justify-content: center; align-items: center; }
@@ -155,13 +135,6 @@
         <img id="character" src="" alt="" style="display: none;">
         <img id="effect-image" src="" alt="" style="display: none;">
 
-        <div id="dialogue-box">
-            <div id="log-area"></div>
-            <div id="speaker-name"></div>
-            <div id="dialogue-text"></div>
-            <div id="next-indicator">▼</div>
-        </div>
-
         </div>
 
     <div id="modal">
@@ -248,15 +221,10 @@
         let allEpisodeNumbers = []; // 全エピソード番号
 
         // DOM要素の取得
-        const dialogueText = document.getElementById('dialogue-text');
-        const speakerName = document.getElementById('speaker-name');
-        const nextIndicator = document.getElementById('next-indicator');
         const characterImg = document.getElementById('character');
         const backgroundDiv = document.getElementById('background');
         const specialImage = document.getElementById('special-image');
         const effectImage = document.getElementById('effect-image');
-        const dialogueBox = document.getElementById('dialogue-box');
-        const logArea = document.getElementById('log-area');
 
         // モーダル関連の要素
         const modal = document.getElementById('modal');
