@@ -145,7 +145,6 @@
             <div class="dropdown-content">
                 <button id="add-scene-button">シーン追加</button>
                 <button id="edit-scene-button">シーン編集</button>
-                <button id="delete-scene-button">シーン削除</button>
                 <button id="upload-asset-button">不足アセットのアップロード</button>
                 <button id="refresh-data-button">データ更新</button>
             </div>
@@ -203,7 +202,7 @@
 
                 <button type="submit" id="save-scene-button">保存</button>
                 <button type="button" id="cancel-edit-button" class="cancel-button">キャンセル</button>
-                <button type="button" id="confirm-delete-button" class="delete-button" style="display: none;">削除確定</button>
+                <button type="button" id="confirm-delete-button" class="delete-button">削除</button>
             </form>
         </div>
     </div>
@@ -237,7 +236,7 @@
 
     <script>
         // Google Apps Script WebアプリのデプロイURLをここに設定
-        const GAS_BASE_URL = 'https://script.google.com/macros/s/AKfycbwAsItKeiZ7DGaDBex-cXYpKWfsiScBrNGf0cnHIuJEq-9x0PpaYisrw1KtetJ6ruu7/exec'; // 例: 'https://script.google.com/macros/s/AKfycb.../exec'
+        const GAS_BASE_URL = 'https://script.google.com/macros/s/AKfycbwAsItKeiZ7DGaDBex-cXYpKWFsiScBrNGf0cnHIuJEq-9x0PpaYisrw1KtetJ6ruu7/exec'; // 例: 'https://script.google.com/macros/s/AKfycb.../exec'
 
         // APIエンドポイント
         const SCENES_PROXY_PATH = `${GAS_BASE_URL}?api=scenes`;
@@ -257,7 +256,6 @@
         const specialImage = document.getElementById('special-image');
         const effectImage = document.getElementById('effect-image');
         const dialogueBox = document.getElementById('dialogue-box');
-        // const logArea = document.getElementById('log-area'); // log-areaを削除
 
         // モーダル関連の要素
         const modal = document.getElementById('modal');
@@ -273,9 +271,10 @@
         // イベントリスナー
         document.getElementById('add-scene-button').addEventListener('click', () => openEditModal('add'));
         document.getElementById('edit-scene-button').addEventListener('click', () => openEditModal('edit'));
-        document.getElementById('delete-scene-button').addEventListener('click', () => openEditModal('delete'));
+        // シーン削除ボタンは編集モーダル内で提供されるため、ここからは削除
+        // document.getElementById('delete-scene-button').addEventListener('click', () => openEditModal('delete')); 
         document.getElementById('cancel-edit-button').addEventListener('click', () => closeModal());
-        confirmDeleteButton.addEventListener('click', () => deleteScene());
+        confirmDeleteButton.addEventListener('click', () => deleteScene()); // 削除ボタンのリスナーはそのまま
         editForm.addEventListener('submit', (e) => {
             e.preventDefault();
             applyEdits();
@@ -321,31 +320,12 @@
             const dy = startY - endY;
             const dx = startX - endX;
             const dt = Date.now() - touchStartTime;
-
-            // log-areaがなくなったため、ログ展開/閉じる機能に関連する処理を削除
-            // const isExpanded = dialogueBox.classList.contains('expanded');
-            // if (dy > 50 && Math.abs(dx) < 50 && dt < 300 && !isExpanded) {
-            //     expandLog();
-            //     return;
-            // }
-            // if (endY - startY > 50 && Math.abs(dx) < 50 && dt < 300 && isExpanded) {
-            //     collapseLog();
-            //     return;
-            // }
-            // if (Math.abs(dy) < 10 && Math.abs(dx) < 10 && dt >= 500) {
-            //     if (isExpanded) {
-            //         collapseLog();
-            //     } else {
-            //         expandLog();
-            //     }
-            //     return;
-            // }
         });
 
         document.body.addEventListener('click', e => {
             if (document.getElementById("modal").style.display === "flex" ||
                 document.getElementById("asset-upload-modal").style.display === "flex" ||
-                dialogueBox.classList.contains('expanded')) { // expandedクラスのチェックは残しておくが、log-areaがないため意味はなくなる
+                dialogueBox.classList.contains('expanded')) {
                 return;
             }
 
@@ -357,12 +337,11 @@
         });
 
         function expandLog() {
-            // dialogueBox.classList.add('expanded'); // log-area削除に伴い、この関数は実質的に不要
-            // logArea.scrollTop = logArea.scrollHeight;
+            dialogueBox.classList.add('expanded');
         }
 
         function collapseLog() {
-            dialogueBox.classList.remove('expanded'); // log-area削除に伴い、expandedクラスはダイアログボックスの高さ制御にのみ関わるようになる
+            dialogueBox.classList.remove('expanded');
         }
 
         async function fetchAllDataWithPagination(proxyPath, episode = null, filters = '') {
@@ -568,9 +547,6 @@
             } else {
                 characterImg.classList.remove('dimmed');
             }
-
-            // ログの更新処理を削除
-            // updateLog();
         }
 
         function nextScene() {
@@ -610,32 +586,6 @@
                 }
             }
         }
-
-        // updateLog関数を削除
-        /*
-        function updateLog() {
-            logArea.innerHTML = '';
-            for (let i = 0; i <= currentSceneIndex; i++) {
-                const s = currentEpisodeData[i];
-                if (s.text) {
-                    const logEntry = document.createElement('div');
-                    logEntry.classList.add('log-entry');
-                    if (s.speaker) {
-                        const logSpeaker = document.createElement('div');
-                        logSpeaker.classList.add('log-speaker');
-                        logSpeaker.textContent = s.speaker;
-                        logEntry.appendChild(logSpeaker);
-                    }
-                    const logText = document.createElement('div');
-                    logText.classList.add('log-text');
-                    logText.textContent = s.text;
-                    logEntry.appendChild(logText);
-                    logArea.appendChild(logEntry);
-                }
-            }
-            logArea.scrollTop = logArea.scrollHeight;
-        }
-        */
 
         // 不足アセットのチェック
         function checkMissingAssets() {
@@ -711,9 +661,16 @@
 
         function openEditModal(mode) {
             modal.style.display = 'flex';
-            confirmDeleteButton.style.display = 'none';
             editForm.reset();
             document.getElementById('edit-id').readOnly = (mode !== 'add');
+
+            // シーン削除ボタンの表示制御
+            if (mode === 'edit' || mode === 'delete') { // 編集または削除の場合に表示
+                confirmDeleteButton.style.display = 'inline-block';
+            } else {
+                confirmDeleteButton.style.display = 'none';
+            }
+            saveSceneButton.style.display = 'inline-block'; // デフォルトは表示
 
             if (mode === 'add') {
                 modalTitle.textContent = 'シーン追加';
@@ -734,11 +691,11 @@
                     closeModal();
                     return;
                 }
-            } else if (mode === 'delete') {
+            } else if (mode === 'delete') { // このモードは「メニュー」からの削除ボタンが削除されたため、実質的に呼ばれない
                 modalTitle.textContent = 'シーン削除';
-                saveSceneButton.textContent = '削除';
-                saveSceneButton.style.display = 'none';
-                confirmDeleteButton.style.display = 'inline-block';
+                saveSceneButton.textContent = '削除'; // 使われないが念のため
+                saveSceneButton.style.display = 'none'; // 削除モードでは保存ボタンは非表示
+                confirmDeleteButton.style.display = 'inline-block'; // 削除確定ボタンを表示
                 const currentScene = currentEpisodeData[currentSceneIndex];
                 if (currentScene) {
                     for (const key in currentScene) {
@@ -760,6 +717,7 @@
             modal.style.display = 'none';
             document.getElementById('edit-id').readOnly = false;
             saveSceneButton.style.display = 'inline-block';
+            confirmDeleteButton.style.display = 'none'; // モーダルを閉じる際に削除ボタンを非表示にする
         }
 
         async function applyEdits() {
