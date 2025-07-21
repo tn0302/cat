@@ -355,8 +355,7 @@ async function loadEpisodeData(episodeNumber) {
     }
 }
 
-// fetchAllDataWithPagination関数をAPIルートが直接配列を返すように修正
-async function fetchAllDataWithPagination(proxyPath, episode = null, filters = '') { // episodeはscenesパスのみで使用。assetsパスでは不要なのでデフォルトnull
+async function fetchAllDataWithPagination(proxyPath, episode = null, filters = '') {
     let url = proxyPath;
     const params = new URLSearchParams();
 
@@ -367,32 +366,34 @@ async function fetchAllDataWithPagination(proxyPath, episode = null, filters = '
     
     // filtersがあれば追加
     if (filters) {
-        // filtersはすでにURLエンコードされていると仮定し、そのまま追加
-        // URLSearchParamsは自動でエンコードするので、ここではそのまま追加
         const filterParams = new URLSearchParams(filters);
         filterParams.forEach((value, key) => params.append(key, value));
     }
     
     // パラメータがあればURLに結合
     if (params.toString()) {
-        url += '&' + params.toString(); // ★ 修正: 最初の ?api=assets/scenes に続くので & で結合
+        url += '&' + params.toString();
     }
 
-    // APIキーはServerless Function側で追加されるため、ここでは不要
     const res = await fetch(url);
     if (!res.ok) {
         const errorData = await res.json();
         throw new Error(`API Error (${url}): ${res.status} - ${JSON.stringify(errorData)}`);
     }
-    // APIルートはすでに全データを配列として返しているため、そのまま返す
-    const data = await res.json(); 
+    
+    let data = await res.json();
+
+    // ★ 修正箇所: ASSETS_PROXY_PATH からの応答には 'contents' ラッパーがあることを考慮する
+    if (proxyPath === ASSETS_PROXY_PATH && data && typeof data === 'object' && 'contents' in data) {
+        data = data.contents;
+    }
     
     // 戻り値が配列でない場合のエラーハンドリング
     if (!Array.isArray(data)) {
         throw new Error(`API returned invalid data format. Expected an array but got: ${JSON.stringify(data)}`);
     }
 
-    return data; // APIルートから返された配列をそのまま返す
+    return data;
 }
 
 
