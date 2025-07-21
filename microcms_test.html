@@ -23,6 +23,9 @@
             justify-content: flex-start; /* 展開時は上から */
             padding-bottom: 50px; /* 下部操作ボタンとの重なり回避 */
         }
+        #speaker-name { font-size: 1.2em; font-weight: bold; margin-bottom: 5px; color: #ffd700; }
+        #dialogue-text { font-size: 1.1em; line-height: 1.5; text-shadow: 1px 1px 2px rgba(0,0,0,0.5); user-select: text; /* テキスト選択可能に */ }
+        #next-indicator { position: absolute; bottom: 10px; right: 20px; font-size: 2em; animation: bounce 1s infinite; }
         @keyframes bounce { 0%, 20%, 50%, 80%, 100% { transform: translateY(0); } 40% { transform: translateY(-10px); } 60% { transform: translateY(-5px); } }
         /* #controls styles removed as the element is being removed */
 
@@ -32,7 +35,7 @@
         /* ログ表示スタイル */
         #log-area { flex-grow: 1; overflow-y: auto; margin-top: 10px; padding-right: 10px; /* スクロールバーのための余白 */ }
         .log-entry { margin-bottom: 10px; }
-        .log-speaker { font-weight: bold; color: #ffffff; margin-bottom: 2px; }
+        .log-speaker { font-weight: bold; color: #ffd700; margin-bottom: 2px; }
         .log-text { font-size: 1em; line-height: 1.4; }
         /* スクロールバーのカスタマイズ */
         #log-area::-webkit-scrollbar { width: 8px; }
@@ -154,7 +157,9 @@
 
         <div id="dialogue-box">
             <div id="log-area"></div>
-        
+            <div id="speaker-name"></div>
+            <div id="dialogue-text"></div>
+            <div id="next-indicator">▼</div>
         </div>
 
         </div>
@@ -243,11 +248,15 @@
         let allEpisodeNumbers = []; // 全エピソード番号
 
         // DOM要素の取得
+        const dialogueText = document.getElementById('dialogue-text');
+        const speakerName = document.getElementById('speaker-name');
+        const nextIndicator = document.getElementById('next-indicator');
         const characterImg = document.getElementById('character');
         const backgroundDiv = document.getElementById('background');
         const specialImage = document.getElementById('special-image');
         const effectImage = document.getElementById('effect-image');
         const dialogueBox = document.getElementById('dialogue-box');
+        const logArea = document.getElementById('log-area');
 
         // モーダル関連の要素
         const modal = document.getElementById('modal');
