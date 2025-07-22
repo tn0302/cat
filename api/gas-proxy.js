@@ -31,14 +31,26 @@ export default async function handler(req, res) {
     const gasResponse = await fetch(gasUrl, fetchOptions);
 
     // GASからのレスポンスのステータスとコンテンツタイプを取得
-    const gasResponseStatus = gasResponse.status;
+    // GASは常に200を返すため、gasResponseStatusは基本的に200になる
     const gasResponseContentType = gasResponse.headers.get('content-type') || 'application/json';
     const gasResponseData = await gasResponse.json(); // GASはJSONを返す想定
 
-    // ブラウザへ返すレスポンスのヘッダーを設定
-    // 【重要】Access-Control-Allow-OriginをVercelのドメインに設定（今回は'*'で全許可の例）
+    // ブラウザへ返す最終的なHTTPステータスコードを決定
+    let finalHttpStatus = gasResponse.status; // GASから返されたHTTPステータス (通常は200)
+
+    // もしJSONボディ内に 'status' フィールドがあり、それが有効なHTTPステータスコードであれば、
+    // その値を最終的なHTTPステータスコードとして採用する
+    if (gasResponseData && typeof gasResponseData === 'object' && gasResponseData.status) {
+        const jsonStatus = Number(gasResponseData.status);
+        // 有効なHTTPステータスコードの範囲内かチェック (100-599)
+        if (jsonStatus >= 100 && jsonStatus < 600) {
+            finalHttpStatus = jsonStatus;
+        }
+    }
+
+    // 【重要】Access-Control-Allow-OriginをVercelのドメインに設定
     // 厳密には req.headers.origin を使用し、許可されたオリジンのみを返すのがベストプラクティスですが、
-    // 今回は問題を解決するため、一旦 '*' で全許可を試します。
+    // 今回は問題を解決するため、'*' で全許可を試します。
     // 本番環境では、`https://cat-seven-blond.vercel.app` のように具体的に指定することを強く推奨します。
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
@@ -51,7 +63,7 @@ export default async function handler(req, res) {
     }
 
     // GASからのレスポンスデータをブラウザに返す
-    res.status(gasResponseStatus).json(gasResponseData);
+    res.status(finalHttpStatus).json(gasResponseData); // ★修正点: finalHttpStatus を使用
 
   } catch (error) {
     console.error('Proxy Error:', error);
