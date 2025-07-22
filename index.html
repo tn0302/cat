@@ -690,9 +690,13 @@
             if (mode === 'add') {
                 modalTitle.textContent = 'シーン追加';
                 saveSceneButton.textContent = '追加';
-                // 新規追加時は現在選択中のエピソード番号と新しいシーン番号を初期値として設定
                 document.getElementById('edit-episode').value = document.getElementById('episode-select').value;
-                document.getElementById('edit-scene-number').value = currentEpisodeData.length > 0 ? Math.max(...currentEpisodeData.map(s => s.sceneNumber)) + 1 : 1;
+                // 現在のシーンの次の番号を初期値として設定
+                if (currentEpisodeData.length > 0) {
+                    document.getElementById('edit-scene-number').value = currentEpisodeData[currentSceneIndex].sceneNumber + 1;
+                } else {
+                    document.getElementById('edit-scene-number').value = 1; // エピソードが空の場合
+                }
             } else if (mode === 'edit') {
                 modalTitle.textContent = 'シーン編集';
                 saveSceneButton.textContent = '保存';
