@@ -25,7 +25,7 @@
             justify-content: flex-end; /* 展開時は下から */
             padding-bottom: 20px; /* 下部操作ボタンとの重なり回避（不要になる可能性あり） */
         }
-        #speaker-name { font-size: 1.2em; font-weight: bold; margin-bottom: 5px; color: #fff; } /* ★ 白に変更済み ★ */
+        #speaker-name { font-size: 1.2em; font-weight: bold; margin-bottom: 5px; color: #fff; }
         #dialogue-text { font-size: 1.1em; line-height: 1.5; text-shadow: 1px 1px 2px rgba(0,0,0,0.5); user-select: text; /* テキスト選択可能に */ }
         #next-indicator { position: absolute; bottom: 10px; right: 20px; font-size: 2em; animation: bounce 1s infinite; }
         @keyframes bounce { 0%, 20%, 50%, 80%, 100% { transform: translateY(0); } 40% { transform: translateY(-10px); } 60% { transform: translateY(-5px); } }
@@ -310,7 +310,7 @@
         let endX;
         let endY;
 
-        // スワイプ検出
+        // スワイプ/タップ検出
         const novelContainer = document.getElementById('novel-container');
         novelContainer.addEventListener('touchstart', e => {
             touchStartTime = Date.now();
@@ -319,57 +319,60 @@
         });
 
         novelContainer.addEventListener('touchend', e => {
+            // モーダルが表示されている場合やヘッダーを操作した場合は何もしない
             if (document.getElementById("modal").style.display === "flex" ||
                 document.getElementById("asset-upload-modal").style.display === "flex" ||
-                dialogueBox.classList.contains('expanded')) {
+                e.target.closest('#edit-form') || e.target.closest('#header')) {
                 return;
             }
-            if (!e.target.closest('#edit-form') && !e.target.closest('#header')) { // ヘッダーや編集フォーム内でのタップは無視
-                if (!startX || !startY) return;
 
-                endX = e.changedTouches?.[0]?.clientX;
-                endY = e.changedTouches?.[0]?.clientY;
+            if (!startX || !startY) return; // startX/Yが取得できていない場合は何もしない
 
-                const deltaX = endX - startX;
-                const deltaY = endY - startY;
-                const deltaTime = Date.now() - touchStartTime;
+            endX = e.changedTouches?.[0]?.clientX;
+            endY = e.changedTouches?.[0]?.clientY;
 
-                // 水平方向の移動距離が垂直方向より大きく、かつ一定時間内のスワイプとみなす
-                // 閾値は適宜調整してください (例: deltaXが50px以上)
-                if (Math.abs(deltaX) > Math.abs(deltaY) && deltaTime < 300) {
-                    if (deltaX > 50) {
-                        prevScene(); // 右スワイプで前のシーン
-                    } else if (deltaX < -50) {
-                        nextScene(); // 左スワイプで次のシーン
-                    }
-                } else if (Math.abs(deltaX) < 20 && Math.abs(deltaY) < 20 && deltaTime < 300) {
-                    // スワイプとみなされない、短いタップは次のシーンへ
+            const deltaX = endX - startX;
+            const deltaY = endY - startY;
+            const deltaTime = Date.now() - touchStartTime;
+
+            // スワイプ判定 (水平方向の移動が垂直方向より大きく、かつ一定時間内)
+            const SWIPE_THRESHOLD = 50; // スワイプと認識する水平移動の閾値 (px)
+            const TAP_TIME_THRESHOLD = 300; // タップと認識する時間 (ms)
+            const TAP_MOVE_THRESHOLD = 20; // タップと認識する移動の許容範囲 (px)
+
+            if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > SWIPE_THRESHOLD && deltaTime < TAP_TIME_THRESHOLD) {
+                if (deltaX > 0) { // 右スワイプ
+                    prevScene(); 
+                } else { // 左スワイプ
+                    nextScene();
+                }
+            } else if (Math.abs(deltaX) < TAP_MOVE_THRESHOLD && Math.abs(deltaY) < TAP_MOVE_THRESHOLD && deltaTime < TAP_TIME_THRESHOLD) {
+                // タップ判定 (短い移動で、かつ一定時間内)
+                // タップ位置によってシーンを切り替え
+                const containerWidth = novelContainer.offsetWidth;
+                const tapXPercentage = endX / containerWidth; // 画面幅に対するタップ位置の割合
+
+                if (tapXPercentage < 0.5) { // 左半分をタップ
+                    prevScene();
+                } else { // 右半分をタップ (またはそれ以外)
                     nextScene();
                 }
             }
 
-            // reset touch start coordinates
+            // タッチ開始座標をリセット
             startX = null;
             startY = null;
         });
 
-        // スマホでのログ展開/閉じる (log-area削除に伴い、ダイアログボックスの展開機能自体も削除)
-        dialogueBox.addEventListener('touchstart', e => {
-            touchStartTime = Date.now();
-            startY = e.touches?.[0]?.clientY;
-            startX = e.touches?.[0]?.clientX;
-        });
+        // dialogueBoxのタッチイベントは、novelContainerで一括処理するため、基本的にはここでは何もしない。
+        // （ログ展開/閉じる機能が削除されたため）
+        dialogueBox.addEventListener('touchstart', e => { /* do nothing */ });
+        dialogueBox.addEventListener('touchend', e => { /* do nothing */ });
 
-        dialogueBox.addEventListener('touchend', e => {
-            // log-areaがなくなったため、ログ展開/閉じる機能に関連する処理を削除
-            // 現在はdialogueBoxのタップではシーン進行はせず、ログ展開も無し。
-            // シーン進行はnovelContainerのタッチイベントで一括管理。
-        });
-
+        // body全体のクリックイベントは、タッチデバイスでの挙動と重複するためコメントアウト。
+        // PCでのクリック動作を残したい場合はこのブロックのコメントを外す。
+        /*
         document.body.addEventListener('click', e => {
-            // タッチイベントでシーン進行を処理するため、body全体のclickイベントによるシーン進行は基本的には不要。
-            // PCでのクリック動作を残したい場合はこのブロックのコメントを外す。
-            /*
             if (document.getElementById("modal").style.display === "flex" ||
                 document.getElementById("asset-upload-modal").style.display === "flex" ||
                 dialogueBox.classList.contains('expanded')) {
@@ -381,8 +384,8 @@
             }
 
             nextScene(); // PCでのクリックでシーン進行
-            */
         });
+        */
 
         function expandLog() {
             // dialogueBox.classList.add('expanded'); // log-area削除に伴い、この関数は実質的に不要
