@@ -342,19 +342,33 @@
             // }
         });
 
-        document.body.addEventListener('click', e => {
-            if (document.getElementById("modal").style.display === "flex" ||
-                document.getElementById("asset-upload-modal").style.display === "flex" ||
-                dialogueBox.classList.contains('expanded')) { // expandedクラスのチェックは残しておくが、log-areaがないため意味はなくなる
-                return;
-            }
+  document.body.addEventListener('click', e => {
+    // モーダルやヘッダーが開いている場合は処理を中断
+    if (document.getElementById("modal").style.display === "flex" ||
+        document.getElementById("asset-upload-modal").style.display === "flex" ||
+        dialogueBox.classList.contains('expanded')) { // expandedクラスのチェックは残しておくが、log-areaがないため意味はなくなる
+        return;
+    }
 
-            if (e.target.closest('#edit-form') || e.target.closest('#header')) {
-                return;
-            }
+    // 編集フォームやヘッダー要素内でのクリックは処理しない
+    if (e.target.closest('#edit-form') || e.target.closest('#header')) {
+        return;
+    }
 
-            nextScene(); // シーンを進める
-        });
+    // ここからが新しいロジック
+    const clickX = e.clientX; // クリックされたX座標
+    const screenWidth = window.innerWidth; // 画面の幅
+
+    // 画面の左半分（例: 40%）をクリックしたら前のシーン
+    if (clickX < screenWidth * 0.4) {
+        prevScene();
+    } 
+    // 画面の右半分（例: 60%）をクリックしたら次のシーン
+    else if (clickX > screenWidth * 0.6) {
+        nextScene();
+    }
+    // 中央の領域は何もせず、現在のシーンを維持する
+});
 
         function expandLog() {
             // dialogueBox.classList.add('expanded'); // log-area削除に伴い、この関数は実質的に不要
