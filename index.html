@@ -698,6 +698,8 @@
                 saveSceneButton.textContent = '保存';
                 const currentScene = currentEpisodeData[currentSceneIndex];
                 if (currentScene) {
+                    // IDは表示しないが、内部的には現在のシーンのIDを使用
+                    // document.getElementById('edit-id').value = currentScene.id; // この行は不要
                     for (const key in currentScene) {
                         const input = document.getElementById(`edit-${key}`);
                         if (input) input.value = currentScene[key];
@@ -713,6 +715,8 @@
                 confirmDeleteButton.style.display = 'inline-block'; // 削除確定ボタンを表示
                 const currentScene = currentEpisodeData[currentSceneIndex];
                 if (currentScene) {
+                    // IDは表示しないが、内部的には現在のシーンのIDを使用
+                    // document.getElementById('edit-id').value = currentScene.id; // この行は不要
                     for (const key in currentScene) {
                         const input = document.getElementById(`edit-${key}`);
                         if (input) {
@@ -938,6 +942,13 @@
         }
 
         async function initialize() {
+            // ここに `GAS_BASE_URL` のチェックを追加しました。
+            // 正しいWebアプリのURLに置き換えてください。
+            // 例: const GAS_BASE_URL = 'https://script.google.com/macros/s/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/exec';
+            if (GAS_BASE_URL === 'https://cat-seven-blond.vercel.app/api/gas-proxy' || !GAS_BASE_URL.startsWith('https://cat-seven-blond.vercel.app/api/gas-proxy')) {
+                //alert('GAS_BASE_URLが正しく設定されていません。`index.html`ファイル内の`GAS_BASE_URL`を、デプロイしたVercelプロキシのURLに置き換えてください。');
+                //return;
+            }
             await populateEpisodeSelect();
         }
 
