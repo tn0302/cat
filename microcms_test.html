@@ -867,10 +867,11 @@
         }
 
         async function populateEpisodeSelect() {
-            if (GAS_BASE_URL === 'YOUR_GAS_WEB_APP_URL_HERE' || !GAS_BASE_URL.startsWith('https://script.google.com/macros/s/')) {
-                alert('GAS_BASE_URLが正しく設定されていません。`index.html`ファイル内の`YOUR_GAS_WEB_APP_URL_HERE`を、デプロイしたGAS WebアプリのURLに置き換えてください。');
-                return;
-            }
+            // プロキシ経由でアクセスするため、以下のURLチェックは不要
+            // if (GAS_BASE_URL === 'YOUR_GAS_WEB_APP_URL_HERE' || !GAS_BASE_URL.startsWith('https://script.google.com/macros/s/')) {
+            //     alert('GAS_BASE_URLが正しく設定されていません。`index.html`ファイル内の`YOUR_GAS_WEB_APP_URL_HERE`を、デプロイしたGAS WebアプリのURLに置き換えてください。');
+            //     return;
+            // }
             try {
                 const allScenes = await fetchAllDataWithPagination(SCENES_PROXY_PATH);
                 const episodeNumbers = new Set();
@@ -945,10 +946,11 @@
         }
 
         async function initialize(initialEpisode = null) {
-            if (GAS_BASE_URL === 'YOUR_GAS_WEB_APP_URL_HERE' || !GAS_BASE_URL.startsWith('https://script.google.com/macros/s/')) {
-                alert('GAS_BASE_URLが正しく設定されていません。`index.html`ファイル内の`YOUR_GAS_WEB_APP_URL_HERE`を、デプロイしたGAS WebアプリのURLに置き換えてください。');
-                return;
-            }
+            // プロキシ経由でアクセスするため、以下のURLチェックは不要
+            // if (GAS_BASE_URL === 'YOUR_GAS_WEB_APP_URL_HERE' || !GAS_BASE_URL.startsWith('https://script.google.com/macros/s/')) {
+            //     alert('GAS_BASE_URLが正しく設定されていません。`index.html`ファイル内の`YOUR_GAS_WEB_APP_URL_HERE`を、デプロイしたGAS WebアプリのURLに置き換えてください。');
+            //     return;
+            // }
             await populateEpisodeSelect();
         }
 
