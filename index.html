@@ -7,7 +7,7 @@
     <style>
         html, body { margin: 0; padding: 0; height: 100%; background: #000; color: #fff; font-family: sans-serif; overflow: hidden; }
         #header { height: 48px; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: space-between; padding: 0 12px; }
-        #novel-container { position: relative; height: calc(100% - 48px); }
+        #novel-container { position: relative; height: calc(100% - 48px); touch-action: pan-y pinch-zoom; /* タッチ操作の許可 */ }
         #background, #special-image { position: absolute; width: 100%; height: 100%; background-size: cover; background-position: center; z-index: 0; }
         #special-image { object-fit: contain; background: none; } /* 一枚絵の場合 */
         #character { position: absolute; bottom: -10%; left: 50%; transform: translateX(-50%); max-height: 70%; max-width: 100%; object-fit: contain; z-index: 1; transition: filter 0.3s ease; }
@@ -25,7 +25,7 @@
             justify-content: flex-end; /* 展開時は下から */
             padding-bottom: 20px; /* 下部操作ボタンとの重なり回避（不要になる可能性あり） */
         }
-        #speaker-name { font-size: 1.2em; font-weight: bold; margin-bottom: 5px; color: #ffd700; }
+        #speaker-name { font-size: 1.2em; font-weight: bold; margin-bottom: 5px; color: #fff; } /* ★ 白に変更済み ★ */
         #dialogue-text { font-size: 1.1em; line-height: 1.5; text-shadow: 1px 1px 2px rgba(0,0,0,0.5); user-select: text; /* テキスト選択可能に */ }
         #next-indicator { position: absolute; bottom: 10px; right: 20px; font-size: 2em; animation: bounce 1s infinite; }
         @keyframes bounce { 0%, 20%, 50%, 80%, 100% { transform: translateY(0); } 40% { transform: translateY(-10px); } 60% { transform: translateY(-5px); } }
@@ -305,47 +305,74 @@
 
         // タッチイベント用変数
         let touchStartTime;
-        let startY;
         let startX;
+        let startY;
+        let endX;
+        let endY;
+
+        // スワイプ検出
+        const novelContainer = document.getElementById('novel-container');
+        novelContainer.addEventListener('touchstart', e => {
+            touchStartTime = Date.now();
+            startX = e.touches?.[0]?.clientX;
+            startY = e.touches?.[0]?.clientY;
+        });
+
+        novelContainer.addEventListener('touchend', e => {
+            if (document.getElementById("modal").style.display === "flex" ||
+                document.getElementById("asset-upload-modal").style.display === "flex" ||
+                dialogueBox.classList.contains('expanded')) {
+                return;
+            }
+            if (!e.target.closest('#edit-form') && !e.target.closest('#header')) { // ヘッダーや編集フォーム内でのタップは無視
+                if (!startX || !startY) return;
+
+                endX = e.changedTouches?.[0]?.clientX;
+                endY = e.changedTouches?.[0]?.clientY;
+
+                const deltaX = endX - startX;
+                const deltaY = endY - startY;
+                const deltaTime = Date.now() - touchStartTime;
+
+                // 水平方向の移動距離が垂直方向より大きく、かつ一定時間内のスワイプとみなす
+                // 閾値は適宜調整してください (例: deltaXが50px以上)
+                if (Math.abs(deltaX) > Math.abs(deltaY) && deltaTime < 300) {
+                    if (deltaX > 50) {
+                        prevScene(); // 右スワイプで前のシーン
+                    } else if (deltaX < -50) {
+                        nextScene(); // 左スワイプで次のシーン
+                    }
+                } else if (Math.abs(deltaX) < 20 && Math.abs(deltaY) < 20 && deltaTime < 300) {
+                    // スワイプとみなされない、短いタップは次のシーンへ
+                    nextScene();
+                }
+            }
+
+            // reset touch start coordinates
+            startX = null;
+            startY = null;
+        });
 
         // スマホでのログ展開/閉じる (log-area削除に伴い、ダイアログボックスの展開機能自体も削除)
         dialogueBox.addEventListener('touchstart', e => {
             touchStartTime = Date.now();
-            startY = e.touches[0].clientY;
-            startX = e.touches[0].clientX;
+            startY = e.touches?.[0]?.clientY;
+            startX = e.touches?.[0]?.clientX;
         });
 
         dialogueBox.addEventListener('touchend', e => {
-            const endY = e.changedTouches[0].clientY;
-            const endX = e.changedTouches[0].clientX;
-            const dy = startY - endY;
-            const dx = startX - endX;
-            const dt = Date.now() - touchStartTime;
-
             // log-areaがなくなったため、ログ展開/閉じる機能に関連する処理を削除
-            // const isExpanded = dialogueBox.classList.contains('expanded');
-            // if (dy > 50 && Math.abs(dx) < 50 && dt < 300 && !isExpanded) {
-            //     expandLog();
-            //     return;
-            // }
-            // if (endY - startY > 50 && Math.abs(dx) < 50 && dt < 300 && isExpanded) {
-            //     collapseLog();
-            //     return;
-            // }
-            // if (Math.abs(dy) < 10 && Math.abs(dx) < 10 && dt >= 500) {
-            //     if (isExpanded) {
-            //         collapseLog();
-            //     } else {
-            //         expandLog();
-            //     }
-            //     return;
-            // }
+            // 現在はdialogueBoxのタップではシーン進行はせず、ログ展開も無し。
+            // シーン進行はnovelContainerのタッチイベントで一括管理。
         });
 
         document.body.addEventListener('click', e => {
+            // タッチイベントでシーン進行を処理するため、body全体のclickイベントによるシーン進行は基本的には不要。
+            // PCでのクリック動作を残したい場合はこのブロックのコメントを外す。
+            /*
             if (document.getElementById("modal").style.display === "flex" ||
                 document.getElementById("asset-upload-modal").style.display === "flex" ||
-                dialogueBox.classList.contains('expanded')) { // expandedクラスのチェックは残しておくが、log-areaがないため意味はなくなる
+                dialogueBox.classList.contains('expanded')) {
                 return;
             }
 
@@ -353,7 +380,8 @@
                 return;
             }
 
-            nextScene(); // シーンを進める
+            nextScene(); // PCでのクリックでシーン進行
+            */
         });
 
         function expandLog() {
@@ -867,11 +895,6 @@
         }
 
         async function populateEpisodeSelect() {
-            // プロキシ経由でアクセスするため、以下のURLチェックは不要
-            // if (GAS_BASE_URL === 'YOUR_GAS_WEB_APP_URL_HERE' || !GAS_BASE_URL.startsWith('https://script.google.com/macros/s/')) {
-            //     alert('GAS_BASE_URLが正しく設定されていません。`index.html`ファイル内の`YOUR_GAS_WEB_APP_URL_HERE`を、デプロイしたGAS WebアプリのURLに置き換えてください。');
-            //     return;
-            // }
             try {
                 const allScenes = await fetchAllDataWithPagination(SCENES_PROXY_PATH);
                 const episodeNumbers = new Set();
@@ -946,11 +969,6 @@
         }
 
         async function initialize(initialEpisode = null) {
-            // プロキシ経由でアクセスするため、以下のURLチェックは不要
-            // if (GAS_BASE_URL === 'YOUR_GAS_WEB_APP_URL_HERE' || !GAS_BASE_URL.startsWith('https://script.google.com/macros/s/')) {
-            //     alert('GAS_BASE_URLが正しく設定されていません。`index.html`ファイル内の`YOUR_GAS_WEB_APP_URL_HERE`を、デプロイしたGAS WebアプリのURLに置き換えてください。');
-            //     return;
-            // }
             await populateEpisodeSelect();
         }
 
