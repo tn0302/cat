@@ -395,6 +395,27 @@
         dialogueBox.addEventListener('touchstart', e => { /* do nothing */ });
         dialogueBox.addEventListener('touchend', e => { /* do nothing */ });
 
+        // === fetchJson ヘルパー関数を定義 ===
+        async function fetchJson(url, options = {}) {
+            const response = await fetch(url, options);
+
+            if (!response.ok) {
+                let errorData;
+                try {
+                    errorData = await response.json();
+                } catch (e) {
+                    // JSONとしてパースできない場合
+                    errorData = { message: response.statusText || 'Unknown error', status: response.status };
+                }
+                const error = new Error(errorData.message || `HTTP error! status: ${response.status}`);
+                error.response = response;
+                error.data = errorData;
+                throw error;
+            }
+
+            return response.json();
+        }
+
         async function fetchAllDataWithPagination(proxyPath, episode = null, filters = '') {
             let url = proxyPath;
             const params = new URLSearchParams();
@@ -416,17 +437,8 @@
                 url += (proxyPath.includes('?') ? '&' : '?') + params.toString();
             }
 
-            const res = await fetch(url);
-            if (!res.ok) {
-                try {
-                    const errorData = await res.json();
-                    throw new Error(`API Error (${url}): ${res.status} - ${JSON.stringify(errorData)}`);
-                } catch (jsonError) {
-                    throw new Error(`API Error (${url}): ${res.status} - ${res.statusText}. Could not parse error JSON: ${jsonError.message}`);
-                }
-            }
-            
-            let data = await res.json();
+            // fetchJson を使用
+            let data = await fetchJson(url);
 
             // ASSETS_PROXY_PATH からの応答には 'contents' ラッパーがあることを考慮する
             if (proxyPath === ASSETS_PROXY_PATH && data && typeof data === 'object' && 'contents' in data) {
@@ -805,7 +817,7 @@
             // POST (追加) の場合はIDをURLに含めない。GAS側で自動生成される。
 
             try {
-                const res = await fetch(url, {
+                const res = await fetchJson(url, { // fetchJson を使用
                     method: method,
                     headers: {
                         'Content-Type': 'application/json',
@@ -814,11 +826,6 @@
                     },
                     body: JSON.stringify(formSceneData),
                 });
-
-                if (!res.ok) {
-                    const errorData = await res.json();
-                    throw new Error(`API Error: ${res.status} - ${JSON.stringify(errorData)}`);
-                }
 
                 alert(`シーンを${(currentModalMode === 'add') ? '追加' : '更新'}しました！`);
                 closeModal();
@@ -843,14 +850,9 @@
             }
 
             try {
-                const res = await fetch(`${SCENES_PROXY_PATH}&id=${sceneIdToDelete}`, {
+                const res = await fetchJson(`${SCENES_PROXY_PATH}&id=${sceneIdToDelete}`, { // fetchJson を使用
                     method: 'DELETE', // Webアプリ側で_method=DELETEとして処理される
                 });
-
-                if (!res.ok) {
-                    const errorData = await res.json();
-                    throw new Error(`API Error: ${res.status} - ${JSON.stringify(errorData)}`);
-                }
 
                 alert(`シーンID: ${sceneIdToDelete} を削除しました！`);
                 closeModal();
