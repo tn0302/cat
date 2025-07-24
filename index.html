@@ -50,49 +50,6 @@
         #edit-form button.cancel-button { background: #6c757d; }
         #edit-form button.cancel-button:hover { background: #5a6268; }
 
-        /* アセットアップロードモーダル */
-        #asset-upload-modal { display: none; position: fixed; z-index: 200; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.7); justify-content: center; align-items: center; }
-        #asset-upload-form-container { background: #222; padding: 25px; border-radius: 8px; width: 90%; max-width: 400px; box-sizing: border-box; }
-        #asset-upload-form label {
-            display: block;
-            margin-bottom: 5px;
-            font-weight: bold;
-            color: #eee;
-        }
-        #asset-upload-form input[type="text"], 
-        #asset-upload-form select, 
-        #asset-upload-form input[type="file"] {
-            width: calc(100% - 20px); padding: 10px; margin-bottom: 15px;
-            border: 1px solid #555; border-radius: 4px; background-color: #333; color: #fff;
-            font-size: 1em;
-        }
-        #asset-upload-form button { 
-            background: #28a745; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; font-size: 1em; margin-right: 10px; 
-        }
-        #asset-upload-form button:hover { background: #218838; }
-        #asset-upload-form button.cancel-button { background: #6c757d; }
-        #asset-upload-form button.cancel-button:hover { background: #5a6268; }
-        #asset-upload-form button:disabled {
-            background: #555;
-            cursor: not-allowed;
-        }
-        #uploaded-image-preview {
-            max-width: 100%;
-            height: auto;
-            margin-top: 10px;
-            border: 1px solid #555;
-            display: none; /* 初期状態では非表示 */
-        }
-        #uploaded-image-url-display {
-            word-break: break-all;
-            background: #333;
-            padding: 8px;
-            border-radius: 4px;
-            margin-top: 10px;
-            font-size: 0.9em;
-        }
-
-
         /* ヘッダーのドロップダウン */
         .dropdown {
             position: relative;
@@ -178,12 +135,12 @@
         <div class="dropdown">
             <button class="dropbtn">メニュー</button>
             <div class="dropdown-content">
-    <button id="add-scene-button">シーン追加</button>
-    <button id="edit-scene-button">シーン編集</button>
-    <button id="delete-scene-button">シーン削除</button>
-    <button id="upload-asset-button">不足アセットのアップロード</button>
-    <button id="refresh-data-button">データ更新</button>
-    <button id="bulk-upload-button" onclick="window.location.href='bulk_upload.html'">シーン一括アップロード</button> </div>
+                <button id="add-scene-button">シーン追加</button>
+                <button id="edit-scene-button">シーン編集</button>
+                <button id="delete-scene-button">シーン削除</button>
+                <button id="refresh-data-button">データ更新</button>
+                <button id="bulk-upload-button" onclick="window.location.href='bulk_upload.html'">シーン一括アップロード</button> 
+            </div>
         </div>
     </div>
     <div id="novel-container">
@@ -240,44 +197,13 @@
         </div>
     </div>
 
-    <div id="asset-upload-modal">
-        <div id="asset-upload-form-container">
-            <h2>アセットアップロード</h2>
-            <form id="asset-upload-form">
-                <label for="asset-image-file-input">画像ファイルを選択:</label>
-                <input type="file" id="asset-image-file-input" accept="image/*"><br>
-                
-                <p>アップロードされたCloudinary URL:</p>
-                <p id="uploaded-image-url-display">ファイルを選択してください...</p>
-                <img id="uploaded-image-preview" src="" alt="Uploaded Image Preview">
-                <input type="hidden" id="asset-image-cloudinary-url-hidden"> <label for="asset-type">アセットタイプ:</label>
-                <select id="asset-type" name="asset_type" required>
-                    <option value="">選択してください</option>
-                    <option value="character">キャラクター</option>
-                    <option value="background">背景</option>
-                    <option value="special_image">特殊画像</option>
-                    <option value="effect">エフェクト</option>
-                </select><br>
-
-                <label for="asset-tag">タグ:</label>
-                <input type="text" id="asset-tag" name="tag" required><br>
-
-                <label for="asset-character-face-tag">キャラクター表情タグ (キャラの場合のみ):</label>
-                <input type="text" id="asset-character-face-tag" name="character_face_tag"><br>
-
-                <button type="button" id="register-asset-in-modal-button" disabled>アセットを登録</button>
-                <button type="button" id="cancel-upload-button" class="cancel-button">キャンセル</button>
-            </form>
-        </div>
-    </div>
-
     <div id="loading-indicator">Now Loading...</div>
 
     <script>
         // Google Apps Script WebアプリのデプロイURLをここに設定
         const GAS_BASE_URL = 'https://cat-seven-blond.vercel.app/api/gas-proxy'; 
         // Vercelにデプロイしたapi/media.jsのURLを設定してください。
-        const MEDIA_UPLOAD_URL = 'https://cat-seven-blond.vercel.app/api/media'; 
+        // const MEDIA_UPLOAD_URL = 'https://cat-seven-blond.vercel.app/api/media'; // REMOVED
 
         // APIエンドポイント
         const SCENES_PROXY_PATH = `${GAS_BASE_URL}?api=scenes`;
@@ -306,14 +232,14 @@
         const saveSceneButton = document.getElementById('save-scene-button');
         const confirmDeleteButton = document.getElementById('confirm-delete-button');
 
-        // アセットアップロードモーダル関連の要素
-        const assetUploadModal = document.getElementById('asset-upload-modal');
-        const assetUploadForm = document.getElementById('asset-upload-form');
-        const assetImageFileInput = document.getElementById('asset-image-file-input');
-        const uploadedImageUrlDisplay = document.getElementById('uploaded-image-url-display');
-        const uploadedImagePreview = document.getElementById('uploaded-image-preview');
-        const assetImageCloudinaryUrlHidden = document.getElementById('asset-image-cloudinary-url-hidden');
-        const registerAssetInModalButton = document.getElementById('register-asset-in-modal-button');
+        // アセットアップロードモーダル関連の要素 (REMOVED)
+        // const assetUploadModal = document.getElementById('asset-upload-modal');
+        // const assetUploadForm = document.getElementById('asset-upload-form');
+        // const assetImageFileInput = document.getElementById('asset-image-file-input');
+        // const uploadedImageUrlDisplay = document.getElementById('uploaded-image-url-display');
+        // const uploadedImagePreview = document.getElementById('uploaded-image-preview');
+        // const assetImageCloudinaryUrlHidden = document.getElementById('asset-image-cloudinary-url-hidden');
+        // const registerAssetInModalButton = document.getElementById('register-asset-in-modal-button');
 
         // ローディングインジケーター要素
         const loadingIndicator = document.getElementById('loading-indicator');
@@ -330,12 +256,10 @@
             applyEdits();
         });
 
-        document.getElementById('upload-asset-button').addEventListener('click', () => openAssetUploadModal());
-        document.getElementById('cancel-upload-button').addEventListener('click', () => closeAssetUploadModal());
-        // assetUploadForm.addEventListener('submit', (e) => { e.preventDefault(); /* registerAssetInGASFromModal()が直接呼ばれるため、ここでは何もしない */ });
-
-        assetImageFileInput.addEventListener('change', handleImageUploadInModal); // ファイル選択時のイベント
-        registerAssetInModalButton.addEventListener('click', registerAssetInGASFromModal); // アセット登録ボタンのクリックイベント
+        // document.getElementById('upload-asset-button').addEventListener('click', () => openAssetUploadModal()); // REMOVED
+        // document.getElementById('cancel-upload-button').addEventListener('click', () => closeAssetUploadModal()); // REMOVED
+        // assetImageFileInput.addEventListener('change', handleImageUploadInModal); // REMOVED
+        // registerAssetInModalButton.addEventListener('click', registerAssetInGASFromModal); // REMOVED
 
         document.getElementById('refresh-data-button').addEventListener('click', () => {
             if (confirm('全てのデータを再読み込みしますか？現在のエピソードの変更は破棄されます。')) {
@@ -370,8 +294,8 @@
         novelContainer.addEventListener('touchend', e => {
             // モーダルが表示されている場合やヘッダーを操作した場合は何もしない
             if (document.getElementById("modal").style.display === "flex" ||
-                document.getElementById("asset-upload-modal").style.display === "flex" ||
-                e.target.closest('#edit-form') || e.target.closest('#header') || e.target.closest('#asset-upload-form')) { // Add asset-upload-form check
+                // document.getElementById("asset-upload-modal").style.display === "flex" || // REMOVED
+                e.target.closest('#edit-form') || e.target.closest('#header') /* || e.target.closest('#asset-upload-form') */) { // REMOVED asset-upload-form check
                 return;
             }
 
@@ -856,134 +780,11 @@
             }
         }
 
-        function openAssetUploadModal() {
-            assetUploadModal.style.display = 'flex';
-            assetUploadForm.reset();
-            // 初期状態をリセット
-            uploadedImageUrlDisplay.textContent = 'ファイルを選択してください...';
-            uploadedImagePreview.style.display = 'none';
-            uploadedImagePreview.src = '';
-            assetImageCloudinaryUrlHidden.value = '';
-            registerAssetInModalButton.disabled = true; // 画像がアップロードされるまで登録ボタンを無効化
-        }
-
-        function closeAssetUploadModal() {
-            assetUploadModal.style.display = 'none';
-        }
-
-        // === 新しいアセット画像ファイルアップロード処理 ===
-        async function handleImageUploadInModal(event) {
-            const file = event.target.files[0];
-            if (!file) {
-                uploadedImageUrlDisplay.textContent = 'ファイルを選択してください...';
-                uploadedImagePreview.style.display = 'none';
-                uploadedImagePreview.src = '';
-                assetImageCloudinaryUrlHidden.value = '';
-                registerAssetInModalButton.disabled = true;
-                return;
-            }
-
-            uploadedImageUrlDisplay.textContent = 'アップロード中...';
-            uploadedImagePreview.style.display = 'none';
-            registerAssetInModalButton.disabled = true; // アップロード中は登録ボタンを無効化
-
-            try {
-                const cloudinaryUrl = await uploadFileToCloudinary(file);
-                if (cloudinaryUrl) {
-                    uploadedImageUrlDisplay.textContent = cloudinaryUrl;
-                    uploadedImagePreview.src = cloudinaryUrl;
-                    uploadedImagePreview.style.display = 'block';
-                    assetImageCloudinaryUrlHidden.value = cloudinaryUrl; // 隠しフィールドにURLを設定
-                    registerAssetInModalButton.disabled = false; // アップロード成功後、登録ボタンを有効化
-                    alert('画像がCloudinaryにアップロードされました！');
-                } else {
-                    uploadedImageUrlDisplay.textContent = 'アップロードに失敗しました。';
-                    uploadedImagePreview.style.display = 'none';
-                    assetImageCloudinaryUrlHidden.value = '';
-                    registerAssetInModalButton.disabled = true;
-                    alert('画像のアップロードに失敗しました。');
-                }
-            } catch (error) {
-                console.error('画像アップロードエラー:', error);
-                uploadedImageUrlDisplay.textContent = 'アップロード中にエラーが発生しました。';
-                uploadedImagePreview.style.display = 'none';
-                assetImageCloudinaryUrlHidden.value = '';
-                registerAssetInModalButton.disabled = true;
-                alert('画像のアップロード中にエラーが発生しました: ' + error.message);
-            }
-        }
-
-        async function uploadFileToCloudinary(file) {
-            const formData = new FormData();
-            formData.append('file', file); // 'file' は api/media.js が期待するフィールド名
-
-            try {
-                const response = await fetch(MEDIA_UPLOAD_URL, {
-                    method: 'POST',
-                    body: formData,
-                    // Content-TypeヘッダーはFormDataを使用する場合、ブラウザが自動で 'multipart/form-data' と境界を設定するため、
-                    // ここで手動で設定しない方が良いです。
-                });
-
-                if (!response.ok) {
-                    const errorData = await response.json().catch(() => ({ error: '不明なエラー' }));
-                    throw new Error(`Cloudinaryアップロードエラー: ${response.status} - ${errorData.error}`);
-                }
-
-                const data = await response.json();
-                return data.url; // Cloudinaryから返されるURLを期待
-            } catch (error) {
-                console.error('Cloudinaryアップロードエラー:', error);
-                throw error; // エラーを呼び出し元に再スロー
-            }
-        }
-
-        // === アセット登録処理 (Cloudinary URLをGASに送信) ===
-        async function registerAssetInGASFromModal() {
-            const assetType = document.getElementById('asset-type').value;
-            const tag = document.getElementById('asset-tag').value;
-            const characterFaceTag = document.getElementById('asset-character-face-tag').value;
-            const imageUrl = assetImageCloudinaryUrlHidden.value; // 隠しフィールドからURLを取得
-
-            if (!assetType || !tag || !imageUrl) {
-                alert('アセットタイプ、タグ、および画像URLは必須です。');
-                return;
-            }
-
-            const assetData = {
-                asset_type: assetType,
-                tag: tag,
-                character_face_tag: characterFaceTag,
-                image: imageUrl
-            };
-
-            registerAssetInModalButton.disabled = true; // 登録中はボタンを無効化
-            try {
-                const response = await fetchJson(ASSETS_PROXY_PATH, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(assetData)
-                });
-
-                if (response && response.message) {
-                    alert('アセットが正常に登録されました！ID: ' + response.id);
-                    closeAssetUploadModal();
-                    const currentEpisode = parseInt(document.getElementById('episode-select').value);
-                    // アセット追加後、現在のエピソードを再読み込みしてアセットキャッシュを更新
-                    initialize(currentEpisode);
-                } else {
-                    alert('アセットの登録に失敗しました。');
-                }
-            } catch (error) {
-                console.error('アセット登録エラー:', error);
-                alert('アセット登録中にエラーが発生しました: ' + error.message);
-            } finally {
-                registerAssetInModalButton.disabled = false; // 処理完了後、ボタンを再度有効化
-            }
-        }
-
+        // openAssetUploadModal function REMOVED
+        // closeAssetUploadModal function REMOVED
+        // handleImageUploadInModal function REMOVED
+        // uploadFileToCloudinary function REMOVED
+        // registerAssetInGASFromModal function REMOVED
 
         async function populateEpisodeSelect() {
             loadingIndicator.style.display = 'flex'; // ローディング表示
