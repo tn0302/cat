@@ -233,17 +233,50 @@
         const saveSceneButton = document.getElementById('save-scene-button');
         const confirmDeleteButton = document.getElementById('confirm-delete-button');
 
-        // アセットアップロードモーダル関連の要素 (REMOVED)
-        // const assetUploadModal = document.getElementById('asset-upload-modal');
-        // const assetUploadForm = document.getElementById('asset-upload-form');
-        // const assetImageFileInput = document.getElementById('asset-image-file-input');
-        // const uploadedImageUrlDisplay = document.getElementById('uploaded-image-url-display');
-        // const uploadedImagePreview = document.getElementById('uploaded-image-preview');
-        // const assetImageCloudinaryUrlHidden = document.getElementById('asset-image-cloudinary-url-hidden');
-        // const registerAssetInModalButton = document.getElementById('register-asset-in-modal-button');
+       
 
         // ローディングインジケーター要素
         const loadingIndicator = document.getElementById('loading-indicator');
+
+
+        // シーンをレンダリングする関数
+        async function renderScene(scene) {
+            // 背景画像の更新
+            if (scene.background_image && scene.background_image !== "NOIMAGE") {
+                backgroundEl.style.backgroundImage = `url('${scene.background_image}')`;
+            } else {
+                backgroundEl.style.backgroundImage = 'none'; // 画像がない場合は背景をクリア
+            }
+
+            // 特殊画像（effect_image）の更新
+            if (scene.effect_image && scene.effect_image !== "NOIMAGE") {
+                specialImageEl.src = scene.effect_image;
+                specialImageEl.style.display = 'block';
+                specialImageEl.style.opacity = 1;
+            } else {
+                specialImageEl.style.display = 'none';
+                specialImageEl.style.opacity = 0;
+            }
+            
+            // キャラクター画像の更新
+            if (scene.character_image && scene.character_image !== "NOIMAGE") {
+                characterEl.src = scene.character_image;
+                characterEl.style.display = 'block';
+                characterEl.style.opacity = 1;
+            } else {
+                characterEl.style.display = 'none';
+                characterEl.style.opacity = 0;
+            }
+
+
+            // キャラクター名の更新 (speakerからcharacterへ変更)
+            characterNameEl.textContent = scene.character || '';
+
+            // テキストの更新
+            sceneTextEl.textContent = scene.text || '';
+            
+           
+        }
 
 
         // イベントリスナー
