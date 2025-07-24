@@ -238,47 +238,7 @@
         // ローディングインジケーター要素
         const loadingIndicator = document.getElementById('loading-indicator');
 
-
-        // シーンをレンダリングする関数
-        async function renderScene(scene) {
-            // 背景画像の更新
-            if (scene.background_image && scene.background_image !== "NOIMAGE") {
-                backgroundEl.style.backgroundImage = `url('${scene.background_image}')`;
-            } else {
-                backgroundEl.style.backgroundImage = 'none'; // 画像がない場合は背景をクリア
-            }
-
-            // 特殊画像（effect_image）の更新
-            if (scene.effect_image && scene.effect_image !== "NOIMAGE") {
-                specialImageEl.src = scene.effect_image;
-                specialImageEl.style.display = 'block';
-                specialImageEl.style.opacity = 1;
-            } else {
-                specialImageEl.style.display = 'none';
-                specialImageEl.style.opacity = 0;
-            }
-            
-            // キャラクター画像の更新
-            if (scene.character_image && scene.character_image !== "NOIMAGE") {
-                characterEl.src = scene.character_image;
-                characterEl.style.display = 'block';
-                characterEl.style.opacity = 1;
-            } else {
-                characterEl.style.display = 'none';
-                characterEl.style.opacity = 0;
-            }
-
-
-            // キャラクター名の更新 (speakerからcharacterへ変更)
-            characterNameEl.textContent = scene.character || '';
-
-            // テキストの更新
-            sceneTextEl.textContent = scene.text || '';
-            
-           
-        }
-
-
+        
         // イベントリスナー
         document.getElementById('add-scene-button').addEventListener('click', () => openEditModal('add'));
         document.getElementById('edit-scene-button').addEventListener('click', () => openEditModal('edit'));
