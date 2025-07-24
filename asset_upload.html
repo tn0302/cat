@@ -125,21 +125,21 @@
 
         <div class="form-group" id="tag-group" style="display: none;">
             <label for="tag-select">タグ:</label>
-            <select id="tag-select">
+            <select id="tag-select" disabled>
                 <option value="">--選択してください--</option>
             </select>
         </div>
 
         <div class="form-group" id="character-face-tag-group" style="display: none;">
             <label for="character-face-tag-select">キャラクター顔タグ:</label>
-            <select id="character-face-tag-select">
+            <select id="character-face-tag-select" disabled>
                 <option value="">--選択してください--</option>
             </select>
         </div>
 
         <div class="form-group" id="character-special-group" style="display: none;">
             <label for="character-special-select">キャラクタースペシャル:</label>
-            <select id="character-special-select">
+            <select id="character-special-select" disabled>
                 <option value="">--選択してください--</option>
             </select>
         </div>
@@ -198,68 +198,128 @@
             }
         }
 
-        // asset_type プルダウンを生成
-        function populateAssetTypeSelect() {
-            const assetTypes = [...new Set(noImageAssetsData.map(item => item.asset_type))];
-            assetTypeSelect.innerHTML = '<option value="">--選択してください--</option>';
-            assetTypes.forEach(type => {
+        /**
+         * プルダウンのオプションを生成する汎用関数
+         * @param {HTMLSelectElement} selectElement - 対象の<select>要素
+         * @param {Array<string>} options - オプションの配列
+         * @param {string} placeholder - プレースホルダーのテキスト
+         */
+        function populateSelectOptions(selectElement, options, placeholder) {
+            selectElement.innerHTML = `<option value="">${placeholder}</option>`;
+            options.forEach(value => {
                 const option = document.createElement('option');
-                option.value = type;
-                option.textContent = type;
-                assetTypeSelect.appendChild(option);
+                option.value = value;
+                option.textContent = value;
+                selectElement.appendChild(option);
             });
         }
 
-        // 選択されたアセットタイプに基づいて他のプルダウンを更新
+        // asset_type プルダウンを生成
+        function populateAssetTypeSelect() {
+            const assetTypes = [...new Set(noImageAssetsData.map(item => item.asset_type))].filter(Boolean).sort();
+            populateSelectOptions(assetTypeSelect, assetTypes, '--選択してください--');
+            // 他のプルダウンをリセットして無効化
+            populateSelectOptions(tagSelect, [], '--選択してください--');
+            tagSelect.disabled = true;
+            populateSelectOptions(characterFaceTagSelect, [], '--選択してください--');
+            characterFaceTagSelect.disabled = true;
+            populateSelectOptions(characterSpecialSelect, [], '--選択してください--');
+            characterSpecialSelect.disabled = true;
+
+            tagGroup.style.display = 'none';
+            characterFaceTagGroup.style.display = 'none';
+            characterSpecialGroup.style.display = 'none';
+        }
+
+        // asset_type 選択時の処理
         assetTypeSelect.addEventListener('change', () => {
             const selectedAssetType = assetTypeSelect.value;
-            
-            // 全てのオプションとグループをリセット
-            tagSelect.innerHTML = '<option value="">--選択してください--</option>';
-            characterFaceTagSelect.innerHTML = '<option value="">--選択してください--</option>';
-            characterSpecialSelect.innerHTML = '<option value="">--選択してください--</option>';
-            
+            tagSelect.value = ''; // tagをリセット
+            characterFaceTagSelect.value = ''; // face tagをリセット
+            characterSpecialSelect.value = ''; // specialをリセット
+
+            // 下位のプルダウンをリセットし無効化
+            populateSelectOptions(tagSelect, [], '--選択してください--');
+            tagSelect.disabled = true;
+            populateSelectOptions(characterFaceTagSelect, [], '--選択してください--');
+            characterFaceTagSelect.disabled = true;
+            populateSelectOptions(characterSpecialSelect, [], '--選択してください--');
+            characterSpecialSelect.disabled = true;
+
             tagGroup.style.display = 'none';
             characterFaceTagGroup.style.display = 'none';
             characterSpecialGroup.style.display = 'none';
 
             if (selectedAssetType) {
-                const filteredData = noImageAssetsData.filter(item => item.asset_type === selectedAssetType);
-
-                // タグのオプションを生成
-                const tags = [...new Set(filteredData.map(item => item.tag))];
-                tags.forEach(tag => {
-                    const option = document.createElement('option');
-                    option.value = tag;
-                    option.textContent = tag;
-                    tagSelect.appendChild(option);
-                });
+                const filteredByAssetType = noImageAssetsData.filter(item => item.asset_type === selectedAssetType);
+                const uniqueTags = [...new Set(filteredByAssetType.map(item => item.tag))].filter(Boolean).sort();
+                
+                populateSelectOptions(tagSelect, uniqueTags, '--選択してください--');
+                tagSelect.disabled = false;
                 tagGroup.style.display = 'block';
 
-                // character_face_tag と character_special のオプションを生成（characterタイプの場合のみ）
                 if (selectedAssetType === 'character') {
-                    const faceTags = [...new Set(filteredData.map(item => item.character_face_tag).filter(Boolean))]; // 空でない値のみ
-                    faceTags.forEach(faceTag => {
-                        const option = document.createElement('option');
-                        option.value = faceTag;
-                        option.textContent = faceTag;
-                        characterFaceTagSelect.appendChild(option);
-                    });
                     characterFaceTagGroup.style.display = 'block';
-
-                    const specials = [...new Set(filteredData.map(item => item.character_special).filter(Boolean))]; // 空でない値のみ
-                    specials.forEach(special => {
-                        const option = document.createElement('option');
-                        option.value = special;
-                        option.textContent = special;
-                        characterSpecialSelect.appendChild(option);
-                    });
                     characterSpecialGroup.style.display = 'block';
                 }
             }
             updateUploadButtonState();
         });
 
+        // tag 選択時の処理 (asset_typeが'character'の場合のみ顔タグ、スペシャルを絞り込む)
+        tagSelect.addEventListener('change', () => {
+            const selectedAssetType = assetTypeSelect.value;
+            const selectedTag = tagSelect.value;
+
+            characterFaceTagSelect.value = ''; // face tagをリセット
+            characterSpecialSelect.value = ''; // specialをリセット
+
+            // 下位のプルダウンをリセットし無効化
+            populateSelectOptions(characterFaceTagSelect, [], '--選択してください--');
+            characterFaceTagSelect.disabled = true;
+            populateSelectOptions(characterSpecialSelect, [], '--選択してください--');
+            characterSpecialSelect.disabled = true;
+
+            if (selectedAssetType === 'character' && selectedTag) {
+                const filteredByTag = noImageAssetsData.filter(item =>
+                    item.asset_type === selectedAssetType && item.tag === selectedTag
+                );
+                // null/undefinedを考慮しつつ「（顔タグなし）」などを表示
+                const uniqueFaceTags = [...new Set(filteredByTag.map(item => item.character_face_tag || '（顔タグなし）'))].sort();
+                populateSelectOptions(characterFaceTagSelect, uniqueFaceTags, '--選択してください--');
+                characterFaceTagSelect.disabled = false;
+            }
+            updateUploadButtonState();
+        });
+
+        // character_face_tag 選択時の処理 (キャラクタースペシャルを絞り込む)
+        characterFaceTagSelect.addEventListener('change', () => {
+            const selectedAssetType = assetTypeSelect.value;
+            const selectedTag = tagSelect.value;
+            const selectedFaceTag = characterFaceTagSelect.value;
+
+            characterSpecialSelect.value = ''; // specialをリセット
+            
+            // 下位のプルダウンをリセットし無効化
+            populateSelectOptions(characterSpecialSelect, [], '--選択してください--');
+            characterSpecialSelect.disabled = true;
+
+            if (selectedAssetType === 'character' && selectedTag && selectedFaceTag) {
+                const filteredByFaceTag = noImageAssetsData.filter(item =>
+                    item.asset_type === selectedAssetType &&
+                    item.tag === selectedTag &&
+                    (item.character_face_tag === selectedFaceTag || (selectedFaceTag === '（顔タグなし）' && !item.character_face_tag))
+                );
+                // null/undefinedを考慮しつつ「（スペシャルなし）」などを表示
+                const uniqueSpecials = [...new Set(filteredByFaceTag.map(item => item.character_special || '（スペシャルなし）'))].sort();
+                populateSelectOptions(characterSpecialSelect, uniqueSpecials, '--選択してください--');
+                characterSpecialSelect.disabled = false;
+            }
+            updateUploadButtonState();
+        });
+
+
+        // ファイル入力、プルダウン選択時にボタンの状態を更新
         tagSelect.addEventListener('change', updateUploadButtonState);
         characterFaceTagSelect.addEventListener('change', updateUploadButtonState);
         characterSpecialSelect.addEventListener('change', updateUploadButtonState);
@@ -276,8 +336,6 @@
 
             if (selectedAssetType && selectedTag && fileSelected) {
                 if (selectedAssetType === 'character') {
-                    // characterタイプの場合、character_face_tag または character_special が選択されているか、
-                    // またはnoimage_assetsにそれらがない組み合わせが選択されているか確認
                     const selectedFaceTag = characterFaceTagSelect.value;
                     const selectedSpecial = characterSpecialSelect.value;
 
@@ -286,23 +344,33 @@
                         item.asset_type === selectedAssetType && item.tag === selectedTag
                     );
 
-                    // もしrelevantNoImageEntriesの中に、face_tag/specialがないパターンが含まれていたら、
-                    // face_tag/specialが未選択でもOKとする
+                    // 関連するエントリにface_tagが必須なものが存在するか
                     const requiresFaceTag = relevantNoImageEntries.some(entry => entry.character_face_tag && entry.character_face_tag !== "");
+                    // 関連するエントリにspecialが必須なものが存在するか
                     const requiresSpecial = relevantNoImageEntries.some(entry => entry.character_special && entry.character_special !== "");
 
                     let isFaceTagMatch = true;
                     if (requiresFaceTag) {
-                        isFaceTagMatch = selectedFaceTag !== "";
-                    } else { // requiresFaceTagがfalseの場合、つまりnoimage_assetsにface_tagが不要な行がある場合
-                        // selectedFaceTag が空白でも問題ない
+                        isFaceTagMatch = selectedFaceTag !== ""; // face_tagが必須なら選択されていること
+                    } else {
+                        // face_tagが必須でない場合、選択されていなくてもOK
+                        // ただし、「（顔タグなし）」が選択されている場合はそれと一致する行も含む
+                        if (selectedFaceTag !== "" && selectedFaceTag !== "（顔タグなし）") {
+                             // face_tagが必須ではないが、何か選択された場合、その選択が適切か確認
+                             isFaceTagMatch = relevantNoImageEntries.some(entry => entry.character_face_tag === selectedFaceTag);
+                        }
                     }
 
                     let isSpecialMatch = true;
                     if (requiresSpecial) {
-                        isSpecialMatch = selectedSpecial !== "";
-                    } else { // requiresSpecialがfalseの場合、つまりnoimage_assetsにspecialが不要な行がある場合
-                        // selectedSpecial が空白でも問題ない
+                        isSpecialMatch = selectedSpecial !== ""; // specialが必須なら選択されていること
+                    } else {
+                        // specialが必須でない場合、選択されていなくてもOK
+                        // ただし、「（スペシャルなし）」が選択されている場合はそれと一致する行も含む
+                        if (selectedSpecial !== "" && selectedSpecial !== "（スペシャルなし）") {
+                             // specialが必須ではないが、何か選択された場合、その選択が適切か確認
+                             isSpecialMatch = relevantNoImageEntries.some(entry => entry.character_special === selectedSpecial);
+                        }
                     }
                     
                     canEnable = isFaceTagMatch && isSpecialMatch;
@@ -320,15 +388,17 @@
             const file = assetFileInput.files[0];
             const asset_type = assetTypeSelect.value;
             const tag = tagSelect.value;
-            const character_face_tag = characterFaceTagSelect.value;
-            const character_special = characterSpecialSelect.value;
+            // 「（顔タグなし）」や「（スペシャルなし）」が選択された場合は空文字列として扱う
+            const character_face_tag = characterFaceTagSelect.value === '（顔タグなし）' ? '' : characterFaceTagSelect.value;
+            const character_special = characterSpecialSelect.value === '（スペシャルなし）' ? '' : characterSpecialSelect.value;
+
 
             if (!file || !asset_type || !tag) {
                 displayMessage('必要な情報をすべて選択し、ファイルを選択してください。', 'error');
                 return;
             }
             
-            // characterタイプの場合、character_face_tag/character_specialの必須チェックを再度行う
+            // characterタイプの場合、character_face_tag/character_specialの最終チェック
             if (asset_type === 'character') {
                 const relevantNoImageEntries = noImageAssetsData.filter(item => 
                     item.asset_type === asset_type && item.tag === tag
@@ -336,11 +406,11 @@
                 const requiresFaceTag = relevantNoImageEntries.some(entry => entry.character_face_tag && entry.character_face_tag !== "");
                 const requiresSpecial = relevantNoImageEntries.some(entry => entry.character_special && entry.character_special !== "");
 
-                if (requiresFaceTag && !character_face_tag) {
+                if (requiresFaceTag && character_face_tag === '') {
                     displayMessage('キャラクター顔タグを選択してください。', 'error');
                     return;
                 }
-                if (requiresSpecial && !character_special) {
+                if (requiresSpecial && character_special === '') {
                     displayMessage('キャラクタースペシャルを選択してください。', 'error');
                     return;
                 }
@@ -400,12 +470,7 @@
                     displayMessage(`アセットが正常にアップロードされ、シートに書き込まれました！\nURL: ${imageUrl}`, 'success');
                     // 成功したらフォームをリセット
                     assetTypeSelect.value = '';
-                    tagSelect.innerHTML = '<option value="">--選択してください--</option>';
-                    characterFaceTagSelect.innerHTML = '<option value="">--選択してください--</option>';
-                    characterSpecialSelect.innerHTML = '<option value="">--選択してください--</option>';
-                    tagGroup.style.display = 'none';
-                    characterFaceTagGroup.style.display = 'none';
-                    characterSpecialGroup.style.display = 'none';
+                    populateAssetTypeSelect(); // 全てのプルダウンをリセット
                     assetFileInput.value = ''; // ファイル入力をクリア
                     await fetchNoImageAssets(); // noimage_assetsを再読み込み
                 } else {

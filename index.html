@@ -25,7 +25,7 @@
             justify-content: flex-end; /* 展開時は下から */
             padding-bottom: 20px; /* 下部操作ボタンとの重なり回避（不要になる可能性あり） */
         }
-        #character-name { font-size: 1.2em; font-weight: bold; margin-bottom: 5px; color: #fff; }
+        #speaker-name { font-size: 1.2em; font-weight: bold; margin-bottom: 5px; color: #fff; }
         #dialogue-text { font-size: 1.1em; line-height: 1.5; text-shadow: 1px 1px 2px rgba(0,0,0,0.5); user-select: text; /* テキスト選択可能に */ }
         #next-indicator { position: absolute; bottom: 10px; right: 20px; font-size: 2em; animation: bounce 1s infinite; }
         @keyframes bounce { 0%, 20%, 50%, 80%, 100% { transform: translateY(0); } 40% { transform: translateY(-10px); } 60% { transform: translateY(-5px); } }
@@ -193,7 +193,7 @@
         <img id="effect-image" src="" alt="" style="display: none;">
 
         <div id="dialogue-box">
-            <div id="character-name"></div>
+            <div id="speaker-name"></div>
             <div id="dialogue-text"></div>
             <div id="next-indicator">▼</div>
         </div>
@@ -210,9 +210,9 @@
                 <label for="edit-scene-number">シーン番号:</label>
                 <input type="text" id="edit-scene-number" name="sceneNumber"><br>
 
-                <label for="edit-character">話者:</label>
-                <input type="text" id="edit-character" name="character" list="characters-list">
-                <datalist id="characters-list"></datalist><br>
+                <label for="edit-speaker">話者:</label>
+                <input type="text" id="edit-speaker" name="speaker" list="speakers-list">
+                <datalist id="speakers-list"></datalist><br>
 
                 <label for="edit-text">本文:</label>
                 <textarea id="edit-text" name="text"></textarea><br>
@@ -291,7 +291,7 @@
 
         // DOM要素の取得
         const dialogueText = document.getElementById('dialogue-text');
-        const characterName = document.getElementById('character-name');
+        const speakerName = document.getElementById('speaker-name');
         const nextIndicator = document.getElementById('next-indicator');
         const characterImg = document.getElementById('character');
         const backgroundDiv = document.getElementById('background');
@@ -491,7 +491,7 @@
 
                 currentEpisodeData.forEach(s => {
                     if (s.background && !s.background_image) requiredBackgroundTags.add(s.background);
-                    if (s.character && !s.character_image) requiredCharacterTags.add(s.character);
+                    if (s.speaker && !s.speaker_image) requiredCharacterTags.add(s.speaker);
                     // 表情はキャラクターアセットの一部として扱うため、個別のタグ収集は不要
                     if (s.special && !s.special_image) requiredSpecialTags.add(s.special);
                     if (s.effect && !s.effect_image) requiredEffectTags.add(s.effect);
@@ -557,7 +557,7 @@
             } catch (error) {
                 console.error("エピソードデータ読み込み中にエラーが発生しました:", error);
                 dialogueText.textContent = `エピソード ${episodeNumber} のデータ読み込み中にエラーが発生しました: ${error.message}`;
-                characterName.textContent = "エラー";
+                speakerName.textContent = "エラー";
                 nextIndicator.style.display = 'none';
             } finally {
                 loadingIndicator.style.display = 'none'; // ロード完了（成功/失敗問わず）で非表示
@@ -567,7 +567,7 @@
         function showScene(s) {
             if (!s) {
                 console.warn("表示するシーンデータがありません。");
-                characterName.textContent = "終了";
+                speakerName.textContent = "終了";
                 dialogueText.textContent = "これ以上シーンはありません。";
                 nextIndicator.style.display = 'none';
                 characterImg.style.display = 'none';
@@ -577,16 +577,16 @@
                 return;
             }
 
-            characterName.textContent = s.character || '';
+            speakerName.textContent = s.speaker || '';
             dialogueText.textContent = s.text || '';
             nextIndicator.style.display = 'block';
 
-            // character_image が優先、なければタグからロード
-            if (s.character_image) {
-                characterImg.src = s.character_image;
+            // speaker_image が優先、なければタグからロード
+            if (s.speaker_image) {
+                characterImg.src = s.speaker_image;
                 characterImg.style.display = 'block';
-            } else if (s.character && loadedAssets.characters[s.character] && loadedAssets.characters[s.character].image) {
-                characterImg.src = loadedAssets.characters[s.character].image;
+            } else if (s.speaker && loadedAssets.characters[s.speaker] && loadedAssets.characters[s.speaker].image) {
+                characterImg.src = loadedAssets.characters[s.speaker].image;
                 characterImg.style.display = 'block';
             } else {
                 characterImg.src = '';
@@ -628,7 +628,7 @@
 
             // 表情クラスの適用（キャラクターが存在し、表情タグが定義されている場合のみ）
             characterImg.className = 'character'; // 既存のクラスをリセット
-            if (s.face && s.character && loadedAssets.characters[s.character] && loadedAssets.characters[s.character].face_tags.includes(String(s.face))) {
+            if (s.face && s.speaker && loadedAssets.characters[s.speaker] && loadedAssets.characters[s.speaker].face_tags.includes(String(s.face))) {
                 // ここでは、特定の表情に応じたCSSクラスをキャラクター画像に適用するロジックを想定
                 // 例: characterImg.classList.add(`face-${s.face}`);
                 // 現状は特別なCSSが定義されていないため、この行は影響しないが、将来的な拡張性のため残す
@@ -682,9 +682,9 @@
         function checkMissingAssets() {
             const missingAssets = [];
             currentEpisodeData.forEach(s => {
-                // character_imageが直接指定されておらず、かつcharacterタグのアセットが見つからない場合
-                if (s.character && !s.character_image && (!loadedAssets.characters[s.character] || !loadedAssets.characters[s.character].image)) {
-                    missingAssets.push(`キャラクター: ${s.character}`);
+                // speaker_imageが直接指定されておらず、かつspeakerタグのアセットが見つからない場合
+                if (s.speaker && !s.speaker_image && (!loadedAssets.characters[s.speaker] || !loadedAssets.characters[s.speaker].image)) {
+                    missingAssets.push(`キャラクター: ${s.speaker}`);
                 }
                 // background_imageが直接指定されておらず、かつbackgroundタグのアセットが見つからない場合
                 if (s.background && !s.background_image && !loadedAssets.backgrounds[s.background]) {
@@ -707,13 +707,13 @@
 
         // 編集フォームの選択肢を更新
         function populateSelectOptions() {
-            const charactersDatalist = document.getElementById('characters-list');
+            const speakersDatalist = document.getElementById('speakers-list');
             const facesDatalist = document.getElementById('faces-list');
             const backgroundsDatalist = document.getElementById('backgrounds-list');
             const specialDatalist = document.getElementById('special-list');
             const effectsDatalist = document.getElementById('effects-list');
 
-            charactersDatalist.innerHTML = '';
+            speakersDatalist.innerHTML = '';
             facesDatalist.innerHTML = '';
             backgroundsDatalist.innerHTML = '';
             specialDatalist.innerHTML = '';
@@ -722,7 +722,7 @@
             Object.keys(loadedAssets.characters).forEach(tag => {
                 const option = document.createElement('option');
                 option.value = tag;
-                charactersDatalist.appendChild(option);
+                speakersDatalist.appendChild(option);
             });
 
             const uniqueFaces = new Set();
