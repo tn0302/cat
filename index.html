@@ -149,6 +149,23 @@
             background-color: #333;
             color: white;
         }
+
+        /* ローディングインジケータースタイル */
+        #loading-indicator {
+            display: none; /* 初期状態では非表示 */
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            font-size: 2em;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 300; /* 他のモーダルより手前に */
+        }
     </style>
 </head>
 <body>
@@ -254,6 +271,8 @@
         </div>
     </div>
 
+    <div id="loading-indicator">Now Loading...</div>
+
     <script>
         // Google Apps Script WebアプリのデプロイURLをここに設定
         const GAS_BASE_URL = 'https://cat-seven-blond.vercel.app/api/gas-proxy'; 
@@ -295,6 +314,9 @@
         const uploadedImagePreview = document.getElementById('uploaded-image-preview');
         const assetImageCloudinaryUrlHidden = document.getElementById('asset-image-cloudinary-url-hidden');
         const registerAssetInModalButton = document.getElementById('register-asset-in-modal-button');
+
+        // ローディングインジケーター要素
+        const loadingIndicator = document.getElementById('loading-indicator');
 
 
         // イベントリスナー
@@ -454,6 +476,7 @@
         }
 
         async function loadEpisodeData(episodeNumber) {
+            loadingIndicator.style.display = 'flex'; // ローディング表示
             try {
                 // シーンデータを取得
                 currentEpisodeData = await fetchAllDataWithPagination(SCENES_PROXY_PATH, episodeNumber);
@@ -536,6 +559,8 @@
                 dialogueText.textContent = `エピソード ${episodeNumber} のデータ読み込み中にエラーが発生しました: ${error.message}`;
                 speakerName.textContent = "エラー";
                 nextIndicator.style.display = 'none';
+            } finally {
+                loadingIndicator.style.display = 'none'; // ロード完了（成功/失敗問わず）で非表示
             }
         }
 
@@ -996,6 +1021,7 @@
 
 
         async function populateEpisodeSelect() {
+            loadingIndicator.style.display = 'flex'; // ローディング表示
             try {
                 const allScenes = await fetchAllDataWithPagination(SCENES_PROXY_PATH);
                 const episodeNumbers = new Set();
@@ -1038,6 +1064,8 @@
             } catch (error) {
                 console.error("エピソード番号の取得中にエラーが発生しました:", error);
                 alert(`エピソード番号の取得に失敗しました: ${error.message}`);
+            } finally {
+                loadingIndicator.style.display = 'none'; // ロード完了（成功/失敗問わず）で非表示
             }
         }
 
