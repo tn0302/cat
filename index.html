@@ -513,7 +513,7 @@
 
             } catch (error) {
                 console.error("エピソードデータ読み込み中にエラーが発生しました:", error);
-                dialogueText.textContent = `エピソード ${episodeNumber} のデータ読み込み中にエラーが発生しました: ${error.message}`;
+                dialogueText.textContent = `ep ${episodeNumber} のデータ読み込み中にエラーが発生しました: ${error.message}`;
                 characterName.textContent = "エラー";
                 nextIndicator.style.display = 'none';
             } finally {
