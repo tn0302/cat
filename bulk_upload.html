@@ -106,7 +106,7 @@
         <div class="form-group">
             <label for="json-file-input">JSONファイルを選択:</label>
             <input type="file" id="json-file-input" accept=".json">
-            <small style="color: #bbb;">(例: `[{"episode": 1, "sceneNumber": 1, "text": "...", "speaker": "..."}, {"episode": 1, "sceneNumber": 2, "text": "...", "speaker": "..."}]` の形式)</small>
+            <small style="color: #bbb;">(例: `[{"episode": 1, "sceneNumber": 1, "character": "勇者", "text": "...", "face": "normal", "background": "forest", "effect": "flash"}, {"episode": 1, "sceneNumber": 2, "character": "魔王", "text": "...", "face": "angry"}]` の形式)</small>
         </div>
         <button id="upload-button" class="button" disabled>アップロード</button>
         <div id="message"></div>
@@ -115,7 +115,7 @@
 
     <script>
         // VercelにデプロイしたGoogle Apps ScriptプロキシのURLを設定してください
-        const GAS_BASE_URL = 'https://cat-seven-blond.vercel.app/api/gas-proxy'; 
+        const GAS_BASE_URL = 'https://cat-seven-blond.vercel.app/api/gas-proxy';
         const SCENES_PROXY_PATH = `${GAS_BASE_URL}?api=scenes`; // シーンAPIエンドポイント
 
         const jsonFileInput = document.getElementById('json-file-input');
