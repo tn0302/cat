@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>シーン一括アップロード</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            background-color: #222;
+            color: #eee;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            box-sizing: border-box;
+        }
+        .container {
+            background-color: #333;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+            width: 100%;
+            max-width: 600px;
+            box-sizing: border-box;
+        }
+        h1 {
+            color: #fff;
+            text-align: center;
+            margin-bottom: 25px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: bold;
+        }
+        input[type="file"] {
+            background-color: #444;
+            color: #fff;
+            border: 1px solid #555;
+            padding: 10px;
+            border-radius: 4px;
+            width: calc(100% - 22px);
+            box-sizing: border-box;
+        }
+        .button {
+            background-color: #007bff;
+            color: white;
+            padding: 12px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1em;
+            width: 100%;
+            box-sizing: border-box;
+            transition: background-color 0.2s ease;
+        }
+        .button:hover {
+            background-color: #0056b3;
+        }
+        .button:disabled {
+            background-color: #555;
+            cursor: not-allowed;
+        }
+        #message {
+            margin-top: 25px;
+            padding: 15px;
+            border-radius: 4px;
+            word-break: break-all;
+            white-space: pre-wrap;
+            font-size: 0.9em;
+        }
+        .message-success {
+            background-color: #28a745;
+            color: white;
+        }
+        .message-error {
+            background-color: #dc3545;
+            color: white;
+        }
+        .message-info {
+            background-color: #17a2b8;
+            color: white;
+        }
+        .back-link {
+            display: block;
+            margin-top: 30px;
+            color: #007bff;
+            text-decoration: none;
+            font-size: 1.1em;
+            text-align: center;
+        }
+        .back-link:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>シーン一括アップロード</h1>
+        <div class="form-group">
+            <label for="json-file-input">JSONファイルを選択:</label>
+            <input type="file" id="json-file-input" accept=".json">
+            <small style="color: #bbb;">(例: `[{"episode": 1, "sceneNumber": 1, "text": "...", "speaker": "..."}, {"episode": 1, "sceneNumber": 2, "text": "...", "speaker": "..."}]` の形式)</small>
+        </div>
+        <button id="upload-button" class="button" disabled>アップロード</button>
+        <div id="message"></div>
+    </div>
+    <a href="index.html" class="back-link">ノベルビューアに戻る</a>
+
+    <script>
+        // VercelにデプロイしたGoogle Apps ScriptプロキシのURLを設定してください
+        const GAS_BASE_URL = 'https://cat-seven-blond.vercel.app/api/gas-proxy'; 
+        const SCENES_PROXY_PATH = `${GAS_BASE_URL}?api=scenes`; // シーンAPIエンドポイント
+
+        const jsonFileInput = document.getElementById('json-file-input');
+        const uploadButton = document.getElementById('upload-button');
+        const messageDiv = document.getElementById('message');
+
+        jsonFileInput.addEventListener('change', () => {
+            uploadButton.disabled = !jsonFileInput.files.length;
+            messageDiv.textContent = ''; // ファイル選択時にメッセージをクリア
+            messageDiv.className = '';
+        });
+
+        uploadButton.addEventListener('click', async () => {
+            const file = jsonFileInput.files[0];
+            if (!file) {
+                displayMessage('JSONファイルを選択してください。', 'error');
+                return;
+            }
+
+            displayMessage('ファイルを読み込み中...', 'info');
+            uploadButton.disabled = true;
+
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                try {
+                    const jsonData = JSON.parse(e.target.result);
+
+                    if (!Array.isArray(jsonData)) {
+                        displayMessage('JSONファイルはシーンオブジェクトの配列である必要があります。', 'error');
+                        return;
+                    }
+
+                    if (jsonData.length === 0) {
+                        displayMessage('JSONファイルにシーンデータが含まれていません。', 'info');
+                        return;
+                    }
+
+                    displayMessage(`全 ${jsonData.length} 件のシーンをアップロード中...`, 'info');
+
+                    // シーンデータを一括で送信
+                    const response = await fetch(SCENES_PROXY_PATH, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify(jsonData), // JSON配列として送信
+                    });
+
+                    const result = await response.json();
+
+                    if (response.ok) {
+                        displayMessage(`全 ${jsonData.length} シーンが正常に挿入されました！\n${JSON.stringify(result, null, 2)}`, 'success');
+                    } else {
+                        // GASからのエラーレスポンスを詳細に表示
+                        let errorMessage = `アップロード失敗: ${response.status} ${response.statusText}\n`;
+                        if (result && result.message) {
+                            errorMessage += `詳細: ${result.message}\n`;
+                        }
+                        if (result && result.error) {
+                             errorMessage += `エラー: ${result.error}\n`;
+                        }
+                        displayMessage(errorMessage, 'error');
+                    }
+
+                } catch (error) {
+                    console.error('JSON処理またはアップロード中にエラーが発生しました:', error);
+                    displayMessage(`エラーが発生しました: ${error.message}`, 'error');
+                } finally {
+                    uploadButton.disabled = false;
+                }
+            };
+            reader.readAsText(file);
+        });
+
+        function displayMessage(message, type) {
+            messageDiv.textContent = message;
+            messageDiv.className = `message-${type}`;
+        }
+    </script>
+</body>
+</html>
