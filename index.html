@@ -10,7 +10,7 @@
         #novel-container { position: relative; height: calc(100% - 48px); touch-action: pan-y pinch-zoom; /* タッチ操作の許可 */ }
         #background, #special-image { position: absolute; width: 100%; height: 100%; background-size: cover; background-position: center; z-index: 0; }
         #special-image { object-fit: contain; background: none; } /* 一枚絵の場合 */
-        #character { position: absolute; bottom: -10%; left: 50%; transform: translateX(-50%); max-height: 70%; max-width: 100%; object-fit: contain; z-index: 1; transition: filter 0.3s ease; }
+        #character { position: absolute; bottom: -30%; left: 50%; transform: translateX(-50%); max-height: 130%; object-fit: contain; z-index: 1; transition: filter 0.3s ease; }
         #character.dimmed { filter: brightness(0.5); }
         #dialogue-box {
             position: absolute; bottom: 0; width: 100%; min-height: 25%; max-height: 50%;
@@ -50,7 +50,6 @@
         #edit-form button.cancel-button { background: #6c757d; }
         #edit-form button.cancel-button:hover { background: #5a6268; }
 
-
         /* ヘッダーのドロップダウン */
         .dropdown {
             position: relative;
@@ -62,7 +61,7 @@
             background-color: #333;
             min-width: 160px;
             box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);
-            z-index: 1;
+            z-index: 2;
             right: 0; /* 右揃え */
             border-radius: 4px;
             overflow: hidden;
@@ -136,12 +135,13 @@
         <div class="dropdown">
             <button class="dropbtn">メニュー</button>
             <div class="dropdown-content">
-    <button id="add-scene-button">シーン追加</button>
-    <button id="edit-scene-button">シーン編集</button>
-    <button id="delete-scene-button">シーン削除</button>
-    
-    <button id="refresh-data-button">データ更新</button>
-    <button id="bulk-upload-button" onclick="window.location.href='bulk_upload.html'">シーン一括アップロード</button> </div>
+                <button id="add-scene-button">シーン追加</button>
+                <button id="edit-scene-button">シーン編集</button>
+                <button id="delete-scene-button">シーン削除</button>
+                <button id="refresh-data-button">データ更新</button>
+                <button id="upload-asset-button" onclick="window.location.href='asset_upload.html'">素材のアップロード</button>
+                <button id="bulk-upload-button" onclick="window.location.href='bulk_upload.html'">シーン一括アップロード</button> 
+            </div>
         </div>
     </div>
     <div id="novel-container">
@@ -198,265 +198,645 @@
         </div>
     </div>
 
-    
-
-    <div id="loading-indicator" style="display: none;">
-        読み込み中...
-    </div>
+    <div id="loading-indicator">Now Loading...</div>
 
     <script>
-        const GAS_BASE_URL = 'https://cat-seven-blond.vercel.app/api/gas-proxy'; // VercelのプロキシURL
+        // Google Apps Script WebアプリのデプロイURLをここに設定
+        const GAS_BASE_URL = 'https://cat-seven-blond.vercel.app/api/gas-proxy'; 
+        // Vercelにデプロイしたapi/media.jsのURLを設定してください。
+        // const MEDIA_UPLOAD_URL = 'https://cat-seven-blond.vercel.app/api/media'; // REMOVED
 
-        let currentSceneIndex = 0;
-        let novelData = [];
-        let allEpisodeNumbers = [];
+        // APIエンドポイント
+        const SCENES_PROXY_PATH = `${GAS_BASE_URL}?api=scenes`;
+        const ASSETS_PROXY_PATH = `${GAS_BASE_URL}?api=assets`;
 
-        // アセットデータ用の変数
-        let allCharacters = [];
-        let allFaces = [];
-        let allSpecials = [];
-        let allBackgrounds = [];
-        let allEffects = [];
+        let currentEpisodeData = []; // 現在のエピソードの全シーンデータ
+        let currentSceneIndex = 0; // 現在表示中のシーンのインデックス
+        let loadedAssets = { backgrounds: {}, characters: {}, effects: {}, specialImages: {} }; // 読み込み済みアセット
+        let allEpisodeNumbers = []; // 全エピソード番号
+        let currentModalMode = ''; // 'add', 'edit', 'delete'
 
         // DOM要素の取得
-        const backgroundElement = document.getElementById('background');
-        const specialImageElement = document.getElementById('special-image');
-        const characterElement = document.getElementById('character');
-        const effectImageElement = document.getElementById('effect-image');
-        const characterNameElement = document.getElementById('character-name');
-        const dialogueTextElement = document.getElementById('dialogue-text');
-        const dialogueBox = document.getElementById('dialogue-box');
+        const dialogueText = document.getElementById('dialogue-text');
+        const characterName = document.getElementById('character-name');
         const nextIndicator = document.getElementById('next-indicator');
+        const characterImg = document.getElementById('character');
+        const backgroundDiv = document.getElementById('background');
+        const specialImage = document.getElementById('special-image');
+        const effectImage = document.getElementById('effect-image');
+        const dialogueBox = document.getElementById('dialogue-box');
+
+        // モーダル関連の要素
+        const modal = document.getElementById('modal');
+        const editForm = document.getElementById('edit-form');
+        const modalTitle = document.getElementById('modal-title');
+        const saveSceneButton = document.getElementById('save-scene-button');
+        const confirmDeleteButton = document.getElementById('confirm-delete-button');
+
+       
+
+        // ローディングインジケーター要素
         const loadingIndicator = document.getElementById('loading-indicator');
 
-        // エピソード選択関連
-        const episodeSelect = document.getElementById('episode-select');
-        const prevEpisodeButton = document.getElementById('prev-episode-button');
-        const nextEpisodeButton = document.getElementById('next-episode-button');
-
-        // 編集モーダル関連
-        const modal = document.getElementById('modal');
-        const modalTitle = document.getElementById('modal-title');
-        const editForm = document.getElementById('edit-form');
-        const saveSceneButton = document.getElementById('save-scene-button');
-        const cancelEditButton = document.getElementById('cancel-edit-button');
-        const confirmDeleteButton = document.getElementById('confirm-delete-button'); // 削除確定ボタン
-
-        // ヘッダーメニューボタン
-        const addSceneButton = document.getElementById('add-scene-button');
-        const editSceneButton = document.getElementById('edit-scene-button');
-        const deleteSceneButton = document.getElementById('delete-scene-button');
         
-        const refreshDataButton = document.getElementById('refresh-data-button');
+        // イベントリスナー
+        document.getElementById('add-scene-button').addEventListener('click', () => openEditModal('add'));
+        document.getElementById('edit-scene-button').addEventListener('click', () => openEditModal('edit'));
+        document.getElementById('delete-scene-button').addEventListener('click', () => openEditModal('delete'));
+        document.getElementById('cancel-edit-button').addEventListener('click', () => closeModal());
+        confirmDeleteButton.addEventListener('click', () => deleteScene());
+        editForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            applyEdits();
+        });
 
-        // ------------------ データフェッチとシーン表示 ------------------
+        // document.getElementById('upload-asset-button').addEventListener('click', () => openAssetUploadModal()); // REMOVED
+        // document.getElementById('cancel-upload-button').addEventListener('click', () => closeAssetUploadModal()); // REMOVED
+        // assetImageFileInput.addEventListener('change', handleImageUploadInModal); // REMOVED
+        // registerAssetInModalButton.addEventListener('click', registerAssetInGASFromModal); // REMOVED
 
-        async function fetchNovelData() {
-            showLoading();
-            try {
-                const response = await fetch(`${GAS_BASE_URL}?api=getNovelData`);
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-                novelData = await response.json();
-                novelData.sort((a, b) => {
-                    if (a.episode === b.episode) {
-                        return a.sceneNumber - b.sceneNumber;
-                    }
-                    return a.episode - b.episode;
-                });
-                console.log('小説データ取得:', novelData);
-            } catch (error) {
-                console.error('小説データの取得に失敗しました:', error);
-                alert('小説データの読み込みに失敗しました。GASのURLが正しいか、デプロイされているか確認してください。');
-            } finally {
-                hideLoading();
+        document.getElementById('refresh-data-button').addEventListener('click', () => {
+            if (confirm('全てのデータを再読み込みしますか？現在のエピソードの変更は破棄されます。')) {
+                const currentEpisode = document.getElementById('episode-select').value;
+                initialize(parseInt(currentEpisode)); // 現在のエピソードを再読み込み
             }
-        }
+        });
 
-        async function fetchAssetData() {
-            try {
-                const response = await fetch(`${GAS_BASE_URL}?api=getAssetList`);
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-                const assetData = await response.json();
-                allCharacters = assetData.characters || [];
-                allFaces = assetData.faces || [];
-                allSpecials = assetData.special_images || [];
-                allBackgrounds = assetData.backgrounds || [];
-                allEffects = assetData.effects || [];
+        document.getElementById('episode-select').addEventListener('change', (e) => {
+            const selectedEpisode = parseInt(e.target.value);
+            loadEpisodeData(selectedEpisode);
+        });
+        document.getElementById('prev-episode-button').addEventListener('click', () => changeEpisode(-1));
+        document.getElementById('next-episode-button').addEventListener('click', () => changeEpisode(1));
 
-                // datalistの更新
-                updateDatalist('characters-list', allCharacters);
-                updateDatalist('faces-list', allFaces);
-                updateDatalist('special-list', allSpecials);
-                updateDatalist('backgrounds-list', allBackgrounds);
-                updateDatalist('effects-list', allEffects);
 
-                console.log('アセットデータ取得:', assetData);
-            } catch (error) {
-                console.error('アセットデータの取得に失敗しました:', error);
-                // エラーが発生しても処理を続行するためにアラートは表示しない
-            }
-        }
+        // タッチイベント用変数
+        let touchStartTime;
+        let startX;
+        let startY;
+        let endX;
+        let endY;
 
-        function updateDatalist(datalistId, data) {
-            const datalist = document.getElementById(datalistId);
-            if (datalist) {
-                datalist.innerHTML = data.map(item => `<option value="${item.name}"></option>`).join('');
-            }
-        }
+        // スワイプ/タップ検出
+        const novelContainer = document.getElementById('novel-container');
+        novelContainer.addEventListener('touchstart', e => {
+            touchStartTime = Date.now();
+            startX = e.touches?.[0]?.clientX;
+            startY = e.touches?.[0]?.clientY;
+        });
 
-        function showScene(index) {
-            if (novelData.length === 0) {
-                backgroundElement.style.backgroundImage = 'none';
-                specialImageElement.style.display = 'none';
-                characterElement.style.display = 'none';
-                effectImageElement.style.display = 'none';
-                characterNameElement.textContent = '';
-                dialogueTextElement.textContent = 'データがありません。シーンを追加してください。';
-                nextIndicator.style.display = 'none';
+        novelContainer.addEventListener('touchend', e => {
+            // モーダルが表示されている場合やヘッダーを操作した場合は何もしない
+            if (document.getElementById("modal").style.display === "flex" ||
+                // document.getElementById("asset-upload-modal").style.display === "flex" || // REMOVED
+                e.target.closest('#edit-form') || e.target.closest('#header') /* || e.target.closest('#asset-upload-form') */) { // REMOVED asset-upload-form check
                 return;
             }
 
-            currentSceneIndex = index;
-            const scene = novelData[currentSceneIndex];
+            if (!startX || !startY) return; // startX/Yが取得できていない場合は何もしない
 
-            if (!scene) {
-                console.warn(`シーンが見つかりません: index ${index}`);
-                return;
+            endX = e.changedTouches?.[0]?.clientX;
+            endY = e.changedTouches?.[0]?.clientY;
+
+            const deltaX = endX - startX;
+            const deltaY = endY - startY;
+            const deltaTime = Date.now() - touchStartTime;
+
+            // スワイプ判定 (水平方向の移動が垂直方向より大きく、かつ一定時間内)
+            const SWIPE_THRESHOLD = 50; // スワイプと認識する水平移動の閾値 (px)
+            const TAP_TIME_THRESHOLD = 300; // タップと認識する時間 (ms)
+            const TAP_MOVE_THRESHOLD = 20; // タップと認識する移動の許容範囲 (px)
+
+            if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > SWIPE_THRESHOLD && deltaTime < TAP_TIME_THRESHOLD) {
+                if (deltaX > 0) { // 右スワイプ
+                    prevScene(); 
+                } else { // 左スワイプ
+                    nextScene();
+                }
+            } else if (Math.abs(deltaX) < TAP_MOVE_THRESHOLD && Math.abs(deltaY) < TAP_MOVE_THRESHOLD && deltaTime < TAP_TIME_THRESHOLD) {
+                // タップ判定 (短い移動で、かつ一定時間内)
+                // タップ位置によってシーンを切り替え
+                const containerWidth = novelContainer.offsetWidth;
+                const tapXPercentage = endX / containerWidth; // 画面幅に対するタップ位置の割合
+
+                if (tapXPercentage < 0.5) { // 左半分をタップ
+                    prevScene();
+                } else { // 右半分をタップ (またはそれ以外)
+                    nextScene();
+                }
             }
 
-            // 背景設定
-            if (scene.background) {
-                const bgAsset = allBackgrounds.find(bg => bg.name === scene.background);
-                if (bgAsset && bgAsset.url) {
-                    backgroundElement.style.backgroundImage = `url('${bgAsset.url}')`;
-                } else {
-                    backgroundElement.style.backgroundImage = 'none'; // アセットが見つからない場合は背景なし
+            // タッチ開始座標をリセット
+            startX = null;
+            startY = null;
+        });
+
+        // dialogueBoxのタッチイベントは、novelContainerで一括処理するため、基本的にはここでは何もしない。
+        dialogueBox.addEventListener('touchstart', e => { /* do nothing */ });
+        dialogueBox.addEventListener('touchend', e => { /* do nothing */ });
+
+        // === fetchJson ヘルパー関数を定義 ===
+        async function fetchJson(url, options = {}) {
+            const response = await fetch(url, options);
+
+            if (!response.ok) {
+                let errorData;
+                try {
+                    errorData = await response.json();
+                } catch (e) {
+                    // JSONとしてパースできない場合
+                    errorData = { message: response.statusText || 'Unknown error', status: response.status };
                 }
-            } else {
-                backgroundElement.style.backgroundImage = 'none';
+                const error = new Error(errorData.message || `HTTP error! status: ${response.status}`);
+                error.response = response;
+                error.data = errorData;
+                throw error;
             }
 
-            // 特殊画像設定
-            if (scene.special) {
-                const specialAsset = allSpecials.find(s => s.name === scene.special);
-                if (specialAsset && specialAsset.url) {
-                    specialImageElement.src = specialAsset.url;
-                    specialImageElement.style.display = 'block';
-                } else {
-                    specialImageElement.style.display = 'none';
-                }
-            } else {
-                specialImageElement.style.display = 'none';
-            }
+            return response.json();
+        }
 
-            // キャラクター設定
-            if (scene.character) {
-                const charAsset = allCharacters.find(c => c.name === scene.character);
-                if (charAsset && charAsset.url) {
-                    characterElement.src = charAsset.url;
-                    characterElement.style.display = 'block';
-                    characterElement.classList.remove('dimmed'); // 表情が設定されていない場合は暗くしない
-                    
-                    // 表情がある場合はURLを上書き
-                    if (scene.face) {
-                        const faceAsset = allFaces.find(f => f.name === scene.face && f.character === scene.character);
-                        if (faceAsset && faceAsset.url) {
-                            characterElement.src = faceAsset.url;
-                        } else {
-                            console.warn(`キャラクター ${scene.character} の表情 ${scene.face} のアセットが見つかりません。`);
-                            // 表情アセットが見つからない場合は、キャラクター本体のアセットを表示したままにするか、表示しないか選択
-                            // ここではそのままキャラクター本体を表示し続ける
-                        }
-                    }
-                    // 特殊タグがある場合
-                    if (scene.special_tag) {
-                        const specialCharAsset = allSpecials.find(s => s.name === scene.special_tag && s.character === scene.character);
-                        if (specialCharAsset && specialCharAsset.url) {
-                            characterElement.src = specialCharAsset.url;
-                        } else {
-                             console.warn(`キャラクター ${scene.character} の特殊タグ ${scene.special_tag} のアセットが見つかりません。`);
-                        }
-                    }
+        async function fetchAllDataWithPagination(proxyPath, episode = null, filters = '') {
+            let url = proxyPath;
+            const params = new URLSearchParams();
 
-                } else {
-                    characterElement.style.display = 'none';
-                }
-            } else {
-                characterElement.style.display = 'none';
+            // scenes_proxy_pathの場合のみepisodeを追加
+            if (proxyPath === SCENES_PROXY_PATH && episode !== null) {
+                params.append('episode', episode);
             }
             
-            // エフェクト設定
-            if (scene.effect) {
-                const effectAsset = allEffects.find(e => e.name === scene.effect);
-                if (effectAsset && effectAsset.url) {
-                    effectImageElement.src = effectAsset.url;
-                    effectImageElement.style.display = 'block';
-                } else {
-                    effectImageElement.style.display = 'none';
-                }
-            } else {
-                effectImageElement.style.display = 'none';
+            // filtersがあれば追加
+            if (filters) {
+                // filtersはエンコードされていることを想定し、そのまま追加
+                params.append('filters', filters);
+            }
+            
+            // パラメータがあればURLに結合
+            if (params.toString()) {
+                // proxyPathが既に ? を含んでいれば & で結合、そうでなければ ? で結合
+                url += (proxyPath.includes('?') ? '&' : '?') + params.toString();
             }
 
+            // fetchJson を使用
+            let data = await fetchJson(url);
 
-            characterNameElement.textContent = scene.character || '';
-            dialogueTextElement.textContent = scene.text || '';
-
-            // 最終シーンでなければ次へインジケーターを表示
-            if (currentSceneIndex < novelData.length - 1) {
-                nextIndicator.style.display = 'block';
-            } else {
-                nextIndicator.style.display = 'none';
+            // ASSETS_PROXY_PATH からの応答には 'contents' ラッパーがあることを考慮する
+            if (proxyPath === ASSETS_PROXY_PATH && data && typeof data === 'object' && 'contents' in data) {
+                data = data.contents;
+            }
+            
+            // 戻り値が配列でない場合のエラーハンドリング
+            if (!Array.isArray(data)) {
+                throw new Error(`API returned invalid data format. Expected an array but got: ${JSON.stringify(data)}`);
             }
 
-            // 現在のエピソードをURLに反映
-            history.replaceState(null, '', `?episode=${scene.episode}`);
-
-            // エピソード選択を更新
-            if (parseInt(episodeSelect.value) !== scene.episode) {
-                episodeSelect.value = scene.episode;
-            }
-            updateNavigationButtons();
+            return data;
         }
+
+        async function loadEpisodeData(episodeNumber) {
+            loadingIndicator.style.display = 'flex'; // ローディング表示
+            try {
+                // シーンデータを取得
+                currentEpisodeData = await fetchAllDataWithPagination(SCENES_PROXY_PATH, episodeNumber);
+                // sceneNumber でソート
+                currentEpisodeData.sort((a, b) => a.sceneNumber - b.sceneNumber);
+
+                // 必要なアセットタグを収集
+                const requiredBackgroundTags = new Set();
+                const requiredCharacterTags = new Set();
+                const requiredSpecialTags = new Set();
+                const requiredEffectTags = new Set();
+
+                currentEpisodeData.forEach(s => {
+                    if (s.background && !s.background_image) requiredBackgroundTags.add(s.background);
+                    if (s.character && !s.character_image) requiredCharacterTags.add(s.character);
+                    // 表情はキャラクターアセットの一部として扱うため、個別のタグ収集は不要
+                    if (s.special && !s.special_image) requiredSpecialTags.add(s.special);
+                    if (s.effect && !s.effect_image) requiredEffectTags.add(s.effect);
+                });
+
+                // 必要なアセットデータを読み込み、キャッシュに格納
+                loadedAssets = { backgrounds: {}, characters: {}, effects: {}, specialImages: {} };
+
+                // 背景
+                if (requiredBackgroundTags.size > 0) {
+                    const bgFilters = Array.from(requiredBackgroundTags).map(tag => `tag[equals]${encodeURIComponent(tag)}`).join('[or]');
+                    const bgAssets = await fetchAllDataWithPagination(ASSETS_PROXY_PATH, null, `asset_type[equals]background[and](${bgFilters})`);
+                    bgAssets.forEach(asset => { 
+                        if (asset.tag && asset.image) {
+                            loadedAssets.backgrounds[asset.tag] = asset.image;
+                        }
+                    });
+                }
+                
+                // キャラクター (話者と表情)
+                if (requiredCharacterTags.size > 0) {
+                    const charFilters = Array.from(requiredCharacterTags).map(tag => `tag[equals]${encodeURIComponent(tag)}`).join('[or]');
+                    const charAssets = await fetchAllDataWithPagination(ASSETS_PROXY_PATH, null, `asset_type[equals]character[and](${charFilters})`);
+                    charAssets.forEach(asset => { 
+                        if (asset.tag && asset.image) {
+                            loadedAssets.characters[asset.tag] = {
+                                image: asset.image,
+                                face_tags: asset.character_face_tag ? String(asset.character_face_tag).split(',').map(t => t.trim()) : []
+                            };
+                        }
+                    });
+                }
+
+                // 特殊画像
+                if (requiredSpecialTags.size > 0) {
+                    const specialFilters = Array.from(requiredSpecialTags).map(tag => `tag[equals]${encodeURIComponent(tag)}`).join('[or]');
+                    const specialAssets = await fetchAllDataWithPagination(ASSETS_PROXY_PATH, null, `asset_type[equals]special_image[and](${specialFilters})`);
+                    specialAssets.forEach(asset => {
+                        if (asset.tag && asset.image) {
+                            loadedAssets.specialImages[asset.tag] = asset.image;
+                        }
+                    });
+                }
+
+                // エフェクト
+                if (requiredEffectTags.size > 0) {
+                    const effectFilters = Array.from(requiredEffectTags).map(tag => `tag[equals]${encodeURIComponent(tag)}`).join('[or]');
+                    const effectAssets = await fetchAllDataWithPagination(ASSETS_PROXY_PATH, null, `asset_type[equals]effect[and](${effectFilters})`);
+                    effectAssets.forEach(asset => {
+                        if (asset.tag && asset.image) {
+                            loadedAssets.effects[asset.tag] = asset.image;
+                        }
+                    });
+                }
+
+                populateSelectOptions();
+                currentSceneIndex = 0;
+                showScene(currentEpisodeData[currentSceneIndex]);
+                updateNavigationButtons();
+                updateEpisodeSelect();
+
+            } catch (error) {
+                console.error("エピソードデータ読み込み中にエラーが発生しました:", error);
+                dialogueText.textContent = `ep ${episodeNumber} のデータ読み込み中にエラーが発生しました: ${error.message}`;
+                characterName.textContent = "エラー";
+                nextIndicator.style.display = 'none';
+            } finally {
+                loadingIndicator.style.display = 'none'; // ロード完了（成功/失敗問わず）で非表示
+            }
+        }
+
+        function showScene(s) {
+            if (!s) {
+                console.warn("表示するシーンデータがありません。");
+                characterName.textContent = "終了";
+                dialogueText.textContent = "これ以上シーンはありません。";
+                nextIndicator.style.display = 'none';
+                characterImg.style.display = 'none';
+                backgroundDiv.style.backgroundImage = 'none';
+                specialImage.style.display = 'none';
+                effectImage.style.display = 'none';
+                return;
+            }
+
+            characterName.textContent = s.character || '';
+            dialogueText.textContent = s.text || '';
+            nextIndicator.style.display = 'block';
+
+            // character_image が優先、なければタグからロード
+            if (s.character_image) {
+                characterImg.src = s.character_image;
+                characterImg.style.display = 'block';
+            } else if (s.character && loadedAssets.characters[s.character] && loadedAssets.characters[s.character].image) {
+                characterImg.src = loadedAssets.characters[s.character].image;
+                characterImg.style.display = 'block';
+            } else {
+                characterImg.src = '';
+                characterImg.style.display = 'none';
+            }
+
+            // background_image が優先、なければタグからロード
+            if (s.background_image) {
+                backgroundDiv.style.backgroundImage = `url(${s.background_image})`;
+            } else if (s.background && loadedAssets.backgrounds[s.background]) {
+                backgroundDiv.style.backgroundImage = `url(${loadedAssets.backgrounds[s.background]})`;
+            } else {
+                backgroundDiv.style.backgroundImage = '';
+            }
+            
+            // special_image が優先、なければタグからロード
+            if (s.special_image) {
+                specialImage.src = s.special_image;
+                specialImage.style.display = 'block';
+            } else if (s.special && loadedAssets.specialImages[s.special]) {
+                specialImage.src = loadedAssets.specialImages[s.special];
+                specialImage.style.display = 'block';
+            } else {
+                specialImage.src = '';
+                specialImage.style.display = 'none';
+            }
+
+            // effect_image が優先、なければタグからロード
+            if (s.effect_image) {
+                effectImage.src = s.effect_image;
+                effectImage.style.display = 'block';
+            } else if (s.effect && loadedAssets.effects[s.effect]) {
+                effectImage.src = loadedAssets.effects[s.effect];
+                effectImage.style.display = 'block';
+            } else {
+                effectImage.src = '';
+                effectImage.style.display = 'none';
+            }
+
+            // 表情クラスの適用（キャラクターが存在し、表情タグが定義されている場合のみ）
+            characterImg.className = 'character'; // 既存のクラスをリセット
+            if (s.face && s.character && loadedAssets.characters[s.character] && loadedAssets.characters[s.character].face_tags.includes(String(s.face))) {
+                // ここでは、特定の表情に応じたCSSクラスをキャラクター画像に適用するロジックを想定
+                // 例: characterImg.classList.add(`face-${s.face}`);
+                // 現状は特別なCSSが定義されていないため、この行は影響しないが、将来的な拡張性のため残す
+            }
+        }
+
+        function nextScene() {
+            if (currentSceneIndex < currentEpisodeData.length - 1) {
+                currentSceneIndex++;
+                showScene(currentEpisodeData[currentSceneIndex]);
+                updateNavigationButtons();
+            } else {
+                const currentEpisode = parseInt(document.getElementById('episode-select').value);
+                const currentEpisodeIndex = allEpisodeNumbers.indexOf(currentEpisode);
+                if (currentEpisodeIndex < allEpisodeNumbers.length - 1) {
+                    const nextEpisode = allEpisodeNumbers[currentEpisodeIndex + 1];
+                    document.getElementById('episode-select').value = nextEpisode;
+                    loadEpisodeData(nextEpisode);
+                } else {
+                    alert('これ以上シーンはありません。');
+                }
+            }
+        }
+
+        function prevScene() {
+            if (currentSceneIndex > 0) {
+                currentSceneIndex--;
+                showScene(currentEpisodeData[currentSceneIndex]);
+                updateNavigationButtons();
+            } else {
+                const currentEpisode = parseInt(document.getElementById('episode-select').value);
+                const currentEpisodeIndex = allEpisodeNumbers.indexOf(currentEpisode);
+                if (currentEpisodeIndex > 0) {
+                    const prevEpisode = allEpisodeNumbers[currentEpisodeIndex - 1];
+                    document.getElementById('episode-select').value = prevEpisode;
+                    loadEpisodeData(prevEpisode);
+                } else {
+                    alert('これ以上シーンはありません。');
+                }
+            }
+        }
+
+        // 編集フォームの選択肢を更新
+        function populateSelectOptions() {
+            const charactersDatalist = document.getElementById('characters-list');
+            const facesDatalist = document.getElementById('faces-list');
+            const backgroundsDatalist = document.getElementById('backgrounds-list');
+            const specialDatalist = document.getElementById('special-list');
+            const effectsDatalist = document.getElementById('effects-list');
+
+            charactersDatalist.innerHTML = '';
+            facesDatalist.innerHTML = '';
+            backgroundsDatalist.innerHTML = '';
+            specialDatalist.innerHTML = '';
+            effectsDatalist.innerHTML = '';
+
+            Object.keys(loadedAssets.characters).forEach(tag => {
+                const option = document.createElement('option');
+                option.value = tag;
+                charactersDatalist.appendChild(option);
+            });
+
+            const uniqueFaces = new Set();
+            Object.values(loadedAssets.characters).forEach(char => {
+                char.face_tags.forEach(face => uniqueFaces.add(face));
+            });
+            Array.from(uniqueFaces).sort().forEach(face => {
+                const option = document.createElement('option');
+                option.value = face;
+                facesDatalist.appendChild(option);
+            });
+
+            Object.keys(loadedAssets.backgrounds).forEach(tag => {
+                const option = document.createElement('option');
+                option.value = tag;
+                backgroundsDatalist.appendChild(option);
+            });
+
+            Object.keys(loadedAssets.specialImages).forEach(tag => {
+                const option = document.createElement('option');
+                option.value = tag;
+                specialDatalist.appendChild(option);
+            });
+
+            Object.keys(loadedAssets.effects).forEach(tag => {
+                const option = document.createElement('option');
+                option.value = tag;
+                effectsDatalist.appendChild(option);
+            });
+        }
+
+        function openEditModal(mode) {
+            modal.style.display = 'flex';
+            currentModalMode = mode; // モーダルモードを保存
+            confirmDeleteButton.style.display = 'none';
+            saveSceneButton.style.display = 'inline-block'; // デフォルトで表示
+
+            editForm.reset(); // フォームをリセット
+            
+            // 全ての入力フィールドを編集可能に設定（deleteモードでreadonlyになるためリセット）
+            editForm.querySelectorAll('input, textarea').forEach(input => input.readOnly = false);
+
+
+            if (mode === 'add') {
+                modalTitle.textContent = 'シーン追加';
+                saveSceneButton.textContent = '追加';
+                document.getElementById('edit-episode').value = document.getElementById('episode-select').value;
+                // 現在のシーンの次の番号を初期値として設定
+                if (currentEpisodeData.length > 0) {
+                    document.getElementById('edit-scene-number').value = currentEpisodeData[currentSceneIndex].sceneNumber + 1;
+                } else {
+                    document.getElementById('edit-scene-number').value = 1; // エピソードが空の場合
+                }
+            } else if (mode === 'edit') {
+                modalTitle.textContent = 'シーン編集';
+                saveSceneButton.textContent = '保存';
+                const currentScene = currentEpisodeData[currentSceneIndex];
+                if (currentScene) {
+                    // IDは表示しないが、内部的には現在のシーンのIDを使用
+                    // document.getElementById('edit-id').value = currentScene.id; // この行は不要
+                    for (const key in currentScene) {
+                        const input = document.getElementById(`edit-${key}`);
+                        if (input) input.value = currentScene[key];
+                    }
+                } else {
+                    alert('編集するシーンがありません。');
+                    closeModal();
+                    return;
+                }
+            } else if (mode === 'delete') {
+                modalTitle.textContent = 'シーン削除';
+                saveSceneButton.style.display = 'none'; // 保存ボタンを非表示
+                confirmDeleteButton.style.display = 'inline-block'; // 削除確定ボタンを表示
+                const currentScene = currentEpisodeData[currentSceneIndex];
+                if (currentScene) {
+                    // IDは表示しないが、内部的には現在のシーンのIDを使用
+                    // document.getElementById('edit-id').value = currentScene.id; // この行は不要
+                    for (const key in currentScene) {
+                        const input = document.getElementById(`edit-${key}`);
+                        if (input) {
+                            input.value = currentScene[key];
+                            input.readOnly = true; // 削除モードでは編集不可にする
+                        }
+                    }
+                } else {
+                    alert('削除するシーンがありません。');
+                    closeModal();
+                    return;
+                }
+            }
+        }
+
+        function closeModal() {
+            modal.style.display = 'none';
+            currentModalMode = ''; // モードをリセット
+        }
+
+        async function applyEdits() {
+            const formSceneData = {};
+            const formData = new FormData(editForm);
+            for (const [key, value] of formData.entries()) {
+                formSceneData[key] = value;
+            }
+
+            // currentModalMode を使用して 'add' か 'edit' を判断
+            const method = (currentModalMode === 'add') ? 'POST' : 'PUT';
+            let url = SCENES_PROXY_PATH;
+
+            if (method === 'PUT') {
+                const currentScene = currentEpisodeData[currentSceneIndex];
+                if (!currentScene || !currentScene.id) {
+                    alert('編集対象のシーンIDが見つかりません。');
+                    return;
+                }
+                url += `&id=${currentScene.id}`; // 既存シーンの更新時はIDをURLに含める
+            }
+            // POST (追加) の場合はIDをURLに含めない。GAS側で自動生成される。
+
+            try {
+                const res = await fetchJson(url, { // fetchJson を使用
+                    method: method,
+                    headers: {
+                        'Content-Type': 'application/json',
+                        // PUT/DELETEメソッドオーバーライドをPOSTリクエストとして送信する場合
+                        ...(method !== 'POST' && { 'X-HTTP-Method-Override': method }) 
+                    },
+                    body: JSON.stringify(formSceneData),
+                });
+
+                alert(`シーンを${(currentModalMode === 'add') ? '追加' : '更新'}しました！`);
+                closeModal();
+                // データ更新後に現在のエピソードを再読み込みし、最新状態を反映
+                loadEpisodeData(parseInt(document.getElementById('episode-select').value));
+            } catch (error) {
+                console.error("シーン操作中にエラーが発生しました:", error);
+                alert(`シーン操作に失敗しました: ${error.message}`);
+            }
+        }
+
+        async function deleteScene() {
+            const currentScene = currentEpisodeData[currentSceneIndex];
+            if (!currentScene || !currentScene.id) {
+                alert('削除するシーンIDが見つかりません。');
+                return;
+            }
+            const sceneIdToDelete = currentScene.id;
+
+            if (!confirm(`ID: ${sceneIdToDelete} のシーンを本当に削除しますか？`)) {
+                return;
+            }
+
+            try {
+                const res = await fetchJson(`${SCENES_PROXY_PATH}&id=${sceneIdToDelete}`, { // fetchJson を使用
+                    method: 'DELETE', // Webアプリ側で_method=DELETEとして処理される
+                });
+
+                alert(`シーンID: ${sceneIdToDelete} を削除しました！`);
+                closeModal();
+                // シーン削除後、現在表示中のエピソードを再読み込みし、シーンが削除された状態を反映
+                // currentSceneIndexが削除により範囲外になる可能性があるので、リセットする
+                currentSceneIndex = Math.max(0, currentSceneIndex - 1); // 1つ前のシーンへ
+                loadEpisodeData(parseInt(document.getElementById('episode-select').value));
+            } catch (error) {
+                console.error("シーン削除中にエラーが発生しました:", error);
+                alert(`シーン削除に失敗しました: ${error.message}`);
+            }
+        }
+
+        // openAssetUploadModal function REMOVED
+        // closeAssetUploadModal function REMOVED
+        // handleImageUploadInModal function REMOVED
+        // uploadFileToCloudinary function REMOVED
+        // registerAssetInGASFromModal function REMOVED
 
         async function populateEpisodeSelect() {
-            await fetchNovelData(); // 最新の小説データを取得
-            await fetchAssetData(); // 最新のアセットデータを取得
+            loadingIndicator.style.display = 'flex'; // ローディング表示
+            try {
+                const allScenes = await fetchAllDataWithPagination(SCENES_PROXY_PATH);
+                const episodeNumbers = new Set();
+                allScenes.forEach(s => {
+                    // episodeが数値で、かつ有効な数値であることを確認
+                    if (s.episode && !isNaN(Number(s.episode))) {
+                        episodeNumbers.add(parseInt(s.episode));
+                    }
+                });
+                allEpisodeNumbers = Array.from(episodeNumbers).sort((a, b) => a - b);
 
-            allEpisodeNumbers = [...new Set(novelData.map(scene => scene.episode))].sort((a, b) => a - b);
-            episodeSelect.innerHTML = allEpisodeNumbers.map(ep => `<option value="${ep}">エピソード ${ep}</option>`).join('');
+                const episodeSelect = document.getElementById('episode-select');
+                episodeSelect.innerHTML = ''; // 既存のオプションをクリア
 
-            // URLからエピソード番号を取得し、初期表示エピソードを設定
-            const urlParams = new URLSearchParams(window.location.search);
-            const initialEpisode = parseInt(urlParams.get('episode'));
+                if (allEpisodeNumbers.length === 0) {
+                    const option = document.createElement('option');
+                    option.value = '';
+                    option.textContent = 'エピソードなし';
+                    episodeSelect.appendChild(option);
+                    return;
+                }
 
-            let currentEpisode = initialEpisode && allEpisodeNumbers.includes(initialEpisode) ? initialEpisode : allEpisodeNumbers[0];
-            if (!currentEpisode && allEpisodeNumbers.length > 0) {
-                currentEpisode = allEpisodeNumbers[0];
+                allEpisodeNumbers.forEach(epNum => {
+                    const option = document.createElement('option');
+                    option.value = epNum;
+                    option.textContent = `エピソード ${epNum}`;
+                    episodeSelect.appendChild(option);
+                });
+
+                // URLパラメータから初期エピソードを取得、なければ最初のエピソードを選択
+                const urlParams = new URLSearchParams(window.location.search);
+                const initialEpisodeParam = parseInt(urlParams.get('episode'));
+                const initialEpisode = (!isNaN(initialEpisodeParam) && allEpisodeNumbers.includes(initialEpisodeParam)) 
+                                        ? initialEpisodeParam 
+                                        : allEpisodeNumbers[0];
+                
+                episodeSelect.value = initialEpisode;
+                loadEpisodeData(initialEpisode); // 選択されたエピソードのデータをロード
+
+            } catch (error) {
+                console.error("エピソード番号の取得中にエラーが発生しました:", error);
+                alert(`エピソード番号の取得に失敗しました: ${error.message}`);
+            } finally {
+                loadingIndicator.style.display = 'none'; // ロード完了（成功/失敗問わず）で非表示
             }
-
-            if (currentEpisode) {
-                episodeSelect.value = currentEpisode;
-                loadEpisodeData(currentEpisode);
-            } else {
-                showScene(0); // データがない場合や初期エピソードがない場合の表示
-            }
-            updateNavigationButtons();
         }
 
-        function loadEpisodeData(episode) {
-            const scenesInEpisode = novelData.filter(scene => scene.episode === episode);
-            if (scenesInEpisode.length > 0) {
-                currentSceneIndex = novelData.indexOf(scenesInEpisode[0]);
-                showScene(currentSceneIndex);
-            } else {
-                alert(`エピソード ${episode} のシーンが見つかりません。`);
-                // 必要に応じて、最初のエピソードにリダイレクトするか、空白表示にする
+        function updateEpisodeSelect() {
+            const currentEpisode = parseInt(document.getElementById('episode-select').value);
+            const episodeSelect = document.getElementById('episode-select');
+            
+            if (currentEpisode && allEpisodeNumbers.includes(currentEpisode)) {
+                episodeSelect.value = currentEpisode;
             }
+            updateNavigationButtons();
         }
 
         function updateNavigationButtons() {
@@ -480,262 +860,17 @@
         }
 
         async function initialize() {
+            // ここに `GAS_BASE_URL` のチェックを追加しました。
+            // 正しいWebアプリのURLに置き換えてください。
+            // 例: const GAS_BASE_URL = 'https://script.google.com/macros/s/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/exec';
+            if (GAS_BASE_URL === 'https://cat-seven-blond.vercel.app/api/gas-proxy' || !GAS_BASE_URL.startsWith('https://cat-seven-blond.vercel.app/api/gas-proxy')) {
+                //alert('GAS_BASE_URLが正しく設定されていません。`index.html`ファイル内の`GAS_BASE_URL`を、デプロイしたVercelプロキシのURLに置き換えてください。');
+                //return;
+            }
             await populateEpisodeSelect();
         }
 
         window.addEventListener('load', () => initialize());
-
-        // ------------------ シーン操作（追加・編集・削除） ------------------
-
-        // モーダル表示/非表示関数
-        function showModal() {
-            modal.style.display = 'flex';
-        }
-
-        function hideModal() {
-            modal.style.display = 'none';
-            editForm.reset(); // フォームをリセット
-            confirmDeleteButton.style.display = 'none'; // 削除確定ボタンを隠す
-            saveSceneButton.style.display = 'inline-block'; // 保存ボタンを表示
-        }
-
-        // シーン追加ボタン
-        addSceneButton.addEventListener('click', () => {
-            modalTitle.textContent = '新しいシーンを追加';
-            editForm.dataset.mode = 'add';
-            editForm.dataset.originalIndex = ''; // 新規追加なのでインデックスはなし
-            
-            // 現在のシーンの次のシーン番号を初期値として設定
-            const currentScene = novelData[currentSceneIndex];
-            if (currentScene) {
-                document.getElementById('edit-episode').value = currentScene.episode;
-                document.getElementById('edit-scene-number').value = currentScene.sceneNumber + 1;
-            } else {
-                // データが全くない場合
-                document.getElementById('edit-episode').value = 1;
-                document.getElementById('edit-scene-number').value = 1;
-            }
-
-            showModal();
-        });
-
-        // シーン編集ボタン
-        editSceneButton.addEventListener('click', () => {
-            if (novelData.length === 0) {
-                alert('編集するシーンがありません。');
-                return;
-            }
-            modalTitle.textContent = 'シーン編集';
-            editForm.dataset.mode = 'edit';
-            editForm.dataset.originalIndex = currentSceneIndex;
-
-            const scene = novelData[currentSceneIndex];
-            document.getElementById('edit-episode').value = scene.episode;
-            document.getElementById('edit-scene-number').value = scene.sceneNumber;
-            document.getElementById('edit-character').value = scene.character;
-            document.getElementById('edit-text').value = scene.text;
-            document.getElementById('edit-face').value = scene.face;
-            document.getElementById('edit-special').value = scene.special;
-            document.getElementById('edit-background').value = scene.background;
-            document.getElementById('edit-effect').value = scene.effect;
-
-            showModal();
-        });
-
-        // シーン削除ボタン
-        deleteSceneButton.addEventListener('click', () => {
-            if (novelData.length === 0) {
-                alert('削除するシーンがありません。');
-                return;
-            }
-            if (!confirm('本当にこのシーンを削除しますか？')) {
-                return;
-            }
-            // 確認モーダルを表示する代わりに、確認ボタンを表示
-            modalTitle.textContent = 'シーン削除の確認';
-            editForm.dataset.mode = 'delete';
-            editForm.dataset.originalIndex = currentSceneIndex;
-
-            // フォームの値を現在のシーンで埋める（ユーザーに何が削除されるかを示すため）
-            const scene = novelData[currentSceneIndex];
-            document.getElementById('edit-episode').value = scene.episode;
-            document.getElementById('edit-scene-number').value = scene.sceneNumber;
-            document.getElementById('edit-character').value = scene.character;
-            document.getElementById('edit-text').value = scene.text;
-            document.getElementById('edit-face').value = scene.face;
-            document.getElementById('edit-special').value = scene.special;
-            document.getElementById('edit-background').value = scene.background;
-            document.getElementById('edit-effect').value = scene.effect;
-
-            // フォームの入力フィールドを無効化
-            Array.from(editForm.elements).forEach(element => {
-                if (element.tagName !== 'BUTTON') {
-                    element.disabled = true;
-                }
-            });
-            saveSceneButton.style.display = 'none'; // 保存ボタンを隠す
-            confirmDeleteButton.style.display = 'inline-block'; // 削除確定ボタンを表示
-            showModal();
-        });
-
-        // 削除確定ボタンのイベントリスナー
-        confirmDeleteButton.addEventListener('click', async () => {
-            if (editForm.dataset.mode === 'delete') {
-                showLoading();
-                try {
-                    const originalIndex = parseInt(editForm.dataset.originalIndex);
-                    const sceneToDelete = novelData[originalIndex];
-                    
-                    const response = await fetch(`${GAS_BASE_URL}?api=deleteScene`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify({
-                            episode: sceneToDelete.episode,
-                            sceneNumber: sceneToDelete.sceneNumber
-                        }),
-                    });
-
-                    if (!response.ok) {
-                        throw new Error(`HTTP error! status: ${response.status}`);
-                    }
-
-                    const result = await response.json();
-                    if (result.status === 'SUCCESS') {
-                        alert('シーンが削除されました。');
-                        hideModal();
-                        await populateEpisodeSelect(); // データ再読み込みとエピソードドロップダウン更新
-                        // 削除後、存在すれば前のシーン、なければ次のシーン、それもなければ最初のシーンを表示
-                        if (novelData.length > 0) {
-                            showScene(Math.max(0, originalIndex - 1));
-                        } else {
-                            showScene(0); // データが空になった場合
-                        }
-                    } else {
-                        alert(`シーン削除失敗: ${result.message || '不明なエラー'}`);
-                    }
-                } catch (error) {
-                    console.error('シーン削除中にエラーが発生しました:', error);
-                    alert(`シーン削除中にエラーが発生しました: ${error.message}`);
-                } finally {
-                    hideLoading();
-                }
-            }
-        });
-
-
-        // 編集・追加フォームの送信
-        editForm.addEventListener('submit', async (event) => {
-            event.preventDefault();
-            showLoading();
-
-            const formData = {
-                episode: parseInt(document.getElementById('edit-episode').value),
-                sceneNumber: parseInt(document.getElementById('edit-scene-number').value),
-                character: document.getElementById('edit-character').value,
-                text: document.getElementById('edit-text').value,
-                face: document.getElementById('edit-face').value,
-                special: document.getElementById('edit-special').value,
-                background: document.getElementById('edit-background').value,
-                effect: document.getElementById('edit-effect').value
-            };
-
-            try {
-                let apiUrl = '';
-                let method = 'POST';
-
-                if (editForm.dataset.mode === 'add') {
-                    apiUrl = `${GAS_BASE_URL}?api=addScene`;
-                } else if (editForm.dataset.mode === 'edit') {
-                    apiUrl = `${GAS_BASE_URL}?api=updateScene`;
-                    formData.originalEpisode = novelData[parseInt(editForm.dataset.originalIndex)].episode;
-                    formData.originalSceneNumber = novelData[parseInt(editForm.dataset.originalIndex)].sceneNumber;
-                }
-
-                const response = await fetch(apiUrl, {
-                    method: method,
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify(formData),
-                });
-
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-
-                const result = await response.json();
-                if (result.status === 'SUCCESS') {
-                    alert(`${editForm.dataset.mode === 'add' ? 'シーンが追加' : 'シーンが更新'}されました。`);
-                    hideModal();
-                    await populateEpisodeSelect(); // データ再読み込みとエピソードドロップダウン更新
-                    // 編集・追加後、該当シーンを表示
-                    const newSceneIndex = novelData.findIndex(s => s.episode === formData.episode && s.sceneNumber === formData.sceneNumber);
-                    if (newSceneIndex !== -1) {
-                        showScene(newSceneIndex);
-                    }
-                } else {
-                    alert(`${editForm.dataset.mode === 'add' ? 'シーン追加' : 'シーン更新'}失敗: ${result.message || '不明なエラー'}`);
-                }
-
-            } catch (error) {
-                console.error('シーン操作中にエラーが発生しました:', error);
-                alert(`シーン操作中にエラーが発生しました: ${error.message}`);
-            } finally {
-                hideLoading();
-                // フォームの入力フィールドを再度有効化
-                Array.from(editForm.elements).forEach(element => {
-                    element.disabled = false;
-                });
-            }
-        });
-
-        // キャンセルボタン
-        cancelEditButton.addEventListener('click', hideModal);
-
-        // データ更新ボタン
-        refreshDataButton.addEventListener('click', async () => {
-            await populateEpisodeSelect();
-            alert('データを更新しました。');
-        });
-
-        // エピソード選択ドロップダウンの変更イベント
-        episodeSelect.addEventListener('change', (event) => {
-            const selectedEpisode = parseInt(event.target.value);
-            loadEpisodeData(selectedEpisode);
-        });
-
-        // 前のエピソード、次のエピソードボタン
-        prevEpisodeButton.addEventListener('click', () => changeEpisode(-1));
-        nextEpisodeButton.addEventListener('click', () => changeEpisode(1));
-
-
-        // 画面クリックで次のシーンへ
-        // dialogueBox のみをクリック対象とする
-        dialogueBox.addEventListener('click', () => {
-            // モーダルが表示されている場合は何もしない
-            if (modal.style.display === 'flex') {
-                return;
-            }
-
-            if (currentSceneIndex < novelData.length - 1) {
-                showScene(currentSceneIndex + 1);
-            } else {
-                // 最終シーンの場合の処理（例えば、ゲーム終了、次のチャプターへ、など）
-                // alert('これが最終シーンです！');
-                nextIndicator.style.display = 'none'; // 最終シーンでインジケーターを隠す
-            }
-        });
-
-        // ローディングインジケーター
-        function showLoading() {
-            loadingIndicator.style.display = 'flex';
-        }
-
-        function hideLoading() {
-            loadingIndicator.style.display = 'none';
-        }
     </script>
 </body>
 </html>
