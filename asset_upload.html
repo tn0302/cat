@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>不足アセットアップロード</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            background-color: #222;
+            color: #eee;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            box-sizing: border-box;
+        }
+        .container {
+            background-color: #333;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+            width: 100%;
+            max-width: 600px;
+            box-sizing: border-box;
+            margin-bottom: 20px;
+        }
+        h1 {
+            color: #fff;
+            text-align: center;
+            margin-bottom: 25px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: bold;
+        }
+        input[type="file"], select {
+            background-color: #444;
+            color: #fff;
+            border: 1px solid #555;
+            padding: 10px;
+            border-radius: 4px;
+            width: calc(100% - 22px);
+            box-sizing: border-box;
+            appearance: none; /* ドロップダウンのデフォルトスタイルをリセット */
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            cursor: pointer;
+        }
+        select {
+            padding-right: 30px; /* 矢印分のスペース */
+            background-image: url('data:image/svg+xml;utf8,<svg fill="%23fff" height="24" viewBox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="M7 10l5 5 5-5z"/><path d="M0 0h24v24H0z" fill="none"/></svg>');
+            background-repeat: no-repeat;
+            background-position: right 8px center;
+        }
+
+        .button {
+            background-color: #007bff;
+            color: white;
+            padding: 12px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1em;
+            width: 100%;
+            box-sizing: border-box;
+            transition: background-color 0.2s ease;
+        }
+        .button:hover {
+            background-color: #0056b3;
+        }
+        .button:disabled {
+            background-color: #555;
+            cursor: not-allowed;
+        }
+        #message {
+            margin-top: 25px;
+            padding: 15px;
+            border-radius: 4px;
+            word-break: break-all;
+            white-space: pre-wrap;
+            font-size: 0.9em;
+        }
+        .message-success {
+            background-color: #28a745;
+            color: white;
+        }
+        .message-error {
+            background-color: #dc3545;
+            color: white;
+        }
+        .message-info {
+            background-color: #17a2b8;
+            color: white;
+        }
+        .back-link {
+            display: block;
+            margin-top: 30px;
+            color: #007bff;
+            text-decoration: none;
+            font-size: 1.1em;
+            text-align: center;
+        }
+        .back-link:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>不足アセットアップロード</h1>
+
+        <div class="form-group">
+            <label for="asset-type-select">アセットタイプ:</label>
+            <select id="asset-type-select">
+                <option value="">--選択してください--</option>
+                </select>
+        </div>
+
+        <div class="form-group" id="tag-group" style="display: none;">
+            <label for="tag-select">タグ:</label>
+            <select id="tag-select">
+                <option value="">--選択してください--</option>
+            </select>
+        </div>
+
+        <div class="form-group" id="character-face-tag-group" style="display: none;">
+            <label for="character-face-tag-select">キャラクター顔タグ:</label>
+            <select id="character-face-tag-select">
+                <option value="">--選択してください--</option>
+            </select>
+        </div>
+
+        <div class="form-group" id="character-special-group" style="display: none;">
+            <label for="character-special-select">キャラクタースペシャル:</label>
+            <select id="character-special-select">
+                <option value="">--選択してください--</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label for="asset-file-input">アセットファイルを選択:</label>
+            <input type="file" id="asset-file-input" accept="image/*">
+            <small style="color: #bbb;">(画像ファイルのみ)</small>
+        </div>
+
+        <button id="upload-button" class="button" disabled>アセットをアップロード</button>
+        <div id="message"></div>
+    </div>
+    <a href="index.html" class="back-link">ノベルビューアに戻る</a>
+
+    <script>
+        // VercelにデプロイしたGoogle Apps ScriptプロキシのURLを設定してください
+        const GAS_BASE_URL = 'https://cat-seven-blond.vercel.app/api/gas-proxy'; // ここをあなたのVercelプロキシのURLに置き換えてください
+        const NOIMAGE_ASSETS_API = `${GAS_BASE_URL}?api=noimageAssets`; // noimage_assetsを取得するエンドポイント
+        const ASSETS_UPLOAD_API = `${GAS_BASE_URL}?api=uploadAsset`; // assetsに書き込むエンドポイント (GAS側で新規作成または既存拡張)
+
+        let noImageAssetsData = []; // noimage_assets シートの全データ
+
+        // DOM要素の参照
+        const assetTypeSelect = document.getElementById('asset-type-select');
+        const tagGroup = document.getElementById('tag-group');
+        const tagSelect = document.getElementById('tag-select');
+        const characterFaceTagGroup = document.getElementById('character-face-tag-group');
+        const characterFaceTagSelect = document.getElementById('character-face-tag-select');
+        const characterSpecialGroup = document.getElementById('character-special-group');
+        const characterSpecialSelect = document.getElementById('character-special-select');
+        const assetFileInput = document.getElementById('asset-file-input');
+        const uploadButton = document.getElementById('upload-button');
+        const messageDiv = document.getElementById('message');
+
+        // 初期化処理
+        document.addEventListener('DOMContentLoaded', async () => {
+            await fetchNoImageAssets();
+            updateUploadButtonState(); // 初期状態でボタンを無効化
+        });
+
+        // noimage_assets データをGASから取得
+        async function fetchNoImageAssets() {
+            displayMessage('不足アセット情報を読み込み中...', 'info');
+            try {
+                const response = await fetch(NOIMAGE_ASSETS_API);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                noImageAssetsData = await response.json();
+                populateAssetTypeSelect();
+                displayMessage('不足アセット情報の読み込みが完了しました。', 'success');
+            } catch (error) {
+                console.error('Failed to fetch noimage_assets:', error);
+                displayMessage(`不足アセット情報の読み込みに失敗しました: ${error.message}`, 'error');
+            }
+        }
+
+        // asset_type プルダウンを生成
+        function populateAssetTypeSelect() {
+            const assetTypes = [...new Set(noImageAssetsData.map(item => item.asset_type))];
+            assetTypeSelect.innerHTML = '<option value="">--選択してください--</option>';
+            assetTypes.forEach(type => {
+                const option = document.createElement('option');
+                option.value = type;
+                option.textContent = type;
+                assetTypeSelect.appendChild(option);
+            });
+        }
+
+        // 選択されたアセットタイプに基づいて他のプルダウンを更新
+        assetTypeSelect.addEventListener('change', () => {
+            const selectedAssetType = assetTypeSelect.value;
+            
+            // 全てのオプションとグループをリセット
+            tagSelect.innerHTML = '<option value="">--選択してください--</option>';
+            characterFaceTagSelect.innerHTML = '<option value="">--選択してください--</option>';
+            characterSpecialSelect.innerHTML = '<option value="">--選択してください--</option>';
+            
+            tagGroup.style.display = 'none';
+            characterFaceTagGroup.style.display = 'none';
+            characterSpecialGroup.style.display = 'none';
+
+            if (selectedAssetType) {
+                const filteredData = noImageAssetsData.filter(item => item.asset_type === selectedAssetType);
+
+                // タグのオプションを生成
+                const tags = [...new Set(filteredData.map(item => item.tag))];
+                tags.forEach(tag => {
+                    const option = document.createElement('option');
+                    option.value = tag;
+                    option.textContent = tag;
+                    tagSelect.appendChild(option);
+                });
+                tagGroup.style.display = 'block';
+
+                // character_face_tag と character_special のオプションを生成（characterタイプの場合のみ）
+                if (selectedAssetType === 'character') {
+                    const faceTags = [...new Set(filteredData.map(item => item.character_face_tag).filter(Boolean))]; // 空でない値のみ
+                    faceTags.forEach(faceTag => {
+                        const option = document.createElement('option');
+                        option.value = faceTag;
+                        option.textContent = faceTag;
+                        characterFaceTagSelect.appendChild(option);
+                    });
+                    characterFaceTagGroup.style.display = 'block';
+
+                    const specials = [...new Set(filteredData.map(item => item.character_special).filter(Boolean))]; // 空でない値のみ
+                    specials.forEach(special => {
+                        const option = document.createElement('option');
+                        option.value = special;
+                        option.textContent = special;
+                        characterSpecialSelect.appendChild(option);
+                    });
+                    characterSpecialGroup.style.display = 'block';
+                }
+            }
+            updateUploadButtonState();
+        });
+
+        tagSelect.addEventListener('change', updateUploadButtonState);
+        characterFaceTagSelect.addEventListener('change', updateUploadButtonState);
+        characterSpecialSelect.addEventListener('change', updateUploadButtonState);
+        assetFileInput.addEventListener('change', updateUploadButtonState);
+
+
+        // アップロードボタンの状態を更新
+        function updateUploadButtonState() {
+            const selectedAssetType = assetTypeSelect.value;
+            const selectedTag = tagSelect.value;
+            const fileSelected = assetFileInput.files.length > 0;
+
+            let canEnable = false;
+
+            if (selectedAssetType && selectedTag && fileSelected) {
+                if (selectedAssetType === 'character') {
+                    // characterタイプの場合、character_face_tag または character_special が選択されているか、
+                    // またはnoimage_assetsにそれらがない組み合わせが選択されているか確認
+                    const selectedFaceTag = characterFaceTagSelect.value;
+                    const selectedSpecial = characterSpecialSelect.value;
+
+                    // 選択されたasset_typeとtagに紐づくnoImageAssetsDataの行を特定
+                    const relevantNoImageEntries = noImageAssetsData.filter(item => 
+                        item.asset_type === selectedAssetType && item.tag === selectedTag
+                    );
+
+                    // もしrelevantNoImageEntriesの中に、face_tag/specialがないパターンが含まれていたら、
+                    // face_tag/specialが未選択でもOKとする
+                    const requiresFaceTag = relevantNoImageEntries.some(entry => entry.character_face_tag && entry.character_face_tag !== "");
+                    const requiresSpecial = relevantNoImageEntries.some(entry => entry.character_special && entry.character_special !== "");
+
+                    let isFaceTagMatch = true;
+                    if (requiresFaceTag) {
+                        isFaceTagMatch = selectedFaceTag !== "";
+                    } else { // requiresFaceTagがfalseの場合、つまりnoimage_assetsにface_tagが不要な行がある場合
+                        // selectedFaceTag が空白でも問題ない
+                    }
+
+                    let isSpecialMatch = true;
+                    if (requiresSpecial) {
+                        isSpecialMatch = selectedSpecial !== "";
+                    } else { // requiresSpecialがfalseの場合、つまりnoimage_assetsにspecialが不要な行がある場合
+                        // selectedSpecial が空白でも問題ない
+                    }
+                    
+                    canEnable = isFaceTagMatch && isSpecialMatch;
+
+                } else {
+                    canEnable = true; // character 以外は asset_type, tag, ファイルがあればOK
+                }
+            }
+            uploadButton.disabled = !canEnable;
+        }
+
+
+        // アップロード処理
+        uploadButton.addEventListener('click', async () => {
+            const file = assetFileInput.files[0];
+            const asset_type = assetTypeSelect.value;
+            const tag = tagSelect.value;
+            const character_face_tag = characterFaceTagSelect.value;
+            const character_special = characterSpecialSelect.value;
+
+            if (!file || !asset_type || !tag) {
+                displayMessage('必要な情報をすべて選択し、ファイルを選択してください。', 'error');
+                return;
+            }
+            
+            // characterタイプの場合、character_face_tag/character_specialの必須チェックを再度行う
+            if (asset_type === 'character') {
+                const relevantNoImageEntries = noImageAssetsData.filter(item => 
+                    item.asset_type === asset_type && item.tag === tag
+                );
+                const requiresFaceTag = relevantNoImageEntries.some(entry => entry.character_face_tag && entry.character_face_tag !== "");
+                const requiresSpecial = relevantNoImageEntries.some(entry => entry.character_special && entry.character_special !== "");
+
+                if (requiresFaceTag && !character_face_tag) {
+                    displayMessage('キャラクター顔タグを選択してください。', 'error');
+                    return;
+                }
+                if (requiresSpecial && !character_special) {
+                    displayMessage('キャラクタースペシャルを選択してください。', 'error');
+                    return;
+                }
+            }
+
+
+            displayMessage('アセットをアップロード中...', 'info');
+            uploadButton.disabled = true;
+
+            const formData = new FormData();
+            formData.append('file', file); // ファイルを'file'という名前で追加
+
+            // メタデータをFormDataに追加
+            formData.append('asset_type', asset_type);
+            formData.append('tag', tag);
+            // character_face_tag と character_special は 'character' タイプの場合のみ送信
+            if (asset_type === 'character') {
+                formData.append('character_face_tag', character_face_tag);
+                formData.append('character_special', character_special);
+            }
+
+            try {
+                // CloudinaryへのアップロードはVercelプロキシ (api/media.js) 経由
+                const uploadResponse = await fetch('/api/media', { // VercelプロキシのAPIパス
+                    method: 'POST',
+                    body: formData, // FormDataを直接送信
+                });
+
+                const uploadResult = await uploadResponse.json();
+
+                if (!uploadResponse.ok) {
+                    throw new Error(uploadResult.error || 'ファイルのアップロードに失敗しました。');
+                }
+
+                const imageUrl = uploadResult.url; // Cloudinaryから返された画像URL
+
+                // 次にGASにアセット情報を書き込む (assetsシートへ)
+                const assetData = {
+                    asset_type: asset_type,
+                    tag: tag,
+                    character_face_tag: asset_type === 'character' ? character_face_tag : '',
+                    character_special: asset_type === 'character' ? character_special : '',
+                    image: imageUrl
+                };
+                
+                const gasResponse = await fetch(ASSETS_UPLOAD_API, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(assetData),
+                });
+
+                const gasResult = await gasResponse.json();
+
+                if (gasResponse.ok) {
+                    displayMessage(`アセットが正常にアップロードされ、シートに書き込まれました！\nURL: ${imageUrl}`, 'success');
+                    // 成功したらフォームをリセット
+                    assetTypeSelect.value = '';
+                    tagSelect.innerHTML = '<option value="">--選択してください--</option>';
+                    characterFaceTagSelect.innerHTML = '<option value="">--選択してください--</option>';
+                    characterSpecialSelect.innerHTML = '<option value="">--選択してください--</option>';
+                    tagGroup.style.display = 'none';
+                    characterFaceTagGroup.style.display = 'none';
+                    characterSpecialGroup.style.display = 'none';
+                    assetFileInput.value = ''; // ファイル入力をクリア
+                    await fetchNoImageAssets(); // noimage_assetsを再読み込み
+                } else {
+                    let errorMessage = `GASへの書き込み失敗: ${gasResponse.status} ${gasResponse.statusText}\n`;
+                    if (gasResult && gasResult.message) errorMessage += `詳細: ${gasResult.message}\n`;
+                    if (gasResult && gasResult.error) errorMessage += `エラー: ${gasResult.error}\n`;
+                    displayMessage(errorMessage, 'error');
+                }
+
+            } catch (error) {
+                console.error('アセットアップロード中にエラーが発生しました:', error);
+                displayMessage(`エラーが発生しました: ${error.message}`, 'error');
+            } finally {
+                uploadButton.disabled = false;
+                updateUploadButtonState(); // ボタンの状態を再度更新
+            }
+        });
+
+        function displayMessage(message, type) {
+            messageDiv.textContent = message;
+            messageDiv.className = `message-${type}`;
+        }
+    </script>
+</body>
+</html>
