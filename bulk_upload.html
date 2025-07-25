@@ -5,195 +5,159 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>シーン一括アップロード</title>
     <style>
-        body {
-            font-family: sans-serif;
-            background-color: #222;
-            color: #eee;
-            margin: 0;
-            padding: 20px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            min-height: 100vh;
-            box-sizing: border-box;
-        }
-        .container {
-            background-color: #333;
-            padding: 30px;
-            border-radius: 8px;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
-            width: 100%;
-            max-width: 600px;
-            box-sizing: border-box;
-        }
-        h1 {
-            color: #fff;
-            text-align: center;
-            margin-bottom: 25px;
-        }
-        .form-group {
-            margin-bottom: 20px;
-        }
-        label {
-            display: block;
-            margin-bottom: 8px;
-            font-weight: bold;
-        }
-        input[type="file"] {
-            background-color: #444;
-            color: #fff;
-            border: 1px solid #555;
-            padding: 10px;
-            border-radius: 4px;
-            width: calc(100% - 22px);
-            box-sizing: border-box;
-        }
-        .button {
-            background-color: #007bff;
-            color: white;
-            padding: 12px 20px;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            font-size: 1em;
-            width: 100%;
-            box-sizing: border-box;
-            transition: background-color 0.2s ease;
-        }
-        .button:hover {
-            background-color: #0056b3;
-        }
-        .button:disabled {
-            background-color: #555;
-            cursor: not-allowed;
-        }
-        #message {
-            margin-top: 25px;
-            padding: 15px;
-            border-radius: 4px;
-            word-break: break-all;
-            white-space: pre-wrap;
-            font-size: 0.9em;
-        }
-        .message-success {
-            background-color: #28a745;
-            color: white;
-        }
-        .message-error {
-            background-color: #dc3545;
-            color: white;
-        }
-        .message-info {
-            background-color: #17a2b8;
-            color: white;
-        }
-        .back-link {
-            display: block;
-            margin-top: 30px;
-            color: #007bff;
-            text-decoration: none;
-            font-size: 1.1em;
-            text-align: center;
-        }
-        .back-link:hover {
-            text-decoration: underline;
-        }
+    body {
+      font-family: sans-serif;
+      margin: 2rem;
+      background-color: #222; /* 黒テイストに変更 */
+      color: #eee; /* 文字色を明るく */
+    }
+    h1, h2 {
+      color: #fff; /* 見出し色を白に */
+    }
+    section {
+      background: #333; /* 背景色を暗く */
+      border: 1px solid #555; /* ボーダー色を調整 */
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin-bottom: 2rem;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3); /* 影を濃く */
+    }
+    textarea, input[type="number"] {
+      width: 100%;
+      font-size: 1rem;
+      padding: 0.75rem;
+      margin-bottom: 1rem;
+      border: 1px solid #555; /* ボーダー色を調整 */
+      border-radius: 6px;
+      background: #444; /* 背景色を暗く */
+      color: #fff; /* 文字色を白に */
+      box-sizing: border-box;
+    }
+    button {
+      font-size: 1rem;
+      padding: 0.6rem 1.2rem;
+      margin-bottom: 1rem;
+      border: none;
+      border-radius: 6px;
+      background-color: #007bff; /* ボタン色を統一 */
+      color: white;
+      cursor: pointer;
+      transition: background-color 0.2s ease; /* ホバーエフェクト追加 */
+    }
+    button:hover {
+      background-color: #0056b3; /* ホバー色を統一 */
+    }
+    #message {
+      margin-top: 1rem;
+      padding: 1rem;
+      border-radius: 6px;
+      white-space: pre-wrap;
+    }
+    .message-success { background-color: #28a745; color: white; }
+    .message-error { background-color: #dc3545; color: white; }
+    .message-info { background-color: #17a2b8; color: white; }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>シーン一括アップロード</h1>
-        <div class="form-group">
-            <label for="json-file-input">JSONファイルを選択:</label>
-            <input type="file" id="json-file-input" accept=".json">
-            <small style="color: #bbb;">(例: `[{"episode": 1, "sceneNumber": 1, "character": "勇者", "text": "...", "face": "normal", "background": "forest", "effect": "flash"}, {"episode": 1, "sceneNumber": 2, "character": "魔王", "text": "...", "face": "angry"}]` の形式)</small>
-        </div>
-        <button id="upload-button" class="button" disabled>アップロード</button>
-        <div id="message"></div>
-    </div>
-    <a href="index.html" class="back-link">ノベルビューアに戻る</a>
+<body>
+  <h1>勇者ハーレム：整形テンプレート & JSONアップロード</h1>
 
-    <script>
-        // VercelにデプロイしたGoogle Apps ScriptプロキシのURLを設定してください
-        const GAS_BASE_URL = 'https://cat-seven-blond.vercel.app/api/gas-proxy';
-        const SCENES_PROXY_PATH = `${GAS_BASE_URL}?api=scenes`; // シーンAPIエンドポイント
+  <section>
+    <h2>エピソード番号を入力してください</h2>
+    <input id="episode" type="number" placeholder="例: 3" />
+  </section>
 
-        const jsonFileInput = document.getElementById('json-file-input');
-        const uploadButton = document.getElementById('upload-button');
-        const messageDiv = document.getElementById('message');
+  <section>
+    <h2>① キャラ口調ガイド生成</h2>
+    <textarea id="inputText1" placeholder="ここに本文を入力してください..."></textarea>
+    <button onclick="copyTemplate(1)">コピー</button>
+  </section>
 
-        jsonFileInput.addEventListener('change', () => {
-            uploadButton.disabled = !jsonFileInput.files.length;
-            messageDiv.textContent = ''; // ファイル選択時にメッセージをクリア
-            messageDiv.className = '';
+  <section>
+    <h2>② 話者特定＋口調補正</h2>
+    <textarea id="inputText2" placeholder="ここにキャラクター口調ガイドを入力してください..."></textarea>
+    <button onclick="copyTemplate(2)">コピー（①の本文を使用）</button>
+  </section>
+
+  <section>
+    <h2>③ JSON整形テンプレート</h2>
+    <textarea id="inputText3" placeholder="ここに話者明示済みの本文を入力してください..."></textarea>
+    <button onclick="copyTemplate(3)">コピー</button>
+  </section>
+
+  <section>
+    <h2>④ JSONデータをアップロード</h2>
+    <textarea id="json-input" placeholder='[{"episode": 1, "sceneNumber": 1, "character": "勇者", "text": "...", "face": "normal"}]'></textarea>
+    <button id="upload-button">アップロード</button>
+    <div id="message"></div>
+  </section>
+
+  <script>
+    const episodeInput = document.getElementById("episode");
+    const jsonInput = document.getElementById("json-input");
+    const uploadButton = document.getElementById("upload-button");
+    const messageDiv = document.getElementById("message");
+    const GAS_BASE_URL = 'https://cat-seven-blond.vercel.app/api/gas-proxy';
+    const SCENES_PROXY_PATH = `${GAS_BASE_URL}?api=scenes`;
+
+    function copyTemplate(type) {
+      const ep = episodeInput.value || "1";
+      const input1 = document.getElementById("inputText1").value.trim();
+      const input2 = document.getElementById("inputText2").value.trim();
+      const input3 = document.getElementById("inputText3").value.trim();
+      let output = "";
+
+      if (type === 1) {
+        output = `以下はファンタジー物語『勇者ハーレム』の抜粋です。\n\nこの本文をもとに、登場キャラクターの話し方・語尾・性格などを分析し、下記のフォーマットで出力してください。\nナレーションも一つの話者として扱ってください。\n\n---\n\n【出力フォーマット】\nキャラ名:  \n一人称:  \n二人称（主人公の呼び方）:  \n語尾・話し方:  \n性格傾向:  \n特徴的な口癖や言い回し:  \n\n---\n\n【入力本文】\n${input1}`;
+      } else if (type === 2) {
+        output = `以下はファンタジー物語『勇者ハーレム』の本文抜粋です。\n\nこの文章をもとに、各行の「話者（キャラクター）」を自動的に特定し、\nその話者の話し方や語尾が「キャラクター口調ガイド」と一致していない場合は補正してください。\n物語にふさわしい文体になるよう、各キャラクターの性格や状況に応じた自然なセリフに言い換えてください。\nナレーション行も三人称で簡潔・詩的に整えてください。\n\n---\n\n【キャラクター口調ガイド】\n${input2}\n\n---\n\n【出力形式】\n話者：セリフまたはナレーションの補正済み文章\n\n---\n\n${input1}`;
+      } else if (type === 3) {
+        output = `以下はファンタジー物語『勇者ハーレム』のエピソード${ep}です。\n\nこの文章をもとに、以下の条件に従って整形してください。\n\n---\n\n## 🔹【目的】\n\n- セリフとナレーションを分離し、構造化\n- キャラクターの話し方・語尾を統一・補正\n- 表情（感情）タグを付与（固定レパートリー内から選択）\n- 出力をJSON形式に整形し、後処理しやすくする\n\n---\n\n## 🔹【整形条件】\n- 話者（character）は必ず記載してください。\n- 表情（face）は「表情タグ一覧」から最も適切なものを1つ選んで記載してください。\n\n---\n\n## 🔹【表情タグ一覧】\n\n- normal（通常）\n- smile（笑顔）\n- angry（怒り）\n- shy（恥じらい）\n- sad（悲しみ）\n- cold（冷笑）\n- prayer（祈り）\n- surprised（驚き）\n- ecstasy（恍惚）\n- blank（無表情）\n\n※JSON内では英語表記で統一してください。\n\n---\n\n## 🔹【出力形式】\n\n- 以下のJSON構造で出力してください\n- background, effect, specialは省略可能（後処理で追加）\n\n\`\`\`json\n[\n  {\n    "episode": ${ep},\n    "sceneNumber": 1,\n    "character": "ナレーション",\n    "text": "チハルは魔王が管理する森へやってきた。",\n    "background": "forest"\n  },\n  {\n    "episode": ${ep},\n    "sceneNumber": 2,\n    "character": "チハル",\n    "text": "これはエピソード1の最初のシーンだ。一括アップロードテスト。",\n    "face": "normal",\n    "background": "forest"\n  },\n  {\n    "episode": ${ep},\n    "sceneNumber": 3,\n    "character": "魔王",\n    "text": "ほう、新たなシーンが追加されたか。面白い。",\n    "face": "angry",\n    "background": "forest"\n  }\n]\n\`\`\`\n\n🔹【整形対象本文】\n${input3}`;
+      }
+
+      navigator.clipboard.writeText(output).then(() => {
+        alert("テンプレートをコピーしました！");
+      });
+    }
+
+    uploadButton.addEventListener('click', async () => {
+      const jsonText = jsonInput.value.trim();
+      if (!jsonText) return displayMessage('JSONデータを入力してください。', 'error');
+      displayMessage('データを処理中...', 'info');
+      uploadButton.disabled = true;
+
+      try {
+        const jsonData = JSON.parse(jsonText);
+        if (!Array.isArray(jsonData)) return displayMessage('JSONは配列形式である必要があります。', 'error');
+        if (jsonData.length === 0) return displayMessage('シーンデータが空です。', 'info');
+
+        const response = await fetch(SCENES_PROXY_PATH, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(jsonData),
         });
 
-        uploadButton.addEventListener('click', async () => {
-            const file = jsonFileInput.files[0];
-            if (!file) {
-                displayMessage('JSONファイルを選択してください。', 'error');
-                return;
-            }
-
-            displayMessage('ファイルを読み込み中...', 'info');
-            uploadButton.disabled = true;
-
-            const reader = new FileReader();
-            reader.onload = async (e) => {
-                try {
-                    const jsonData = JSON.parse(e.target.result);
-
-                    if (!Array.isArray(jsonData)) {
-                        displayMessage('JSONファイルはシーンオブジェクトの配列である必要があります。', 'error');
-                        return;
-                    }
-
-                    if (jsonData.length === 0) {
-                        displayMessage('JSONファイルにシーンデータが含まれていません。', 'info');
-                        return;
-                    }
-
-                    displayMessage(`全 ${jsonData.length} 件のシーンをアップロード中...`, 'info');
-
-                    // シーンデータを一括で送信
-                    const response = await fetch(SCENES_PROXY_PATH, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify(jsonData), // JSON配列として送信
-                    });
-
-                    const result = await response.json();
-
-                    if (response.ok) {
-                        displayMessage(`全 ${jsonData.length} シーンが正常に挿入されました！\n${JSON.stringify(result, null, 2)}`, 'success');
-                    } else {
-                        // GASからのエラーレスポンスを詳細に表示
-                        let errorMessage = `アップロード失敗: ${response.status} ${response.statusText}\n`;
-                        if (result && result.message) {
-                            errorMessage += `詳細: ${result.message}\n`;
-                        }
-                        if (result && result.error) {
-                             errorMessage += `エラー: ${result.error}\n`;
-                        }
-                        displayMessage(errorMessage, 'error');
-                    }
-
-                } catch (error) {
-                    console.error('JSON処理またはアップロード中にエラーが発生しました:', error);
-                    displayMessage(`エラーが発生しました: ${error.message}`, 'error');
-                } finally {
-                    uploadButton.disabled = false;
-                }
-            };
-            reader.readAsText(file);
-        });
-
-        function displayMessage(message, type) {
-            messageDiv.textContent = message;
-            messageDiv.className = `message-${type}`;
+        const result = await response.json();
+        if (response.ok) {
+          displayMessage(`全 ${jsonData.length} 件のシーンをアップロードしました！\n${JSON.stringify(result, null, 2)}`, 'success');
+        } else {
+          let errorMessage = `アップロード失敗: ${response.status} ${response.statusText}\n`;
+          if (result.message) errorMessage += `詳細: ${result.message}\n`;
+          if (result.error) errorMessage += `エラー: ${result.error}\n`;
+          displayMessage(errorMessage, 'error');
         }
-    </script>
+      } catch (error) {
+        displayMessage(`エラーが発生しました: ${error.message}`, 'error');
+      } finally {
+        uploadButton.disabled = false;
+      }
+    });
+
+    function displayMessage(message, type) {
+      messageDiv.textContent = message;
+      messageDiv.className = `message-${type}`;
+    }
+  </script>
 </body>
 </html>
