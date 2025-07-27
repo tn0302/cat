@@ -362,7 +362,7 @@
             const params = new URLSearchParams();
 
             // scenes_proxy_pathの場合のみepisodeを追加
-            if (episode !== null) {
+            if (proxyPath === SCENES_PROXY_PATH && episode !== null) {
                 params.append('episode', episode);
             }
             
@@ -666,7 +666,7 @@
                 const currentScene = currentEpisodeData[currentSceneIndex];
                 if (currentScene) {
                     // IDは表示しないが、内部的には現在のシーンのIDを使用
-                    // document.getElementById('edit-id').value = currentScene.id; // この行は不要
+                     document.getElementById('edit-id').value = currentScene.id; // この行は不要
                     for (const key in currentScene) {
                         const input = document.getElementById(`edit-${key}`);
                         if (input) input.value = currentScene[key];
