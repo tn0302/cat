@@ -666,7 +666,6 @@
                 const currentScene = currentEpisodeData[currentSceneIndex];
                 if (currentScene) {
                     // IDは表示しないが、内部的には現在のシーンのIDを使用
-                     document.getElementById('edit-id').value = currentScene.id; // この行は不要
                     for (const key in currentScene) {
                         const input = document.getElementById(`edit-${key}`);
                         if (input) input.value = currentScene[key];
@@ -683,7 +682,7 @@
                 const currentScene = currentEpisodeData[currentSceneIndex];
                 if (currentScene) {
                     // IDは表示しないが、内部的には現在のシーンのIDを使用
-                    document.getElementById('edit-id').value = currentScene.id; // この行は不要
+
                     for (const key in currentScene) {
                         const input = document.getElementById(`edit-${key}`);
                         if (input) {
