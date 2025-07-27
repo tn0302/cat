@@ -362,7 +362,7 @@
             const params = new URLSearchParams();
 
             // scenes_proxy_pathの場合のみepisodeを追加
-            if (proxyPath === SCENES_PROXY_PATH && episode !== null) {
+            if (episode !== null) {
                 params.append('episode', episode);
             }
             
@@ -656,7 +656,7 @@
                 document.getElementById('edit-episode').value = document.getElementById('episode-select').value;
                 // 現在のシーンの次の番号を初期値として設定
                 if (currentEpisodeData.length > 0) {
-                    document.getElementById('edit-scene-number').value = currentEpisodeData[currentSceneIndex].sceneNumber + 1;
+                    document.getElementById('edit-scene-number').value = currentEpisodeData[currentSceneIndex].sceneNumber;
                 } else {
                     document.getElementById('edit-scene-number').value = 1; // エピソードが空の場合
                 }
