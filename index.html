@@ -713,16 +713,16 @@
             currentModalMode = ''; // モードをリセット
         }
 
-        async function applyEdits() {
+    async function applyEdits() {
             const formSceneData = {};
             const formData = new FormData(editForm);
             for (const [key, value] of formData.entries()) {
                 formSceneData[key] = value;
             }
 
-            // currentModalMode を使用して 'add' か 'edit' を判断
             const method = (currentModalMode === 'add') ? 'POST' : 'PUT';
             let url = SCENES_PROXY_PATH;
+            let idToTarget = null; // 操作後の表示対象となるシーンのIDを格納
 
             if (method === 'PUT') {
                 const currentScene = currentEpisodeData[currentSceneIndex];
@@ -730,9 +730,10 @@
                     alert('編集対象のシーンIDが見つかりません。');
                     return;
                 }
-                url += `&id=${currentScene.id}`; // 既存シーンの更新時はIDをURLに含める
+                url += `&id=${currentScene.id}`;
+                idToTarget = currentScene.id; // 編集対象のシーンIDを保存
             }
-            // POST (追加) の場合はIDをURLに含めない。GAS側で自動生成される。
+            // POST (追加) の場合、idToTargetはGASからのレスポンスで設定する
 
             try {
                 const res = await fetchJson(url, { // fetchJson を使用
@@ -747,15 +748,42 @@
 
                 alert(`シーンを${(currentModalMode === 'add') ? '追加' : '更新'}しました！`);
                 closeModal();
+
+                // 'add' モードの場合、GASから返された新しいシーンのIDをターゲットとする
+                if (method === 'POST' && res.insertedIds && res.insertedIds.length > 0) {
+                    // 複数追加された場合は、追加された最初のシーンをターゲットとする
+                    idToTarget = res.insertedIds[0];
+                }
+
                 // データ更新後に現在のエピソードを再読み込みし、最新状態を反映
-                loadEpisodeData(parseInt(document.getElementById('episode-select').value));
+                // loadEpisodeData関数は非同期なのでawaitで完了を待つ
+                await loadEpisodeData(parseInt(document.getElementById('episode-select').value));
+
+                let newSceneIndex = 0;
+                // ターゲットIDが見つかった場合、新しいデータ内でそのIDを持つシーンを探す
+                if (idToTarget !== null) {
+                    newSceneIndex = currentEpisodeData.findIndex(s => String(s.id) === String(idToTarget));
+                    if (newSceneIndex === -1) { // ターゲットシーンが見つからなかった場合のフォールバック
+                        newSceneIndex = Math.min(currentSceneIndex, currentEpisodeData.length - 1);
+                        if (newSceneIndex < 0 && currentEpisodeData.length > 0) newSceneIndex = 0;
+                    }
+                } else if (method === 'POST' && currentEpisodeData.length > 0) {
+                    // 追加モードで、特定のIDをターゲットできない場合のフォールバック（例：レスポンスにinsertedIdsがない場合など）
+                    // 既存のシーンインデックスを維持、またはリストの末尾に移動
+                    newSceneIndex = Math.min(currentSceneIndex, currentEpisodeData.length - 1);
+                    if (newSceneIndex < 0) newSceneIndex = 0;
+                }
+
+                currentSceneIndex = newSceneIndex;
+                showScene(currentEpisodeData[currentSceneIndex]); // ターゲットシーンを表示
+
             } catch (error) {
                 console.error("シーン操作中にエラーが発生しました:", error);
                 alert(`シーン操作に失敗しました: ${error.message}`);
             }
         }
 
-        async function deleteScene() {
+      async function deleteScene() {
             const currentScene = currentEpisodeData[currentSceneIndex];
             if (!currentScene || !currentScene.id) {
                 alert('削除するシーンIDが見つかりません。');
@@ -767,6 +795,19 @@
                 return;
             }
 
+            // 削除後、どのシーンに移動するかを事前に決定
+            let idToTarget = null;
+            if (currentEpisodeData.length > 1) { // 削除後もシーンが残る場合
+                if (currentSceneIndex + 1 < currentEpisodeData.length) {
+                    // 削除対象の次のシーンをターゲット
+                    idToTarget = currentEpisodeData[currentSceneIndex + 1].id;
+                } else {
+                    // 削除対象が最後尾のシーンだった場合、新しい最後尾のシーン（削除対象の前のシーン）をターゲット
+                    idToTarget = currentEpisodeData[currentSceneIndex - 1].id;
+                }
+            }
+            // シーンが1つしかなく、それが削除される場合はidToTargetはnullのまま
+
             try {
                 const res = await fetchJson(`${SCENES_PROXY_PATH}&id=${sceneIdToDelete}`, { // fetchJson を使用
                     method: 'DELETE', // Webアプリ側で_method=DELETEとして処理される
@@ -774,16 +815,33 @@
 
                 alert(`シーンID: ${sceneIdToDelete} を削除しました！`);
                 closeModal();
+
                 // シーン削除後、現在表示中のエピソードを再読み込みし、シーンが削除された状態を反映
-                // currentSceneIndexが削除により範囲外になる可能性があるので、リセットする
-                currentSceneIndex = Math.max(0, currentSceneIndex - 1); // 1つ前のシーンへ
-                loadEpisodeData(parseInt(document.getElementById('episode-select').value));
+                await loadEpisodeData(parseInt(document.getElementById('episode-select').value));
+
+                let newSceneIndex = 0;
+                if (currentEpisodeData.length === 0) { // シーンが何も残っていない場合
+                    newSceneIndex = 0; // showSceneが空データを処理する
+                } else if (idToTarget !== null) { // 事前定義したターゲットシーンを探す
+                    newSceneIndex = currentEpisodeData.findIndex(s => String(s.id) === String(idToTarget));
+                    if (newSceneIndex === -1) { // ターゲットシーンが見つからなかった場合（例：複雑な再インデックス、またはターゲット自体が削除された場合）
+                        // フォールバック：元の位置に近いインデックス、または新しい最後の有効なインデックスに移動
+                        newSceneIndex = Math.min(currentSceneIndex, currentEpisodeData.length - 1);
+                        if (newSceneIndex < 0) newSceneIndex = 0; // 負の値にならないように
+                    }
+                } else { // 削除後、特定のターゲットがない場合のフォールバック（例：1つしかなかったシーンを削除した場合）
+                    newSceneIndex = Math.min(currentSceneIndex, currentEpisodeData.length - 1);
+                    if (newSceneIndex < 0) newSceneIndex = 0; // 負の値にならないように
+                }
+
+                currentSceneIndex = newSceneIndex;
+                showScene(currentEpisodeData[currentSceneIndex]);
+
             } catch (error) {
                 console.error("シーン削除中にエラーが発生しました:", error);
                 alert(`シーン削除に失敗しました: ${error.message}`);
             }
         }
-
         // openAssetUploadModal function REMOVED
         // closeAssetUploadModal function REMOVED
         // handleImageUploadInModal function REMOVED
