@@ -554,9 +554,8 @@
                 // 例: characterImg.classList.add(`face-${s.face}`);
                 // 現状は特別なCSSが定義されていないため、この行は影響しないが、将来的な拡張性のため残す
             }
-         // ★追加：特殊に回想が含まれる場合の影の適用/解除
-            // characterImg.className = 'character'; // ここで一度リセットしているため、以降の処理が優先される
-            if (s.special && String(s.special).includes('影')) {
+              // ★修正：effectに回想が含まれる場合の影の適用/解除
+            if (s.effect && String(s.effect).includes('影')) { // special -> effect に変更
                 characterImg.classList.add('flashback-shadow');
             } else {
                 characterImg.classList.remove('flashback-shadow');
