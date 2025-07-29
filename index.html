@@ -12,9 +12,10 @@
         #background, #special-image { position: absolute; width: 100%; height: 100%; background-size: cover; background-position: center; z-index: 0; }
         #special-image { object-fit: contain; background: none; } /* 一枚絵の場合 */
         #character { position: absolute; bottom: -30%; left: 50%; transform: translateX(-50%); max-height: 130%; object-fit: contain; z-index: 1; transition: filter 0.3s ease; }
+       /* ★修正：回想シーンの立ち絵を、半分程度の暗さのシルエットにするスタイル */
     #character.flashback-shadow {
-        filter: drop-shadow(5px 5px 8px rgba(0, 0, 0, 0.7)); /* 影の調整 */
-    } 
+        filter: brightness(0.2); /* 画像を元の明るさの20%にする (0が完全な黒) */
+    }
         #character.dimmed { filter: brightness(0.5); }
         #dialogue-box {
             position: absolute; bottom: 0; width: 100%; min-height: 25%; max-height: 50%;
