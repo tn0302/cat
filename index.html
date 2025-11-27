@@ -59,6 +59,7 @@
         #character { 
             position: absolute; 
             /* 【位置調整】1:1画像を画面下部から大きく突き出す */
+            bottom: -40%; /* 1:1画像の約半分を画面外に出す */
             left: 50%; 
             transform: translateX(-50%); 
             
@@ -72,6 +73,8 @@
             /* 【演出強化】フィルターとトランジションは維持し、シャドウを追加 */
             transition: filter 0.3s ease, transform 0.3s ease; 
             
+            /* 立ち絵の足元に柔らかな影を追加し、奥行きを出す */
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.7); 
         }
 
         #character.visible { opacity: 1; }
@@ -128,6 +131,12 @@
         /* --- ⚙️ UIコントロール（フローティング） --- */
         #floating-controls {
             position: fixed; top: 15px; left: 15px;
+            z-index: 150; display: flex; gap: 10px;
+        }
+
+        /* 追加: 右上のコントロール */
+        #right-controls {
+            position: fixed; top: 15px; right: 15px;
             z-index: 150; display: flex; gap: 10px;
         }
 
@@ -246,10 +255,14 @@
                 <button id="edit-scene-button">シーン編集</button>
                 <button id="delete-scene-button">シーン削除</button>
                 <button id="refresh-data-button">データ更新</button>
-                <button onclick="window.location.href='asset_upload.html'">素材管理</button>
-                <button onclick="window.location.href='bulk_upload.html'">一括入稿</button> 
-            </div>
+                </div>
         </div>
+    </div>
+
+    <div id="right-controls">
+        <button id="asset-upload-icon" class="control-button" title="素材管理">
+            <span>🖼️</span> 
+        </button>
     </div>
     
     <select id="episode-select" style="display: none;"></select>
@@ -353,7 +366,7 @@
         try {
             await populateEpisodeSelect();
             
-            // ★UX改善：オートセーブの自動適用（確認ダイアログなし）
+            // ★前々回修正: オートセーブの自動適用（確認ダイアログなし）
             const savedData = loadProgress();
             let startEp = state.episodeNumbers[0];
             let startIndex = 0;
@@ -410,8 +423,6 @@
         const required = { bg: new Set(), char: new Set(), special: new Set(), effect: new Set() };
         
         targets.forEach(s => {
-            // NOTE: 直接URL(s.background_image等)はfetchAssetsでは先読みできないが、
-            // タグ指定のアセットだけはここでリクエストする
             if (s.background && !state.loadedAssets.bg[s.background]) required.bg.add(s.background);
             if (s.character && !state.loadedAssets.char[s.character]) required.char.add(s.character);
             if (s.special && !state.loadedAssets.special[s.special]) required.special.add(s.special);
@@ -545,7 +556,7 @@
 
     ui.container.addEventListener('pointerup', e => {
         if (state.modalMode || ui.modal.style.display === 'flex') return;
-        if (e.target.closest('#floating-controls')) return;
+        if (e.target.closest('#floating-controls') || e.target.closest('#right-controls')) return;
 
         const isLeft = e.clientX < window.innerWidth * 0.3;
         if (isLeft) prevScene();
@@ -630,6 +641,12 @@
 
     // モーダル開閉
     document.getElementById('episode-select-icon').onclick = () => openModal('episode-list');
+    
+    // ★今回の修正: 素材管理アイコンのイベントリスナーを追加
+    document.getElementById('asset-upload-icon').onclick = () => {
+        window.location.href = 'asset_upload.html';
+    };
+
     document.getElementById('menu-icon').onclick = (e) => {
         e.stopPropagation();
         const c = document.getElementById('menu-dropdown-content');
@@ -648,11 +665,10 @@
             const list = document.getElementById('episode-list');
             list.innerHTML = '';
             
-            // ★UX改善：グリッド表示用のボタン生成
+            // 1. エピソードボタンの生成（グリッド表示）
             state.episodeNumbers.forEach(ep => {
                 const btn = document.createElement('button');
                 btn.className = 'control-button';
-                // グリッド化のためinlineスタイルは削除
                 btn.textContent = ep; // 数字のみ表示
                 
                 // 現在のエピソードならハイライト
@@ -668,6 +684,20 @@
                 };
                 list.appendChild(btn);
             });
+            
+            // 2. ★今回の修正: 一括入稿ボタン（+）の追加
+            const bulkBtn = document.createElement('button');
+            bulkBtn.className = 'control-button';
+            bulkBtn.textContent = '+'; 
+            bulkBtn.title = '一括入稿';
+            bulkBtn.style.backgroundColor = 'var(--accent-color)'; // 目立たせる
+            bulkBtn.style.color = 'var(--bg-color)'; 
+            bulkBtn.style.fontWeight = 'bold';
+            bulkBtn.onclick = () => {
+                window.location.href = 'bulk_upload.html';
+            };
+            list.appendChild(bulkBtn);
+
         }
     }
 
