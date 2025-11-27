@@ -55,29 +55,28 @@
             mix-blend-mode: screen; /* 光のエフェクト等はスクリーン合成 */
         }
 
-        /* 🧍 キャラクター（1:1画像対応） */
+        /* 🧍 キャラクター（1:1画像対応・大型化） */
         #character { 
             position: absolute; 
-            bottom: 0;       /* 画面下部に配置 */
+            /* 【位置調整】1:1画像を画面下部から大きく突き出す */
+            bottom: -40%; /* 1:1画像の約半分を画面外に出す */
             left: 50%; 
-            transform: translateX(-50%); /* 中央揃え */
+            transform: translateX(-50%); 
             
-            /* 1:1画像用調整 */
-            width: auto;
-            height: auto;
-            max-width: 90%;  /* 横幅いっぱいにしすぎない */
-            max-height: 85vh; /* テキストボックスより上まで表示、でも突き抜けない */
+            /* 【サイズ調整】ビューポートの高さ基準で大きく表示 */
+            max-height: 140vh; 
             
-            object-fit: contain; 
+            /* 【切り抜き】コンテナに合わせて拡大し、はみ出しを切り抜く */
+            object-fit: cover; 
+            
             z-index: 1; 
+            /* 【演出強化】フィルターとトランジションは維持し、シャドウを追加 */
+            transition: filter 0.3s ease, transform 0.3s ease; 
             
-            /* 切り替えアニメーション */
-            transition: opacity 0.4s ease, filter 0.3s ease; 
-            opacity: 0;
-            
-            /* 立ち絵を際立たせるドロップシャドウ */
-            filter: drop-shadow(0 0 15px rgba(0,0,0,0.6));
+            /* 立ち絵の足元に柔らかな影を追加し、奥行きを出す */
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.7); 
         }
+
         #character.visible { opacity: 1; }
         
         /* 回想シーンなどで使用するシルエット化 */
@@ -197,6 +196,22 @@
         .cancel-button { background: transparent; border: 1px solid #64748b; color: #94a3b8; margin-top: 10px; width: 100%; padding: 10px; border-radius: 4px; cursor: pointer; }
         .delete-button { background: #7f1d1d; color: #fecaca; width: 100%; padding: 10px; border: none; border-radius: 4px; cursor: pointer; }
 
+        /* --- 🔢 エピソードリスト（グリッド表示） --- */
+        #episode-list {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr); /* 5列表示 */
+            gap: 8px;
+            margin-bottom: 20px;
+        }
+        #episode-list .control-button {
+            width: 100%; /* グリッドセルいっぱいに */
+            height: 48px;
+            font-family: var(--font-serif);
+            font-size: 1.1em;
+            margin: 0;
+            padding: 0;
+        }
+
         /* --- ⏳ ローディング --- */
         #loading-indicator {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
@@ -294,454 +309,464 @@
         </div>
     </div>
 
-    <script>
-        /**
-         * 設定定数
-         */
-        const CONFIG = {
-            GAS_BASE_URL: 'https://cat-seven-blond.vercel.app/api/gas-proxy',
-            PRELOAD_COUNT: 5,       // 先読み数
-            STORAGE_KEY: 'novel_viewer_save'
-        };
+<script>
+    /**
+     * 設定定数
+     */
+    const CONFIG = {
+        GAS_BASE_URL: 'https://cat-seven-blond.vercel.app/api/gas-proxy',
+        PRELOAD_COUNT: 5,       // 先読み数
+        STORAGE_KEY: 'novel_viewer_save'
+    };
 
-        const PROXY = {
-            SCENES: `${CONFIG.GAS_BASE_URL}?api=scenes`,
-            ASSETS: `${CONFIG.GAS_BASE_URL}?api=assets`
-        };
+    const PROXY = {
+        SCENES: `${CONFIG.GAS_BASE_URL}?api=scenes`,
+        ASSETS: `${CONFIG.GAS_BASE_URL}?api=assets`
+    };
 
-        /**
-         * 状態管理
-         */
-        let state = {
-            episodeData: [],
-            sceneIndex: 0,
-            episodeNumbers: [],
-            loadedAssets: { bg: {}, char: {}, effect: {}, special: {} },
-            modalMode: ''
-        };
+    /**
+     * 状態管理
+     */
+    let state = {
+        episodeData: [],
+        sceneIndex: 0,
+        episodeNumbers: [],
+        loadedAssets: { bg: {}, char: {}, effect: {}, special: {} },
+        modalMode: ''
+    };
 
-        const ui = {
-            text: document.getElementById('dialogue-text'),
-            name: document.getElementById('character-name'),
-            charImg: document.getElementById('character'),
-            bgDiv: document.getElementById('background'),
-            specialImg: document.getElementById('special-image'),
-            effectImg: document.getElementById('effect-image'),
-            container: document.getElementById('novel-container'),
-            loading: document.getElementById('loading-indicator'),
-            epSelect: document.getElementById('episode-select'),
-            modal: document.getElementById('modal')
-        };
+    const ui = {
+        text: document.getElementById('dialogue-text'),
+        name: document.getElementById('character-name'),
+        charImg: document.getElementById('character'),
+        bgDiv: document.getElementById('background'),
+        specialImg: document.getElementById('special-image'),
+        effectImg: document.getElementById('effect-image'),
+        container: document.getElementById('novel-container'),
+        loading: document.getElementById('loading-indicator'),
+        epSelect: document.getElementById('episode-select'),
+        modal: document.getElementById('modal')
+    };
 
-        /* =================================================================
-           初期化 & データロード
-           ================================================================= */
+    /* =================================================================
+        初期化 & データロード
+       ================================================================= */
 
-        async function initialize() {
-            try {
-                await populateEpisodeSelect();
-                
-                // オートセーブ確認
-                const savedData = loadProgress();
-                let startEp = state.episodeNumbers[0];
-                let startIndex = 0;
-                
-                if (savedData && state.episodeNumbers.includes(savedData.episode)) {
-                    if (confirm(`前回の続き（エピソード ${savedData.episode}）から再開しますか？`)) {
-                        startEp = savedData.episode;
-                        startIndex = savedData.index || 0;
-                    }
-                }
-
-                ui.epSelect.value = startEp;
-                await loadEpisodeData(startEp, startIndex);
-
-            } catch (e) {
-                console.error(e);
-                alert('初期化エラー: ' + e.message);
-                showLoading(false);
-            }
-        }
-
-        async function loadEpisodeData(episodeNumber, startIndex = 0) {
-            showLoading(true);
+    async function initialize() {
+        try {
+            await populateEpisodeSelect();
             
-            try {
-                state.episodeData = await fetchJson(`${PROXY.SCENES}&episode=${episodeNumber}`);
-                state.episodeData.sort((a, b) => a.sceneNumber - b.sceneNumber);
-                
-                if (state.episodeData.length === 0) throw new Error('データがありません');
-
-                if (startIndex >= state.episodeData.length) startIndex = 0;
-                state.sceneIndex = startIndex;
-
-                // 最初の数シーンの画像を先読み
-                await preloadAssetsSmart(startIndex, CONFIG.PRELOAD_COUNT);
-
-                showLoading(false);
-                populateEditOptions();
-                renderScene(state.episodeData[state.sceneIndex]);
-
-                // 残りを裏でロード
-                backgroundLoadRest(startIndex + CONFIG.PRELOAD_COUNT);
-
-            } catch (e) {
-                alert('ロードエラー: ' + e.message);
-                showLoading(false);
-            }
-        }
-
-        async function preloadAssetsSmart(currentIndex, count) {
-            const endIndex = Math.min(currentIndex + count, state.episodeData.length);
-            const targets = state.episodeData.slice(currentIndex, endIndex);
+            // ★UX改善：オートセーブの自動適用（確認ダイアログなし）
+            const savedData = loadProgress();
+            let startEp = state.episodeNumbers[0];
+            let startIndex = 0;
             
-            const required = { bg: new Set(), char: new Set(), special: new Set(), effect: new Set() };
-            
-            targets.forEach(s => {
-                if (s.background && !state.loadedAssets.bg[s.background]) required.bg.add(s.background);
-                if (s.character && !state.loadedAssets.char[s.character]) required.char.add(s.character);
-                if (s.special && !state.loadedAssets.special[s.special]) required.special.add(s.special);
-                if (s.effect && !state.loadedAssets.effect[s.effect]) required.effect.add(s.effect);
-            });
-
-            const promises = [];
-            if (required.bg.size) promises.push(fetchAssets('background', required.bg, state.loadedAssets.bg));
-            if (required.char.size) promises.push(fetchAssets('character', required.char, state.loadedAssets.char));
-            if (required.special.size) promises.push(fetchAssets('special_image', required.special, state.loadedAssets.special));
-            if (required.effect.size) promises.push(fetchAssets('effect', required.effect, state.loadedAssets.effect));
-
-            await Promise.all(promises);
-        }
-
-        async function backgroundLoadRest(startIndex) {
-            const CHUNK = 10;
-            for (let i = startIndex; i < state.episodeData.length; i += CHUNK) {
-                await preloadAssetsSmart(i, CHUNK);
-                await new Promise(r => setTimeout(r, 1000));
+            if (savedData && state.episodeNumbers.includes(savedData.episode)) {
+                // 確認なしで前回の続きをセット
+                startEp = savedData.episode;
+                startIndex = savedData.index || 0;
+                console.log(`Resuming from Ep.${startEp}, Scene ${startIndex}`);
             }
-        }
 
-        async function fetchAssets(type, tagSet, targetStore) {
-            if (!tagSet.size) return;
-            const tags = Array.from(tagSet);
-            // URLパラメータが長くなりすぎないように注意（必要に応じて分割）
-            const filter = `asset_type[equals]${type}[and]` + tags.map(t => `tag[equals]${encodeURIComponent(t)}`).join('[or]');
+            ui.epSelect.value = startEp;
+            await loadEpisodeData(startEp, startIndex);
+
+        } catch (e) {
+            console.error(e);
+            alert('初期化エラー: ' + e.message);
+            showLoading(false);
+        }
+    }
+
+    async function loadEpisodeData(episodeNumber, startIndex = 0) {
+        showLoading(true);
+        
+        try {
+            state.episodeData = await fetchJson(`${PROXY.SCENES}&episode=${episodeNumber}`);
+            state.episodeData.sort((a, b) => a.sceneNumber - b.sceneNumber);
             
-            try {
-                const res = await fetchJson(`${PROXY.ASSETS}`, { filters: filter });
-                const list = Array.isArray(res) ? res : (res.contents || []);
-                list.forEach(a => {
-                    if (a.tag && a.image) {
-                         if (type === 'character') {
-                            targetStore[a.tag] = { image: a.image, face_tags: [] }; // 表情タグなどあれば拡張
-                        } else {
-                            targetStore[a.tag] = a.image;
-                        }
-                    }
-                });
-            } catch (e) {
-                console.warn(`Failed to fetch assets for ${type}`, e);
-            }
+            if (state.episodeData.length === 0) throw new Error('データがありません');
+
+            if (startIndex >= state.episodeData.length) startIndex = 0;
+            state.sceneIndex = startIndex;
+
+            // 最初の数シーンの画像を先読み
+            await preloadAssetsSmart(startIndex, CONFIG.PRELOAD_COUNT);
+
+            showLoading(false);
+            populateEditOptions();
+            renderScene(state.episodeData[state.sceneIndex]);
+
+            // 残りを裏でロード
+            backgroundLoadRest(startIndex + CONFIG.PRELOAD_COUNT);
+
+        } catch (e) {
+            alert('ロードエラー: ' + e.message);
+            showLoading(false);
         }
+    }
 
-        /* =================================================================
-           描画 (レンダリング)
-           ================================================================= */
+    async function preloadAssetsSmart(currentIndex, count) {
+        const endIndex = Math.min(currentIndex + count, state.episodeData.length);
+        const targets = state.episodeData.slice(currentIndex, endIndex);
+        
+        const required = { bg: new Set(), char: new Set(), special: new Set(), effect: new Set() };
+        
+        targets.forEach(s => {
+            // NOTE: 直接URL(s.background_image等)はfetchAssetsでは先読みできないが、
+            // タグ指定のアセットだけはここでリクエストする
+            if (s.background && !state.loadedAssets.bg[s.background]) required.bg.add(s.background);
+            if (s.character && !state.loadedAssets.char[s.character]) required.char.add(s.character);
+            if (s.special && !state.loadedAssets.special[s.special]) required.special.add(s.special);
+            if (s.effect && !state.loadedAssets.effect[s.effect]) required.effect.add(s.effect);
+        });
 
-        function renderScene(s) {
-            if (!s) return;
+        const promises = [];
+        if (required.bg.size) promises.push(fetchAssets('background', required.bg, state.loadedAssets.bg));
+        if (required.char.size) promises.push(fetchAssets('character', required.char, state.loadedAssets.char));
+        if (required.special.size) promises.push(fetchAssets('special_image', required.special, state.loadedAssets.special));
+        if (required.effect.size) promises.push(fetchAssets('effect', required.effect, state.loadedAssets.effect));
 
-            // 1. テキスト表示（タイプライター廃止：即表示）
-            ui.name.textContent = s.character || '';
-            ui.text.textContent = s.text || ''; // ここで一括表示
+        await Promise.all(promises);
+    }
 
-            // 2. 画像更新
-            updateImage(ui.bgDiv, s.background, state.loadedAssets.bg, true);
-            updateImage(ui.charImg, s.character, state.loadedAssets.char, false);
-            updateImage(ui.specialImg, s.special, state.loadedAssets.special, false);
-            updateImage(ui.effectImg, s.effect, state.loadedAssets.effect, false);
-
-            // 3. エフェクトクラス
-            ui.charImg.className = ''; 
-            if (s.effect && String(s.effect).includes('影')) {
-                ui.charImg.classList.add('flashback-shadow');
-            }
-            // 画像ロード完了後、visibleクラスをつける処理は updateImage 内でやるが、
-            // 念のためここで強制的にレイアウト再計算させる手もある
-            
-            saveProgress();
+    async function backgroundLoadRest(startIndex) {
+        const CHUNK = 10;
+        for (let i = startIndex; i < state.episodeData.length; i += CHUNK) {
+            await preloadAssetsSmart(i, CHUNK);
+            await new Promise(r => setTimeout(r, 1000));
         }
+    }
 
-        function updateImage(el, tag, assetStore, isBg) {
-            let src = '';
-            if (tag && tag.startsWith('http')) src = tag;
-            else if (tag && assetStore[tag]) src = assetStore[tag].image || assetStore[tag];
-
-            if (isBg) {
-                // 背景処理
-                if (!src) {
-                    el.classList.remove('visible');
-                } else {
-                    // 現在の画像と同じなら何もしない
-                    if (el.style.backgroundImage.includes(src)) {
-                         el.classList.add('visible'); // 念のため
-                         return;
-                    }
-                    
-                    // 新しい画像のプリロード
-                    const img = new Image();
-                    img.src = src;
-                    img.onload = () => {
-                        el.style.backgroundImage = `url("${src}")`;
-                        el.classList.add('visible');
-                    };
-                }
-            } else {
-                // imgタグ処理（立ち絵など）
-                if (!src) {
-                    el.classList.remove('visible');
-                    el.src = ''; // クリア
-                    el.style.display = 'none'; // 完全に消す
-                } else {
-                    el.style.display = 'block';
-                    if (el.src === src && el.classList.contains('visible')) return;
-
-                    el.classList.remove('visible');
-                    el.src = src;
-                    
-                    // キャッシュされている場合は即表示
-                    if (el.complete) {
-                        el.classList.add('visible');
+    async function fetchAssets(type, tagSet, targetStore) {
+        if (!tagSet.size) return;
+        const tags = Array.from(tagSet);
+        const filter = `asset_type[equals]${type}[and](` + tags.map(t => `tag[equals]${encodeURIComponent(t)}`).join('[or]') + `)`;
+        
+        try {
+            const res = await fetchJson(`${PROXY.ASSETS}`, { filters: filter });
+            const list = Array.isArray(res) ? res : (res.contents || []);
+            list.forEach(a => {
+                if (a.tag && a.image) {
+                    if (type === 'character' && a.character_face_tag) {
+                        const key = `${a.tag}_${a.character_face_tag}`;
+                        targetStore[key] = a.image;
+                    } else if (type === 'character') {
+                        targetStore[a.tag] = a.image;
                     } else {
-                        el.onload = () => el.classList.add('visible');
+                        targetStore[a.tag] = a.image;
                     }
                 }
-            }
+            });
+        } catch (e) {
+            console.warn(`Failed to fetch assets for ${type}`, e);
         }
+    }
 
-        /* =================================================================
-           操作イベント
-           ================================================================= */
+    /* =================================================================
+        描画 (レンダリング)
+       ================================================================= */
 
-        ui.container.addEventListener('pointerup', e => {
-            if (state.modalMode || ui.modal.style.display === 'flex') return;
-            if (e.target.closest('#floating-controls')) return;
+    function renderScene(s) {
+        if (!s) return;
 
-            // 左側タップで戻る、右側で進む
-            const isLeft = e.clientX < window.innerWidth * 0.3;
-            if (isLeft) prevScene();
-            else nextScene();
-        });
+        ui.name.textContent = s.character || '';
+        ui.text.textContent = s.text || ''; 
 
-        function nextScene() {
-            if (state.sceneIndex < state.episodeData.length - 1) {
-                state.sceneIndex++;
-                renderScene(state.episodeData[state.sceneIndex]);
+        // 優先順位: 直接URL > アセットタグ
+        updateImage(ui.bgDiv, s.background_image || s.background, state.loadedAssets.bg, true);
+        updateImage(ui.charImg, s.character_image || s.character, state.loadedAssets.char, false);
+        updateImage(ui.specialImg, s.special_image || s.special, state.loadedAssets.special, false);
+        updateImage(ui.effectImg, s.effect_image || s.effect, state.loadedAssets.effect, false);
+
+        ui.charImg.className = ''; 
+        if (s.effect && String(s.effect).includes('影')) {
+            ui.charImg.classList.add('flashback-shadow');
+        }
+        
+        saveProgress();
+    }
+
+    function updateImage(el, tag, assetStore, isBg) {
+        const currentScene = state.episodeData[state.sceneIndex];
+        let src = '';
+        
+        if (tag && (tag.startsWith('http') || tag.startsWith('data:'))) {
+            src = tag;
+        } 
+        else if (tag && assetStore) {
+            if (el === ui.charImg && currentScene) {
+                const faceTag = currentScene.face || 'default';
+                const key = `${tag}_${faceTag}`; 
+                
+                if (assetStore[key]) src = assetStore[key];
+                else if (assetStore[tag]) src = assetStore[tag];
             } else {
-                tryNextEpisode();
+                if (assetStore[tag]) src = assetStore[tag];
             }
         }
 
-        function prevScene() {
-            if (state.sceneIndex > 0) {
-                state.sceneIndex--;
-                renderScene(state.episodeData[state.sceneIndex]);
+        if (isBg) {
+            if (!src) {
+                el.classList.remove('visible');
+            } else {
+                if (el.style.backgroundImage.includes(src)) {
+                     el.classList.add('visible'); 
+                     return;
+                }
+                const img = new Image();
+                img.src = src;
+                img.onload = () => {
+                    el.style.backgroundImage = `url("${src}")`;
+                    el.classList.add('visible');
+                };
             }
-        }
+        } else {
+            if (!src) {
+                el.classList.remove('visible');
+                el.src = '';
+                el.style.display = 'none';
+            } else {
+                el.style.display = 'block';
+                if (el.src === src && el.classList.contains('visible')) return;
 
-        function tryNextEpisode() {
-            const currentEp = parseInt(ui.epSelect.value);
-            const idx = state.episodeNumbers.indexOf(currentEp);
-            if (idx !== -1 && idx < state.episodeNumbers.length - 1) {
-                if(confirm('次のエピソードへ進みますか？')) {
-                    const nextEp = state.episodeNumbers[idx + 1];
-                    ui.epSelect.value = nextEp;
-                    loadEpisodeData(nextEp);
+                el.classList.remove('visible');
+                el.src = src;
+                
+                if (el.complete) {
+                    el.classList.add('visible');
+                } else {
+                    el.onload = () => el.classList.add('visible');
                 }
             }
         }
+    }
 
-        /* =================================================================
-           API & ユーティリティ
-           ================================================================= */
+    /* =================================================================
+        操作イベント
+       ================================================================= */
 
-        async function fetchJson(url, params = {}) {
-            const urlObj = new URL(url);
-            if(params.filters) urlObj.searchParams.append('filters', params.filters);
-            const res = await fetch(urlObj.toString());
-            if (!res.ok) throw new Error(`API Error: ${res.status}`);
-            return res.json();
+    ui.container.addEventListener('pointerup', e => {
+        if (state.modalMode || ui.modal.style.display === 'flex') return;
+        if (e.target.closest('#floating-controls')) return;
+
+        const isLeft = e.clientX < window.innerWidth * 0.3;
+        if (isLeft) prevScene();
+        else nextScene();
+    });
+
+    function nextScene() {
+        if (state.sceneIndex < state.episodeData.length - 1) {
+            state.sceneIndex++;
+            renderScene(state.episodeData[state.sceneIndex]);
+        } else {
+            tryNextEpisode();
         }
+    }
 
-        function showLoading(show) {
-            ui.loading.style.opacity = show ? 1 : 0;
-            ui.loading.style.pointerEvents = show ? 'auto' : 'none';
+    function prevScene() {
+        if (state.sceneIndex > 0) {
+            state.sceneIndex--;
+            renderScene(state.episodeData[state.sceneIndex]);
         }
+    }
 
-        function saveProgress() {
-            localStorage.setItem(CONFIG.STORAGE_KEY, JSON.stringify({
-                episode: parseInt(ui.epSelect.value),
-                index: state.sceneIndex
-            }));
+    function tryNextEpisode() {
+        const currentEp = parseInt(ui.epSelect.value);
+        const idx = state.episodeNumbers.indexOf(currentEp);
+        if (idx !== -1 && idx < state.episodeNumbers.length - 1) {
+            if(confirm('次のエピソードへ進みますか？')) {
+                const nextEp = state.episodeNumbers[idx + 1];
+                ui.epSelect.value = nextEp;
+                loadEpisodeData(nextEp);
+            }
         }
+    }
 
-        function loadProgress() {
-            const json = localStorage.getItem(CONFIG.STORAGE_KEY);
-            return json ? JSON.parse(json) : null;
-        }
+    /* =================================================================
+        API & ユーティリティ
+       ================================================================= */
 
-        /* =================================================================
-           UI連携 (編集・モーダル)
-           ================================================================= */
+    async function fetchJson(url, params = {}) {
+        const urlObj = new URL(url);
+        if(params.filters) urlObj.searchParams.append('filters', params.filters);
+        const res = await fetch(urlObj.toString());
+        if (!res.ok) throw new Error(`API Error: ${res.status}`);
+        return res.json();
+    }
+
+    function showLoading(show) {
+        ui.loading.style.opacity = show ? 1 : 0;
+        ui.loading.style.pointerEvents = show ? 'auto' : 'none';
+    }
+
+    function saveProgress() {
+        localStorage.setItem(CONFIG.STORAGE_KEY, JSON.stringify({
+            episode: parseInt(ui.epSelect.value),
+            index: state.sceneIndex
+        }));
+    }
+
+    function loadProgress() {
+        const json = localStorage.getItem(CONFIG.STORAGE_KEY);
+        return json ? JSON.parse(json) : null;
+    }
+
+    /* =================================================================
+        UI連携 (編集・モーダル)
+       ================================================================= */
+    
+    async function populateEpisodeSelect() {
+        const allScenes = await fetchJson(PROXY.SCENES); 
+        const eps = new Set();
+        allScenes.forEach(s => { if(s.episode) eps.add(parseInt(s.episode)); });
+        state.episodeNumbers = Array.from(eps).sort((a,b)=>a-b);
         
-        async function populateEpisodeSelect() {
-            // 本来はエピソードリスト専用API推奨
-            const allScenes = await fetchJson(PROXY.SCENES); 
-            const eps = new Set();
-            allScenes.forEach(s => { if(s.episode) eps.add(parseInt(s.episode)); });
-            state.episodeNumbers = Array.from(eps).sort((a,b)=>a-b);
+        ui.epSelect.innerHTML = '';
+        state.episodeNumbers.forEach(ep => {
+            const opt = document.createElement('option');
+            opt.value = ep;
+            opt.textContent = ep;
+            ui.epSelect.appendChild(opt);
+        });
+    }
+
+    // モーダル開閉
+    document.getElementById('episode-select-icon').onclick = () => openModal('episode-list');
+    document.getElementById('menu-icon').onclick = (e) => {
+        e.stopPropagation();
+        const c = document.getElementById('menu-dropdown-content');
+        c.style.display = c.style.display === 'block' ? 'none' : 'block';
+    };
+    document.addEventListener('click', e => {
+        if(!e.target.closest('.dropdown')) document.getElementById('menu-dropdown-content').style.display = 'none';
+    });
+
+    function openModal(type) {
+        ui.modal.style.display = 'flex';
+        document.getElementById('episode-list-container').style.display = type === 'episode-list' ? 'block' : 'none';
+        document.getElementById('edit-form-container').style.display = type === 'edit' ? 'block' : 'none';
+        
+        if (type === 'episode-list') {
+            const list = document.getElementById('episode-list');
+            list.innerHTML = '';
             
-            ui.epSelect.innerHTML = '';
+            // ★UX改善：グリッド表示用のボタン生成
             state.episodeNumbers.forEach(ep => {
-                const opt = document.createElement('option');
-                opt.value = ep;
-                opt.textContent = ep;
-                ui.epSelect.appendChild(opt);
+                const btn = document.createElement('button');
+                btn.className = 'control-button';
+                // グリッド化のためinlineスタイルは削除
+                btn.textContent = ep; // 数字のみ表示
+                
+                // 現在のエピソードならハイライト
+                if(ep == ui.epSelect.value) {
+                     btn.style.borderColor = 'var(--accent-color)';
+                     btn.style.background = 'rgba(192, 160, 128, 0.3)';
+                     btn.style.boxShadow = '0 0 10px rgba(192, 160, 128, 0.5)';
+                }
+                btn.onclick = () => {
+                    ui.epSelect.value = ep;
+                    loadEpisodeData(ep);
+                    closeModal();
+                };
+                list.appendChild(btn);
             });
         }
+    }
 
-        // モーダル開閉
-        document.getElementById('episode-select-icon').onclick = () => openModal('episode-list');
-        document.getElementById('menu-icon').onclick = (e) => {
-            e.stopPropagation();
-            const c = document.getElementById('menu-dropdown-content');
-            c.style.display = c.style.display === 'block' ? 'none' : 'block';
-        };
-        document.addEventListener('click', e => {
-            if(!e.target.closest('.dropdown')) document.getElementById('menu-dropdown-content').style.display = 'none';
-        });
+    window.closeModal = () => {
+        ui.modal.style.display = 'none';
+        state.modalMode = '';
+    };
 
-        function openModal(type) {
-            ui.modal.style.display = 'flex';
-            document.getElementById('episode-list-container').style.display = type === 'episode-list' ? 'block' : 'none';
-            document.getElementById('edit-form-container').style.display = type === 'edit' ? 'block' : 'none';
-            
-            if (type === 'episode-list') {
-                const list = document.getElementById('episode-list');
-                list.innerHTML = '';
-                state.episodeNumbers.forEach(ep => {
-                    const btn = document.createElement('button');
-                    btn.className = 'control-button';
-                    btn.style.width = '100%'; btn.style.marginBottom = '10px'; btn.style.borderRadius = '4px';
-                    btn.textContent = `エピソード ${ep}`;
-                    // 現在のエピソードなら色を変える
-                    if(ep == ui.epSelect.value) {
-                         btn.style.borderColor = 'var(--accent-color)';
-                         btn.style.background = 'rgba(192, 160, 128, 0.3)';
-                    }
-                    btn.onclick = () => {
-                        ui.epSelect.value = ep;
-                        loadEpisodeData(ep);
-                        closeModal();
-                    };
-                    list.appendChild(btn);
-                });
-            }
-        }
+    // 編集フォーム設定
+    document.getElementById('add-scene-button').onclick = () => setupEdit('add');
+    document.getElementById('edit-scene-button').onclick = () => setupEdit('edit');
+    document.getElementById('delete-scene-button').onclick = () => setupEdit('delete');
+    document.getElementById('cancel-edit-button').onclick = closeModal;
+    document.getElementById('refresh-data-button').onclick = () => {
+            if(confirm('再読み込みしますか？')) location.reload();
+    };
 
-        window.closeModal = () => {
-            ui.modal.style.display = 'none';
-            state.modalMode = '';
-        };
+    function setupEdit(mode) {
+        state.modalMode = mode;
+        openModal('edit');
+        const form = document.getElementById('edit-form');
+        form.reset();
+        const s = state.episodeData[state.sceneIndex] || {};
+        const title = document.getElementById('modal-title');
+        const saveBtn = document.getElementById('save-scene-button');
+        const delBtn = document.getElementById('confirm-delete-button');
 
-        // 編集フォーム設定
-        document.getElementById('add-scene-button').onclick = () => setupEdit('add');
-        document.getElementById('edit-scene-button').onclick = () => setupEdit('edit');
-        document.getElementById('delete-scene-button').onclick = () => setupEdit('delete');
-        document.getElementById('cancel-edit-button').onclick = closeModal;
-        document.getElementById('refresh-data-button').onclick = () => {
-             if(confirm('再読み込みしますか？')) location.reload();
-        };
-
-        function setupEdit(mode) {
-            state.modalMode = mode;
-            openModal('edit');
-            const form = document.getElementById('edit-form');
-            form.reset();
-            const s = state.episodeData[state.sceneIndex] || {};
-            const title = document.getElementById('modal-title');
-            const saveBtn = document.getElementById('save-scene-button');
-            const delBtn = document.getElementById('confirm-delete-button');
-
-            saveBtn.style.display = mode === 'delete' ? 'none' : 'block';
-            delBtn.style.display = mode === 'delete' ? 'block' : 'none';
-            
-            title.textContent = mode === 'add' ? 'シーン追加' : (mode === 'edit' ? 'シーン編集' : 'シーン削除');
-
-            if (mode === 'add') {
-                document.getElementById('edit-episode').value = ui.epSelect.value;
-                document.getElementById('edit-scene-number').value = (s.sceneNumber || 0) + 1;
-            } else {
-                ['episode', 'sceneNumber', 'character', 'text', 'face', 'special', 'background', 'effect'].forEach(k => {
-                    if(document.getElementById(`edit-${k}`)) document.getElementById(`edit-${k}`).value = s[k] || '';
-                });
-            }
-        }
+        saveBtn.style.display = mode === 'delete' ? 'none' : 'block';
+        delBtn.style.display = mode === 'delete' ? 'block' : 'none';
         
-        function populateEditOptions() {
-             const setOptions = (listId, keys) => {
-                const dl = document.getElementById(listId);
-                dl.innerHTML = '';
-                keys.forEach(k => { const op = document.createElement('option'); op.value = k; dl.appendChild(op); });
-            };
-            setOptions('characters-list', Object.keys(state.loadedAssets.char));
-            setOptions('backgrounds-list', Object.keys(state.loadedAssets.bg));
+        title.textContent = mode === 'add' ? 'シーン追加' : (mode === 'edit' ? 'シーン編集' : 'シーン削除');
+
+        if (mode === 'add') {
+            document.getElementById('edit-episode').value = ui.epSelect.value;
+            document.getElementById('edit-scene-number').value = (s.sceneNumber || 0) + 1;
+        } else {
+            ['episode', 'sceneNumber', 'character', 'text', 'face', 'special', 'background', 'effect'].forEach(k => {
+                if(document.getElementById(`edit-${k}`)) document.getElementById(`edit-${k}`).value = s[k] || '';
+            });
         }
+    }
+    
+    function populateEditOptions() {
+          const setOptions = (listId, keys) => {
+             const dl = document.getElementById(listId);
+             dl.innerHTML = '';
+             keys.forEach(k => { const op = document.createElement('option'); op.value = k; dl.appendChild(op); });
+          };
+          setOptions('characters-list', Object.keys(state.loadedAssets.char));
+          setOptions('backgrounds-list', Object.keys(state.loadedAssets.bg));
+    }
 
-        // フォーム送信処理（API）
-        document.getElementById('edit-form').onsubmit = async (e) => {
-            e.preventDefault();
-            const formData = new FormData(e.target);
-            const data = Object.fromEntries(formData.entries());
-            const method = state.modalMode === 'add' ? 'POST' : 'PUT';
-            let url = PROXY.SCENES;
-            if (state.modalMode === 'edit') url += `&id=${state.episodeData[state.sceneIndex].id}`;
+    // フォーム送信処理（API）
+    document.getElementById('edit-form').onsubmit = async (e) => {
+        e.preventDefault();
+        const formData = new FormData(e.target);
+        const data = Object.fromEntries(formData.entries());
+        const method = state.modalMode === 'add' ? 'POST' : 'PUT';
+        let url = PROXY.SCENES;
+        if (state.modalMode === 'edit') url += `&id=${state.episodeData[state.sceneIndex].id}`;
 
-            try {
-                showLoading(true);
-                await fetch(url, {
-                    method: 'POST', 
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ ...data, _method: method })
-                });
-                alert('完了しました');
-                closeModal();
-                loadEpisodeData(data.episode || ui.epSelect.value);
-            } catch(err) {
-                alert('エラー: ' + err.message);
-                showLoading(false);
-            }
-        };
-        
-        document.getElementById('confirm-delete-button').onclick = async () => {
-            if(!confirm('本当に削除しますか？')) return;
-            try {
-                showLoading(true);
-                await fetch(`${PROXY.SCENES}&id=${state.episodeData[state.sceneIndex].id}`, { 
-                    method: 'POST',
-                    body: JSON.stringify({ _method: 'DELETE' })
-                });
-                alert('削除しました');
-                closeModal();
-                loadEpisodeData(ui.epSelect.value);
-            } catch(err) {
-                alert('エラー: ' + err.message);
-                showLoading(false);
-            }
-        };
+        try {
+            showLoading(true);
+            await fetch(url, {
+                method: 'POST', 
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ...data, _method: method })
+            });
+            alert('完了しました');
+            closeModal();
+            loadEpisodeData(data.episode || ui.epSelect.value);
+        } catch(err) {
+            alert('エラー: ' + err.message);
+            showLoading(false);
+        }
+    };
+    
+    document.getElementById('confirm-delete-button').onclick = async () => {
+        if(!confirm('本当に削除しますか？')) return;
+        try {
+            showLoading(true);
+            await fetch(`${PROXY.SCENES}&id=${state.episodeData[state.sceneIndex].id}`, { 
+                method: 'POST',
+                body: JSON.stringify({ _method: 'DELETE' })
+            });
+            alert('削除しました');
+            closeModal();
+            loadEpisodeData(ui.epSelect.value);
+        } catch(err) {
+            alert('エラー: ' + err.message);
+            showLoading(false);
+        }
+    };
 
-        window.onload = initialize;
+    window.onload = initialize;
 
-    </script>
+</script>
 </body>
 </html>
