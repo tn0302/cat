@@ -44,6 +44,7 @@
             opacity: 0;
             will-change: opacity;
         }
+        /* 背景/特殊画像/エフェクトが表示されるには、このクラスが必要 */
         .layer-image.visible { opacity: 1; }
 
         #background { z-index: 0; }
@@ -54,7 +55,7 @@
             mix-blend-mode: screen; 
         }
 
-        /* 🧍 キャラクター（1:1画像対応） */
+        /* 🧍 キャラクター（立ち絵） */
         #character { 
             position: absolute; 
             bottom: 0;       
@@ -70,9 +71,9 @@
             object-fit: contain; 
             z-index: 1; 
             
-            /* ★修正: 立ち絵のトランジションを削除し、即時表示を確実にする */
+            /* ★修正：即時表示のためトランジションとopacity: 0を廃止 */
             transition: none; 
-            opacity: 1; /* ★修正: ロードされ次第、即座に不透明 */
+            opacity: 1; 
             
             /* 立ち絵を際立たせるドロップシャドウ */
             filter: drop-shadow(0 0 15px rgba(0,0,0,0.6));
@@ -297,6 +298,7 @@
          * 設定定数
          */
         const CONFIG = {
+            // ★ここはご自身のVercelプロキシのURLが正しいか確認してください
             GAS_BASE_URL: 'https://cat-seven-blond.vercel.app/api/gas-proxy',
             PRELOAD_COUNT: 5,       // 先読み数
             STORAGE_KEY: 'novel_viewer_save'
@@ -422,7 +424,6 @@
         async function fetchAssets(type, tagSet, targetStore) {
             if (!tagSet.size) return;
             const tags = Array.from(tagSet);
-            // URLパラメータが長くなりすぎないように注意（必要に応じて分割）
             const filter = `asset_type[equals]${type}[and](` + tags.map(t => `tag[equals]${encodeURIComponent(t)}`).join('[or]') + ')';
             
             try {
@@ -431,7 +432,7 @@
                 list.forEach(a => {
                     if (a.tag && a.image) {
                          if (type === 'character') {
-                            targetStore[a.tag] = { image: a.image, face_tags: [] }; // 表情タグなどあれば拡張
+                            targetStore[a.tag] = { image: a.image, face_tags: [] }; 
                         } else {
                             targetStore[a.tag] = a.image;
                         }
@@ -449,9 +450,9 @@
         function renderScene(s) {
             if (!s) return;
 
-            // 1. テキスト表示
+            // 1. テキスト表示（即時表示）
             ui.name.textContent = s.character || '';
-            ui.text.textContent = s.text || ''; // 即時表示
+            ui.text.textContent = s.text || ''; 
 
             // 2. 画像更新
             updateImage(ui.bgDiv, s.background, state.loadedAssets.bg, true);
@@ -499,14 +500,13 @@
                     el.style.display = 'block';
                     if (el.src === src) return;
 
-                    el.src = src; // ★即座にsrcを設定
-                    // CSSで opacity: 1; transition: none; にしたので、即時表示される
+                    el.src = src; // ★CSSでopacity: 1;になっているため、即時表示される
                 }
             }
         }
 
         /* =================================================================
-           操作イベント (以降省略 - 変更なし)
+           操作イベント
            ================================================================= */
 
         ui.container.addEventListener('pointerup', e => {
@@ -547,7 +547,7 @@
         }
 
         /* =================================================================
-           API & ユーティリティ (以降省略 - 変更なし)
+           API & ユーティリティ (中略)
            ================================================================= */
 
         async function fetchJson(url, params = {}) {
@@ -576,7 +576,7 @@
         }
 
         /* =================================================================
-           UI連携 (編集・モーダル) (以降省略 - 変更なし)
+           UI連携 (編集・モーダル) (中略)
            ================================================================= */
         
         async function populateEpisodeSelect() {
