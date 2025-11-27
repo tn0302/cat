@@ -4,160 +4,235 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>シーン一括アップロード</title>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500&family=Shippori+Mincho:wght@500;700&display=swap" rel="stylesheet">
+    
     <style>
-    body {
-      font-family: sans-serif;
-      margin: 2rem;
-      background-color: #222; /* 黒テイストに変更 */
-      color: #eee; /* 文字色を明るく */
+    /* 【修正点1: CSS変更】新index.htmlのテーマに統一 */
+    :root {
+        --bg-color: #0f172a;       /* 深い紺色 (背景) */
+        --text-color: #e2e8f0;     /* 白に近い灰色 (本文) */
+        --accent-color: #c0a080;   /* くすんだゴールド (強調・枠線) */
+        --ui-bg: #1e293b;          /* モーダル背景色 */
+        --font-main: 'Noto Sans JP', sans-serif;
+        --font-serif: 'Shippori Mincho', serif;
     }
-    h1, h2 {
-      color: #fff; /* 見出し色を白に */
+    
+    body {
+      font-family: var(--font-main);
+      margin: 0; 
+      padding: 2rem;
+      background-color: var(--bg-color); 
+      color: var(--text-color); 
+      overflow-y: auto; 
+      min-height: 100vh;
+      box-sizing: border-box;
+    }
+    h1 {
+      color: var(--accent-color); 
+      font-family: var(--font-serif);
+      border-bottom: 1px solid #444; 
+      padding-bottom: 10px; 
+      margin-top: 0;
+      text-align: center;
+    }
+    h2 {
+      color: var(--accent-color); 
+      font-family: var(--font-serif);
+      border-bottom: 1px solid #444; 
+      padding-bottom: 8px;
+      margin-top: 0;
+      font-size: 1.2rem;
+    }
+    .container {
+        max-width: 700px;
+        margin: 0 auto; /* 中央寄せ */
     }
     section {
-      background: #333; /* 背景色を暗く */
-      border: 1px solid #555; /* ボーダー色を調整 */
-      border-radius: 12px;
+      background: var(--ui-bg); 
+      border: 1px solid var(--accent-color); 
+      border-radius: 8px; 
       padding: 1.5rem;
       margin-bottom: 2rem;
-      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3); /* 影を濃く */
+      box-shadow: 0 0 20px rgba(0, 0, 0, 0.5); 
     }
     textarea, input[type="number"] {
       width: 100%;
       font-size: 1rem;
-      padding: 0.75rem;
-      margin-bottom: 1rem;
-      border: 1px solid #555; /* ボーダー色を調整 */
-      border-radius: 6px;
-      background: #444; /* 背景色を暗く */
-      color: #fff; /* 文字色を白に */
+      padding: 10px; 
+      margin: 5px 0 15px; 
+      border: 1px solid #475569; 
+      border-radius: 4px; 
+      background: #0f172a; 
+      color: #fff; 
       box-sizing: border-box;
+      font-family: var(--font-main);
     }
+    textarea:focus, input[type="number"]:focus { 
+        outline: none; 
+        border-color: var(--accent-color); 
+    }
+
+    /* ボタン共通スタイル */
     button {
-      font-size: 1rem;
-      padding: 0.6rem 1.2rem;
-      margin-bottom: 1rem;
-      border: none;
-      border-radius: 6px;
-      background-color: #007bff; /* ボタン色を統一 */
-      color: white;
-      cursor: pointer;
-      transition: background-color 0.2s ease; /* ホバーエフェクト追加 */
+        font-family: var(--font-main);
+        font-weight: bold;
+        border: none; 
+        padding: 12px;
+        border-radius: 4px; 
+        cursor: pointer; 
+        transition: opacity 0.2s;
+        margin-bottom: 0.5rem; 
     }
-    button:hover {
-      background-color: #0056b3; /* ホバー色を統一 */
+    
+    /* アップロード/コピーボタン（アクションボタン） */
+    .action-btn { 
+      background: var(--accent-color); 
+      color: #0f172a; 
+      width: 100%; 
+      display: block; 
     }
+    .action-btn:hover { 
+      opacity: 0.9; 
+    }
+    
+    /* 戻るボタン（キャンセルボタン） */
+    .cancel-button { 
+        background: transparent; 
+        border: 1px solid #64748b; 
+        color: #94a3b8; 
+        width: 100%; 
+        padding: 10px; 
+        margin-top: 10px;
+    }
+    .cancel-button:hover {
+        background: rgba(100, 116, 139, 0.2);
+    }
+
     #message {
       margin-top: 1rem;
       padding: 1rem;
-      border-radius: 6px;
+      border-radius: 4px; 
       white-space: pre-wrap;
+      font-family: var(--font-main);
     }
-    .message-success { background-color: #28a745; color: white; }
-    .message-error { background-color: #dc3545; color: white; }
-    .message-info { background-color: #17a2b8; color: white; }
+    .message-success { background-color: #15803d; color: #f0fdf4; border: 1px solid #4ade80;}
+    .message-error { background-color: #991b1b; color: #fee2e2; border: 1px solid #f87171;}
+    .message-info { background-color: #075985; color: #e0f2f1; border: 1px solid #22d3ee;}
     </style>
 </head>
 <body>
     <div class="container">
-<body>
-  <h1>勇者ハーレム：整形テンプレート & JSONアップロード</h1>
+        <h1>勇者ハーレム：整形テンプレート & JSONアップロード</h1>
 
-  <section>
-    <h2>エピソード番号を入力してください</h2>
-    <input id="episode" type="number" placeholder="例: 3" />
-  </section>
+        <section>
+            <h2>エピソード番号を入力してください</h2>
+            <input id="episode" type="number" placeholder="例: 3" />
+        </section>
 
-  <section>
-    <h2>① キャラ口調ガイド生成</h2>
-    <textarea id="inputText1" placeholder="ここに本文を入力してください..."></textarea>
-    <button onclick="copyTemplate(1)">コピー</button>
-  </section>
+        <section>
+            <h2>① キャラ口調ガイド生成</h2>
+            <textarea id="inputText1" placeholder="ここに本文を入力してください..."></textarea>
+            <button onclick="copyTemplate(1)" class="action-btn">コピー</button>
+        </section>
 
-  <section>
-    <h2>② 話者特定＋口調補正</h2>
-    <textarea id="inputText2" placeholder="ここにキャラクター口調ガイドを入力してください..."></textarea>
-    <button onclick="copyTemplate(2)">コピー（①の本文を使用）</button>
-  </section>
+        <section>
+            <h2>② 話者特定＋口調補正</h2>
+            <textarea id="inputText2" placeholder="ここにキャラクター口調ガイドを入力してください..."></textarea>
+            <button onclick="copyTemplate(2)" class="action-btn">コピー（①の本文を使用）</button>
+        </section>
 
-  <section>
-    <h2>③ JSON整形テンプレート</h2>
-    <textarea id="inputText3" placeholder="ここに話者明示済みの本文を入力してください..."></textarea>
-    <button onclick="copyTemplate(3)">コピー</button>
-  </section>
+        <section>
+            <h2>③ JSON整形テンプレート</h2>
+            <textarea id="inputText3" placeholder="ここに話者明示済みの本文を入力してください..."></textarea>
+            <button onclick="copyTemplate(3)" class="action-btn">コピー</button>
+        </section>
 
-  <section>
-    <h2>④ JSONデータをアップロード</h2>
-    <textarea id="json-input" placeholder='[{"episode": 1, "sceneNumber": 1, "character": "勇者", "text": "...", "face": "normal"}]'></textarea>
-    <button id="upload-button">アップロード</button>
-    <div id="message"></div>
-  </section>
+        <section>
+            <h2>④ JSONデータをアップロード</h2>
+            <textarea id="json-input" placeholder='[{"episode": 1, "sceneNumber": 1, "character": "勇者", "text": "...", "face": "normal"}]'></textarea>
+            <button id="upload-button" class="action-btn">アップロード</button>
+            <div id="message"></div>
+        </section>
+        
+        <button id="return-button" class="cancel-button">ノベルビューアに戻る</button>
 
-  <script>
-    const episodeInput = document.getElementById("episode");
-    const jsonInput = document.getElementById("json-input");
-    const uploadButton = document.getElementById("upload-button");
-    const messageDiv = document.getElementById("message");
-    const GAS_BASE_URL = 'https://cat-seven-blond.vercel.app/api/gas-proxy';
-    const SCENES_PROXY_PATH = `${GAS_BASE_URL}?api=scenes`;
+        <script>
+            const episodeInput = document.getElementById("episode");
+            const jsonInput = document.getElementById("json-input");
+            const uploadButton = document.getElementById("upload-button");
+            const messageDiv = document.getElementById("message");
+            const returnButton = document.getElementById("return-button"); // 追加
+            const GAS_BASE_URL = 'https://cat-seven-blond.vercel.app/api/gas-proxy';
+            const SCENES_PROXY_PATH = `${GAS_BASE_URL}?api=scenes`;
 
-    function copyTemplate(type) {
-      const ep = episodeInput.value || "1";
-      const input1 = document.getElementById("inputText1").value.trim();
-      const input2 = document.getElementById("inputText2").value.trim();
-      const input3 = document.getElementById("inputText3").value.trim();
-      let output = "";
+            function copyTemplate(type) {
+              const ep = episodeInput.value || "1";
+              const input1 = document.getElementById("inputText1").value.trim();
+              const input2 = document.getElementById("inputText2").value.trim();
+              const input3 = document.getElementById("inputText3").value.trim();
+              let output = "";
 
-      if (type === 1) {
-        output = `以下はファンタジー物語『勇者ハーレム』の抜粋です。\n\nこの本文をもとに、登場キャラクターの話し方・語尾・性格などを分析し、下記のフォーマットで出力してください。\nナレーションも一つの話者として扱ってください。\n\n---\n\n【出力フォーマット】\nキャラ名:  \n一人称:  \n二人称（主人公の呼び方）:  \n語尾・話し方:  \n性格傾向:  \n特徴的な口癖や言い回し:  \n\n---\n\n【入力本文】\n${input1}`;
-      } else if (type === 2) {
-        output = `以下はファンタジー物語『勇者ハーレム』の本文抜粋です。\n\nこの文章をもとに、各行の「話者（キャラクター）」を自動的に特定し、\nその話者の話し方や語尾が「キャラクター口調ガイド」と一致していない場合は補正してください。\n物語にふさわしい文体になるよう、各キャラクターの性格や状況に応じた自然なセリフに言い換えてください。\nナレーション行も三人称で簡潔・詩的に整えてください。\n\n---\n\n【キャラクター口調ガイド】\n${input2}\n\n---\n\n【出力形式】\n話者：セリフまたはナレーションの補正済み文章\n\n---\n\n${input1}`;
-      } else if (type === 3) {
-        output = `以下はファンタジー物語『勇者ハーレム』のエピソード${ep}です。\n\nこの文章をもとに、以下の条件に従って整形してください。\n\n---\n\n## 🔹【目的】\n+\n- 表情（感情）タグを付与（固定レパートリー内から選択）\n- 出力をJSON形式に整形し、後処理しやすくする\n\n---\n\n## 🔹【整形条件】\n- 話者（character）は必ず記載してください。\n- 表情（face）は「表情タグ一覧」から最も適切なものを1つ選んで記載してください。\n\n---\n\n## 🔹【表情タグ一覧】\n\n- normal（通常）\n- smile（笑顔）\n- angry（怒り）\n- shy（恥じらい）\n- sad（悲しみ）\n- cold（冷笑）\n- surprised（驚き）\n- corrupt（堕落）\n- ecstasy（恍惚）\n\n※JSON内では英語表記で統一してください。\n\n---\n\n## 🔹【出力形式】\n\n- 以下のJSON構造で出力してください\n- background, effect, specialは省略可能（後処理で追加）\n\n\`\`\`json\n[\n  {\n    "episode": ${ep},\n    "sceneNumber": 1,\n    "character": "ナレーション",\n    "text": "チハルは魔王が管理する森へやってきた。",\n    "background": "forest"\n  },\n  {\n    "episode": ${ep},\n    "sceneNumber": 2,\n    "character": "チハル",\n    "text": "これはエピソード1の最初のシーンだ。一括アップロードテスト。",\n    "face": "normal",\n    "background": "forest"\n  },\n  {\n    "episode": ${ep},\n    "sceneNumber": 3,\n    "character": "魔王",\n    "text": "ほう、新たなシーンが追加されたか。面白い。",\n    "face": "angry",\n    "background": "forest"\n  }\n]\n\`\`\`\n\n🔹【整形対象本文】\n${input3}`;
-      }
+              if (type === 1) {
+                output = `以下はファンタジー物語『勇者ハーレム』の抜粋です。\n\nこの本文をもとに、登場キャラクターの話し方・語尾・性格などを分析し、下記のフォーマットで出力してください。\nナレーションも一つの話者として扱ってください。\n\n---\n\n【出力フォーマット】\nキャラ名:  \n一人称:  \n二人称（主人公の呼び方）:  \n語尾・話し方:  \n性格傾向:  \n特徴的な口癖や言い回し:  \n\n---\n\n【入力本文】\n${input1}`;
+              } else if (type === 2) {
+                output = `以下はファンタジー物語『勇者ハーレム』の本文抜粋です。\n\nこの文章をもとに、各行の「話者（キャラクター）」を自動的に特定し、\nその話者の話し方や語尾が「キャラクター口調ガイド」と一致していない場合は補正してください。\n物語にふさわしい文体になるよう、各キャラクターの性格や状況に応じた自然なセリフに言い換えてください。\nナレーション行も三人称で簡潔・詩的に整えてください。\n\n---\n\n【キャラクター口調ガイド】\n${input2}\n\n---\n\n【出力形式】\n話者：セリフまたはナレーションの補正済み文章\n\n---\n\n${input1}`;
+              } else if (type === 3) {
+                output = `以下はファンタジー物語『勇者ハーレム』のエピソード${ep}です。\n\nこの文章をもとに、以下の条件に従って整形してください。\n\n---\n\n## 🔹【目的】\n+\n- 表情（感情）タグを付与（固定レパートリー内から選択）\n- 出力をJSON形式に整形し、後処理しやすくする\n\n---\n\n## 🔹【整形条件】\n- 話者（character）は必ず記載してください。\n- 表情（face）は「表情タグ一覧」から最も適切なものを1つ選んで記載してください。\n\n---\n\n## 🔹【表情タグ一覧】\n\n- normal（通常）\n- smile（笑顔）\n- angry（怒り）\n- shy（恥じらい）\n- sad（悲しみ）\n- cold（冷笑）\n- surprised（驚き）\n- corrupt（堕落）\n- ecstasy（恍惚）\n\n※JSON内では英語表記で統一してください。\n\n---\n\n## 🔹【出力形式】\n\n- 以下のJSON構造で出力してください\n- background, effect, specialは省略可能（後処理で追加）\n\n\`\`\`json\n[\n  {\n    "episode": ${ep},\n    "sceneNumber": 1,\n    "character": "ナレーション",\n    "text": "チハルは魔王が管理する森へやってきた。",\n    "background": "forest"\n  },\n  {\n    "episode": ${ep},\n    "sceneNumber": 2,\n    "character": "チハル",\n    "text": "これはエピソード1の最初のシーンだ。一括アップロードテスト。",\n    "face": "normal",\n    "background": "forest"\n  },\n  {\n    "episode": ${ep},\n    "sceneNumber": 3,\n    "character": "魔王",\n    "text": "ほう、新たなシーンが追加されたか。面白い。",\n    "face": "angry",\n    "background": "forest"\n  }\n]\n\`\`\`\n\n🔹【整形対象本文】\n${input3}`;
+              }
 
-      navigator.clipboard.writeText(output).then(() => {
-        alert("テンプレートをコピーしました！");
-      });
-    }
+              navigator.clipboard.writeText(output).then(() => {
+                alert("テンプレートをコピーしました！");
+              });
+            }
 
-    uploadButton.addEventListener('click', async () => {
-      const jsonText = jsonInput.value.trim();
-      if (!jsonText) return displayMessage('JSONデータを入力してください。', 'error');
-      displayMessage('データを処理中...', 'info');
-      uploadButton.disabled = true;
+            uploadButton.addEventListener('click', async () => {
+              const jsonText = jsonInput.value.trim();
+              if (!jsonText) return displayMessage('JSONデータを入力してください。', 'error');
+              displayMessage('データを処理中...', 'info');
+              uploadButton.disabled = true;
 
-      try {
-        const jsonData = JSON.parse(jsonText);
-        if (!Array.isArray(jsonData)) return displayMessage('JSONは配列形式である必要があります。', 'error');
-        if (jsonData.length === 0) return displayMessage('シーンデータが空です。', 'info');
+              try {
+                const jsonData = JSON.parse(jsonText);
+                if (!Array.isArray(jsonData)) return displayMessage('JSONは配列形式である必要があります。', 'error');
+                if (jsonData.length === 0) return displayMessage('シーンデータが空です。', 'info');
 
-        const response = await fetch(SCENES_PROXY_PATH, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(jsonData),
-        });
+                const response = await fetch(SCENES_PROXY_PATH, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify(jsonData),
+                });
 
-        const result = await response.json();
-        if (response.ok) {
-          displayMessage(`全 ${jsonData.length} 件のシーンをアップロードしました！\n${JSON.stringify(result, null, 2)}`, 'success');
-        } else {
-          let errorMessage = `アップロード失敗: ${response.status} ${response.statusText}\n`;
-          if (result.message) errorMessage += `詳細: ${result.message}\n`;
-          if (result.error) errorMessage += `エラー: ${result.error}\n`;
-          displayMessage(errorMessage, 'error');
-        }
-      } catch (error) {
-        displayMessage(`エラーが発生しました: ${error.message}`, 'error');
-      } finally {
-        uploadButton.disabled = false;
-      }
-    });
+                const result = await response.json();
+                if (response.ok) {
+                  displayMessage(`全 ${jsonData.length} 件のシーンをアップロードしました！\n${JSON.stringify(result, null, 2)}`, 'success');
+                } else {
+                  let errorMessage = `アップロード失敗: ${response.status} ${response.statusText}\n`;
+                  if (result.message) errorMessage += `詳細: ${result.message}\n`;
+                  if (result.error) errorMessage += `エラー: ${result.error}\n`;
+                  displayMessage(errorMessage, 'error');
+                }
+              } catch (error) {
+                displayMessage(`エラーが発生しました: ${error.message}`, 'error');
+              } finally {
+                uploadButton.disabled = false;
+              }
+            });
 
-    function displayMessage(message, type) {
-      messageDiv.textContent = message;
-      messageDiv.className = `message-${type}`;
-    }
-  </script>
+            function displayMessage(message, type) {
+              messageDiv.textContent = message;
+              messageDiv.className = `message-${type}`;
+            }
+
+            // 【修正点2: 遷移ロジック変更】ノベルビューアに戻るボタンのロジック
+            returnButton.addEventListener('click', () => {
+                // index.htmlはlocalStorageの 'novel_viewer_save' を参照して続きからロードする
+                window.location.href = 'index.html'; 
+            });
+            
+          </script>
+    </div>
 </body>
 </html>
