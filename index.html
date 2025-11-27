@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <link rel="manifest" href="/manifest.json">
     <title>勇者ハーレム - ファンタジービューア</title>
     
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -33,51 +34,51 @@
         #novel-container { 
             position: relative; width: 100%; height: 100%; 
             background-color: #000;
-            overflow: hidden; 
+            overflow: hidden; /* 画像のはみ出し防止 */
         }
 
         /* レイヤー共通設定 */
         .layer-image {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
             background-size: cover; background-position: center;
-            transition: opacity 0.6s ease; /* 背景のフェード演出は維持 */
+            transition: opacity 0.6s ease; /* ふんわり切り替え */
             opacity: 0;
             will-change: opacity;
         }
-        /* 背景/特殊画像/エフェクトが表示されるには、このクラスが必要 */
         .layer-image.visible { opacity: 1; }
 
         #background { z-index: 0; }
         
-        /* エフェクトレイヤー */
+        /* エフェクトレイヤー（乗算やスクリーンなどが必要ならmix-blend-modeを追加） */
         #effect-image { 
             z-index: 3; object-fit: cover; pointer-events: none; 
-            mix-blend-mode: screen; 
+            mix-blend-mode: screen; /* 光のエフェクト等はスクリーン合成 */
         }
 
-        /* 🧍 キャラクター（立ち絵） */
+        /* 🧍 キャラクター（1:1画像対応） */
         #character { 
             position: absolute; 
-            bottom: 0;       
+            bottom: 0;       /* 画面下部に配置 */
             left: 50%; 
-            transform: translateX(-50%); 
+            transform: translateX(-50%); /* 中央揃え */
             
             /* 1:1画像用調整 */
             width: auto;
             height: auto;
-            max-width: 90%; 
-            max-height: 85vh; 
+            max-width: 90%;  /* 横幅いっぱいにしすぎない */
+            max-height: 85vh; /* テキストボックスより上まで表示、でも突き抜けない */
             
             object-fit: contain; 
             z-index: 1; 
             
-            /* ★修正：即時表示のためトランジションとopacity: 0を廃止 */
-            transition: none; 
-            opacity: 1; 
+            /* 切り替えアニメーション */
+            transition: opacity 0.4s ease, filter 0.3s ease; 
+            opacity: 0;
             
             /* 立ち絵を際立たせるドロップシャドウ */
             filter: drop-shadow(0 0 15px rgba(0,0,0,0.6));
         }
+        #character.visible { opacity: 1; }
         
         /* 回想シーンなどで使用するシルエット化 */
         #character.flashback-shadow { 
@@ -87,21 +88,21 @@
         /* --- 💬 ダイアログボックス（スタイリッシュ・ファンタジー） --- */
         #dialogue-box {
             position: absolute; bottom: 0; left: 0; width: 100%; 
-            min-height: 28%; 
+            min-height: 28%; /* 少し高さを確保 */
             max-height: 45%;
             
             background: linear-gradient(to top, var(--ui-bg) 0%, rgba(15, 23, 42, 0.8) 100%);
-            border-top: 2px solid var(--accent-color); 
+            border-top: 2px solid var(--accent-color); /* ゴールドのライン */
             box-shadow: 0 -5px 20px rgba(0,0,0,0.5);
             
-            padding: 20px 30px 40px; 
+            padding: 20px 30px 40px; /* 下に余裕を持たせる */
             box-sizing: border-box; 
             z-index: 10; 
             display: flex; flex-direction: column;
         }
         
         #character-name { 
-            font-family: var(--font-serif); 
+            font-family: var(--font-serif); /* 明朝体 */
             font-size: 1.4em; 
             font-weight: 700; 
             color: var(--accent-color);
@@ -136,8 +137,8 @@
 
         .control-button { 
             width: 44px; height: 44px; 
-            border-radius: 8px; 
-            border: 1px solid rgba(192, 160, 128, 0.3); 
+            border-radius: 8px; /* 角丸四角形に変更 */
+            border: 1px solid rgba(192, 160, 128, 0.3); /* 薄いゴールド枠 */
             background: rgba(15, 23, 42, 0.6);
             backdrop-filter: blur(5px);
             color: var(--text-color); 
@@ -298,7 +299,6 @@
          * 設定定数
          */
         const CONFIG = {
-            // ★ここはご自身のVercelプロキシのURLが正しいか確認してください
             GAS_BASE_URL: 'https://cat-seven-blond.vercel.app/api/gas-proxy',
             PRELOAD_COUNT: 5,       // 先読み数
             STORAGE_KEY: 'novel_viewer_save'
@@ -424,7 +424,8 @@
         async function fetchAssets(type, tagSet, targetStore) {
             if (!tagSet.size) return;
             const tags = Array.from(tagSet);
-            const filter = `asset_type[equals]${type}[and](` + tags.map(t => `tag[equals]${encodeURIComponent(t)}`).join('[or]') + ')';
+            // URLパラメータが長くなりすぎないように注意（必要に応じて分割）
+            const filter = `asset_type[equals]${type}[and]` + tags.map(t => `tag[equals]${encodeURIComponent(t)}`).join('[or]');
             
             try {
                 const res = await fetchJson(`${PROXY.ASSETS}`, { filters: filter });
@@ -432,7 +433,7 @@
                 list.forEach(a => {
                     if (a.tag && a.image) {
                          if (type === 'character') {
-                            targetStore[a.tag] = { image: a.image, face_tags: [] }; 
+                            targetStore[a.tag] = { image: a.image, face_tags: [] }; // 表情タグなどあれば拡張
                         } else {
                             targetStore[a.tag] = a.image;
                         }
@@ -450,9 +451,9 @@
         function renderScene(s) {
             if (!s) return;
 
-            // 1. テキスト表示（即時表示）
+            // 1. テキスト表示（タイプライター廃止：即表示）
             ui.name.textContent = s.character || '';
-            ui.text.textContent = s.text || ''; 
+            ui.text.textContent = s.text || ''; // ここで一括表示
 
             // 2. 画像更新
             updateImage(ui.bgDiv, s.background, state.loadedAssets.bg, true);
@@ -465,6 +466,8 @@
             if (s.effect && String(s.effect).includes('影')) {
                 ui.charImg.classList.add('flashback-shadow');
             }
+            // 画像ロード完了後、visibleクラスをつける処理は updateImage 内でやるが、
+            // 念のためここで強制的にレイアウト再計算させる手もある
             
             saveProgress();
         }
@@ -475,15 +478,17 @@
             else if (tag && assetStore[tag]) src = assetStore[tag].image || assetStore[tag];
 
             if (isBg) {
-                // 背景処理 (フェードを維持)
+                // 背景処理
                 if (!src) {
                     el.classList.remove('visible');
                 } else {
+                    // 現在の画像と同じなら何もしない
                     if (el.style.backgroundImage.includes(src)) {
-                         el.classList.add('visible'); 
+                         el.classList.add('visible'); // 念のため
                          return;
                     }
                     
+                    // 新しい画像のプリロード
                     const img = new Image();
                     img.src = src;
                     img.onload = () => {
@@ -492,15 +497,24 @@
                     };
                 }
             } else {
-                // imgタグ処理（立ち絵など - 即時表示）
+                // imgタグ処理（立ち絵など）
                 if (!src) {
-                    el.src = ''; 
-                    el.style.display = 'none';
+                    el.classList.remove('visible');
+                    el.src = ''; // クリア
+                    el.style.display = 'none'; // 完全に消す
                 } else {
                     el.style.display = 'block';
-                    if (el.src === src) return;
+                    if (el.src === src && el.classList.contains('visible')) return;
 
-                    el.src = src; // ★CSSでopacity: 1;になっているため、即時表示される
+                    el.classList.remove('visible');
+                    el.src = src;
+                    
+                    // キャッシュされている場合は即表示
+                    if (el.complete) {
+                        el.classList.add('visible');
+                    } else {
+                        el.onload = () => el.classList.add('visible');
+                    }
                 }
             }
         }
@@ -513,6 +527,7 @@
             if (state.modalMode || ui.modal.style.display === 'flex') return;
             if (e.target.closest('#floating-controls')) return;
 
+            // 左側タップで戻る、右側で進む
             const isLeft = e.clientX < window.innerWidth * 0.3;
             if (isLeft) prevScene();
             else nextScene();
@@ -547,7 +562,7 @@
         }
 
         /* =================================================================
-           API & ユーティリティ (中略)
+           API & ユーティリティ
            ================================================================= */
 
         async function fetchJson(url, params = {}) {
@@ -576,10 +591,11 @@
         }
 
         /* =================================================================
-           UI連携 (編集・モーダル) (中略)
+           UI連携 (編集・モーダル)
            ================================================================= */
         
         async function populateEpisodeSelect() {
+            // 本来はエピソードリスト専用API推奨
             const allScenes = await fetchJson(PROXY.SCENES); 
             const eps = new Set();
             allScenes.forEach(s => { if(s.episode) eps.add(parseInt(s.episode)); });
@@ -594,6 +610,7 @@
             });
         }
 
+        // モーダル開閉
         document.getElementById('episode-select-icon').onclick = () => openModal('episode-list');
         document.getElementById('menu-icon').onclick = (e) => {
             e.stopPropagation();
@@ -617,6 +634,7 @@
                     btn.className = 'control-button';
                     btn.style.width = '100%'; btn.style.marginBottom = '10px'; btn.style.borderRadius = '4px';
                     btn.textContent = `エピソード ${ep}`;
+                    // 現在のエピソードなら色を変える
                     if(ep == ui.epSelect.value) {
                          btn.style.borderColor = 'var(--accent-color)';
                          btn.style.background = 'rgba(192, 160, 128, 0.3)';
@@ -636,6 +654,7 @@
             state.modalMode = '';
         };
 
+        // 編集フォーム設定
         document.getElementById('add-scene-button').onclick = () => setupEdit('add');
         document.getElementById('edit-scene-button').onclick = () => setupEdit('edit');
         document.getElementById('delete-scene-button').onclick = () => setupEdit('delete');
@@ -679,6 +698,7 @@
             setOptions('backgrounds-list', Object.keys(state.loadedAssets.bg));
         }
 
+        // フォーム送信処理（API）
         document.getElementById('edit-form').onsubmit = async (e) => {
             e.preventDefault();
             const formData = new FormData(e.target);
