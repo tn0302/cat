@@ -324,7 +324,7 @@
         GAS_BASE_URL: 'https://cat-seven-blond.vercel.app/api/gas-proxy' 
     };
     const ASSETS_API = `${CONFIG.GAS_BASE_URL}?api=assets`; // GET用
-    const UPDATE_API_PATH = `${CONFIG.GAS_BASE_URL}?api=uploadAsset`; // POST/PUT用 (asset_upload.htmlの実績に基づき修正)
+    const WRITE_API_PATH = `${CONFIG.GAS_BASE_URL}?api=uploadAsset`; // POST/PUT/DELETE用 (asset_upload.htmlの実績に基づき修正)
 
 
     let allAssets = [];
@@ -338,6 +338,35 @@
             reader.readAsDataURL(file);
         });
     }
+    
+    // --- ユーティリティ: URLからpublic_idを抽出する（Cloudinary削除に必要） ---
+    function getPublicIdFromUrl(url) {
+        if (!url || !url.includes('cloudinary')) return null;
+        try {
+            const path = new URL(url).pathname;
+            const parts = path.split('/');
+            // バージョン番号 v<numbers> の部分を特定
+            const versionPartIndex = parts.findIndex(p => p.startsWith('v') && !isNaN(p.substring(1)));
+            
+            if (versionPartIndex === -1 || parts.length < versionPartIndex + 2) return null;
+
+            // バージョン番号の次の部分から末尾までを取得 (例: folder/image_id.png)
+            const publicIdParts = parts.slice(versionPartIndex + 1);
+            let publicIdWithExt = publicIdParts.join('/');
+            
+            // 拡張子を除去
+            const lastDotIndex = publicIdWithExt.lastIndexOf('.');
+            if (lastDotIndex > -1) {
+                return publicIdWithExt.substring(0, lastDotIndex);
+            }
+            return publicIdWithExt;
+
+        } catch(e) {
+            console.error("URL解析エラー:", e);
+            return null;
+        }
+    }
+
 
     // --- 初期化 ---
     window.onload = async () => {
@@ -477,6 +506,9 @@
         const faceTagValue = asset.character_face_tag || '（顔タグなし）';
         document.getElementById('edit-face').value = faceTagValue;
         
+        // 元の画像URLを保存 (削除のために必要)
+        document.getElementById('edit-form').dataset.originalImageUrl = asset.image; 
+        
         // モーダルを開くときに、ファイル入力とURL入力をクリア/設定
         document.getElementById('edit-file').value = ''; 
         document.getElementById('edit-url').value = asset.image;
@@ -487,18 +519,19 @@
 
     window.closeModal = () => {
         document.getElementById('edit-modal').style.display = 'none';
+        document.getElementById('edit-form').dataset.originalImageUrl = ''; // クリア
     };
 
-    // ===========================================
-    // ▼ 更新処理 (uploadAssetパス + ID送信方式に修正)
-    // ===========================================
+    // --- 更新処理 ---
     document.getElementById('edit-form').onsubmit = async (e) => {
         e.preventDefault();
+        const form = e.target;
         const id = document.getElementById('edit-id').value;
         const tag = document.getElementById('edit-tag').value;
         const faceTag = document.getElementById('edit-face').value;
         const fileInput = document.getElementById('edit-file');
         const urlInput = document.getElementById('edit-url');
+        const originalImageUrl = form.dataset.originalImageUrl; // 元のURLを取得
         
         let imageUrlOrBase64;
         
@@ -508,35 +541,71 @@
             if (fileInput.files.length > 0) {
                 // 1. ファイルが選択されている場合 (Base64を優先)
                 imageUrlOrBase64 = await readFileAsDataURL(fileInput.files[0]);
-            } else if (urlInput.value.trim()) {
-                // 2. ファイルがなく、URLが入力されている場合
+            } else if (urlInput.value.trim() && urlInput.value.trim() !== originalImageUrl) {
+                // 2. ファイルがなく、URLが入力され、かつ元のURLと異なる場合
                 imageUrlOrBase64 = urlInput.value.trim();
+            } else if (urlInput.value.trim() === originalImageUrl && fileInput.files.length === 0) {
+                // 3. 変更がない場合（何もしない）
+                closeModal();
+                return;
             } else {
-                // 3. どちらも空の場合
+                 // 4. 新しいURLやファイルがなく、元の画像がクリアされている場合（削除の意図ではないので更新を中止）
                 alert('新しい画像ファイルを選択するか、URLを入力してください。');
                 showLoading(false);
                 return;
             }
+            
+            // ===================================
+            // ▼ 削除処理 (差し替えの場合のみ実行)
+            // ===================================
+            // ファイルまたはURLが変更された場合のみ、元の画像を削除
+            const newImageIsDifferent = (imageUrlOrBase64 !== originalImageUrl);
 
-            // 送信するデータオブジェクト
+            if (originalImageUrl && newImageIsDifferent) {
+                const publicIdToDelete = getPublicIdFromUrl(originalImageUrl);
+                
+                if (publicIdToDelete) {
+                    // Cloudinaryのpublic_idを指定して削除リクエストを送信
+                    const deleteData = {
+                        _method: "DELETE", // DELETE操作であることを明示
+                        asset_type: 'character', // GAS側の処理に必要な情報を渡す
+                        public_id: publicIdToDelete,
+                    };
+                    
+                    const deleteRes = await fetch(WRITE_API_PATH, {
+                        method: 'POST', 
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(deleteData)
+                    });
+                    
+                    if (!deleteRes.ok) {
+                        const errText = await deleteRes.text();
+                        console.warn(`古い画像の削除に失敗しました (ID: ${publicIdToDelete}). エラーは無視して更新を続行します: ${errText}`);
+                        // 削除が失敗しても、画像更新は続行する
+                    } else {
+                        console.log(`古い画像 (ID: ${publicIdToDelete}) の削除に成功しました。`);
+                    }
+                } else {
+                    console.warn("元の画像URLからpublic_idを抽出できませんでした。削除処理はスキップされます。");
+                }
+            }
+
+
+            // ===================================
+            // ▼ 更新処理
+            // ===================================
             const dataToSend = {
-                // IDを含めることで、GAS側で既存データの更新と判断されることを期待
                 id: id, 
-                // 更新にはこれらの情報も必須である可能性が高いため、含める
                 asset_type: 'character', 
                 tag: tag,
-                // '（顔タグなし）'は空文字列に変換して送信
                 character_face_tag: faceTag === '（顔タグなし）' ? '' : faceTag,
-                character_special: '', // specialは変更しないため空文字として送信
+                character_special: '', 
                 image: imageUrlOrBase64, // Base64 or URL
             };
             
-            // 更新APIリクエストは、uploadAssetパスを使用
-            const res = await fetch(UPDATE_API_PATH, {
-                method: 'POST', // すべての書き込み操作はPOSTで送信
-                headers: {
-                    'Content-Type': 'application/json',
-                },
+            const res = await fetch(WRITE_API_PATH, {
+                method: 'POST', 
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(dataToSend)
             });
 
