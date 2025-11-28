@@ -445,9 +445,6 @@
                 
                 const faceName = asset.character_face_tag || 'default';
                 
-                // card.innerHTML内のonclickの文字列JSONを安全に渡すため、
-                // card要素自体はinnerHTMLで生成せず、edit-btnにイベントを付ける方が安全だが、
-                // コードの簡潔さを優先してこのまま続行（ただしJSON.stringifyには注意）
                 card.innerHTML = `
                     <div class="img-wrapper" data-asset-id="${asset.id}">
                         <img class="asset-img" src="${asset.image}" loading="lazy" onerror="this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDAiIGhlaWdodD0iMTAwIiB2aWV3Qm94PSIwIDAgMTAwIDEwMCI+PHJlY3Qgd2lkdGg9IjEwMCIgaGVpZ2h0PSIxMDAiIGZpbGw9IiMzMzMiLz48dGV4dCB4PSI1MCIgeT0iNTAiIGZvbnQtZmFtaWx5PSJzYW5zLXNlcmlmIiBmb250LXNpemU9IjE0IiBmaWxsPSIjOTk5IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBkeT0iLjNlbSI+Tk8gSU1BR0U8L3RleHQ+PC9zdmc+'">
@@ -488,7 +485,9 @@
         document.getElementById('edit-modal').style.display = 'none';
     };
 
-    // --- 更新処理 ---
+    // ===========================================
+    // ▼ 更新処理 (修正箇所)
+    // ===========================================
     document.getElementById('edit-form').onsubmit = async (e) => {
         e.preventDefault();
         const id = document.getElementById('edit-id').value;
@@ -513,12 +512,16 @@
                 return;
             }
 
-            // アセット更新APIリクエスト (PUT)
-            const res = await fetch(`${ASSETS_API}&id=${id}`, {
-                method: 'POST', // GASプロキシの仕様に合わせる
+            // APIリクエストURLを、PUTであることを示すクエリパラメータ付きで構成
+            // `asset_upload.html`で使われている確実に動作する通信方式を採用
+            const updateUrl = `${ASSETS_API}&id=${id}&method=PUT`;
+
+            // アセット更新APIリクエスト
+            const res = await fetch(updateUrl, {
+                method: 'POST', // プロキシはPOSTで受け取り、内部でPUTとして処理
                 headers: {
                     'Content-Type': 'application/json',
-                    'X-HTTP-Method-Override': 'PUT' // PUTとして処理させる
+                    // X-HTTP-Method-Override: 'PUT' は削除
                 },
                 body: JSON.stringify({
                     image: imageUrlOrBase64, // Base64 or URL
