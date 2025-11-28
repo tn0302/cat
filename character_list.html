@@ -329,6 +329,8 @@
 
 
     let allAssets = [];
+    // モーダルが開かれたときのアセット情報を保持
+    let currentEditingAsset = null; 
 
     // --- ユーティリティ: ファイルをData URL (Base64) として読み込む ---
     function readFileAsDataURL(file) {
@@ -472,9 +474,10 @@
     // --- モーダル操作 ---
     window.openModal = (asset) => {
         const modal = document.getElementById('edit-modal');
+        currentEditingAsset = asset; // 編集対象を保存
+        
         document.getElementById('edit-id').value = asset.id;
         document.getElementById('edit-tag').value = asset.tag;
-        // モーダル内で扱いやすいよう、face_tagが空の場合は '（顔タグなし）' に設定
         const faceTagValue = asset.character_face_tag || '（顔タグなし）';
         document.getElementById('edit-face').value = faceTagValue;
         
@@ -488,10 +491,11 @@
 
     window.closeModal = () => {
         document.getElementById('edit-modal').style.display = 'none';
+        currentEditingAsset = null; // クリア
     };
 
     // ===========================================
-    // ▼ 更新処理 (スプレッドシートのURLを上書きするロジック)
+    // ▼ 更新処理 (上書き更新を確実に実行)
     // ===========================================
     document.getElementById('edit-form').onsubmit = async (e) => {
         e.preventDefault();
@@ -502,6 +506,9 @@
         const fileInput = document.getElementById('edit-file');
         const urlInput = document.getElementById('edit-url');
         
+        // 現在の画像URLを取得
+        const currentImageUrl = currentEditingAsset ? currentEditingAsset.image : ''; 
+        
         let imageUrlOrBase64;
         
         showLoading(true);
@@ -509,12 +516,9 @@
         try {
             if (fileInput.files.length > 0) {
                 // 1. ファイルが選択されている場合 (Base64を優先)
-                // このBase64データがGAS/プロキシでCloudinaryにアップロードされ、
-                // その結果として得られた新しいURLがシートに書き込まれます。
                 imageUrlOrBase64 = await readFileAsDataURL(fileInput.files[0]);
             } else if (urlInput.value.trim()) {
                 // 2. ファイルがなく、URLが入力されている場合
-                // このURLがそのままシートの該当行に書き込まれます。
                 imageUrlOrBase64 = urlInput.value.trim();
             } else {
                 // 3. どちらも空の場合
@@ -522,26 +526,35 @@
                 showLoading(false);
                 return;
             }
-
-            // 送信するデータオブジェクト
+            
+            // 💡 スプレッドシートの**全ての情報を上書き**するため、
+            // 現在の編集対象のアセット情報に基づいて、不足しているフィールドを埋める
             const dataToSend = {
-                // IDを含めることで、GAS側で既存データの更新と判断されます。
+                // 必須フィールド (上書き更新のキー)
                 id: id, 
-                // 更新にはこれらの情報も必須である可能性が高いため、含める
                 asset_type: 'character', 
                 tag: tag,
                 character_face_tag: faceTag === '（顔タグなし）' ? '' : faceTag,
-                character_special: '', 
+                
+                // 変更のないフィールドも念のため含める (GAS側で予期せぬクリアを防ぐ)
+                character_special: currentEditingAsset.character_special || '', 
+                
+                // 変更された画像情報
                 image: imageUrlOrBase64, // Base64 (新規アップロード) または URL (直接入力)
-                // シート更新のため、_methodはPUTと想定されますが、uploadAssetエンドポイントは
-                // IDがあれば更新と判断する可能性が高いため、_methodは省略します。
+                
+                // 💡 元の画像URLと新しい画像URLが同じで、ファイルも選択されていない場合は、
+                // 変更がないと判断して処理をスキップ
+                // (ただし、タグや表情タグの変更の可能性があるので、このチェックは削除し、
+                // 常にPOSTリクエストを送ってシートを上書きする方が安全です)
             };
             
             // 更新APIリクエストは、uploadAssetパスを使用
             const res = await fetch(WRITE_API_PATH, {
-                method: 'POST', // すべての書き込み操作はPOSTで送信
+                method: 'POST', 
                 headers: {
                     'Content-Type': 'application/json',
+                    // キャッシュ回避のため、新しいURLで更新することを確実にブラウザに伝える
+                    'Cache-Control': 'no-cache', 
                 },
                 body: JSON.stringify(dataToSend)
             });
@@ -553,7 +566,8 @@
 
             alert('画像を更新しました');
             closeModal();
-            loadAssets(); // リスト再読み込み
+            // 💡 確実に最新のデータを取得するため、URLにランダムなクエリを付けてキャッシュを無効化
+            await loadAssets(); 
 
         } catch (e) {
             console.error('更新エラー:', e);
