@@ -166,7 +166,9 @@
         document.getElementById('edit-modal').style.display = 'none';
     };
 
-    // --- 更新処理 ---
+    // ===========================================
+    // ▼ 更新処理 (最終修正箇所)
+    // ===========================================
     document.getElementById('edit-form').onsubmit = async (e) => {
         e.preventDefault();
         const id = document.getElementById('edit-id').value;
@@ -191,19 +193,24 @@
                 return;
             }
 
-            // APIリクエストURLを、PUTであることを示すクエリパラメータ付きで構成
-            // 確実に動作する通信方式を採用
-            const updateUrl = `${ASSETS_API}&id=${id}&method=PUT`;
+            // APIリクエストURLはシンプルにアセットAPIのベースパスを使用
+            const updateUrl = `${ASSETS_API}&id=${id}`;
+
+            // 送信するデータオブジェクト
+            const dataToSend = {
+                // 実際の操作がPUTであることをGASプロキシに伝える
+                _method: "PUT", 
+                // 更新したいフィールド (Base64またはURL)
+                image: imageUrlOrBase64, 
+            };
 
             // アセット更新APIリクエスト
             const res = await fetch(updateUrl, {
-                method: 'POST', // プロキシはPOSTで受け取り、内部でPUTとして処理
+                method: 'POST', // すべての書き込み操作はPOSTで送信
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({
-                    image: imageUrlOrBase64, // Base64 or URL
-                })
+                body: JSON.stringify(dataToSend)
             });
 
             if (!res.ok) {
@@ -230,5 +237,3 @@
     }
 
 </script>
-</body>
-</html>
