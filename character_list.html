@@ -323,7 +323,9 @@
         // index.htmlと同じGAS URLを設定してください
         GAS_BASE_URL: 'https://cat-seven-blond.vercel.app/api/gas-proxy' 
     };
-    const ASSETS_API = `${CONFIG.GAS_BASE_URL}?api=assets`;
+    const ASSETS_API = `${CONFIG.GAS_BASE_URL}?api=assets`; // GET用
+    const UPDATE_API_PATH = `${CONFIG.GAS_BASE_URL}?api=uploadAsset`; // POST/PUT用 (asset_upload.htmlの実績に基づき修正)
+
 
     let allAssets = [];
 
@@ -471,7 +473,9 @@
         const modal = document.getElementById('edit-modal');
         document.getElementById('edit-id').value = asset.id;
         document.getElementById('edit-tag').value = asset.tag;
-        document.getElementById('edit-face').value = asset.character_face_tag || 'default';
+        // モーダル内で扱いやすいよう、face_tagが空の場合は '（顔タグなし）' に設定
+        const faceTagValue = asset.character_face_tag || '（顔タグなし）';
+        document.getElementById('edit-face').value = faceTagValue;
         
         // モーダルを開くときに、ファイル入力とURL入力をクリア/設定
         document.getElementById('edit-file').value = ''; 
@@ -486,11 +490,13 @@
     };
 
     // ===========================================
-    // ▼ 更新処理 (最終修正箇所)
+    // ▼ 更新処理 (uploadAssetパス + ID送信方式に修正)
     // ===========================================
     document.getElementById('edit-form').onsubmit = async (e) => {
         e.preventDefault();
         const id = document.getElementById('edit-id').value;
+        const tag = document.getElementById('edit-tag').value;
+        const faceTag = document.getElementById('edit-face').value;
         const fileInput = document.getElementById('edit-file');
         const urlInput = document.getElementById('edit-url');
         
@@ -512,19 +518,21 @@
                 return;
             }
 
-            // APIリクエストURLはシンプルにアセットAPIのベースパスを使用
-            const updateUrl = `${ASSETS_API}&id=${id}`;
-
             // 送信するデータオブジェクト
             const dataToSend = {
-                // 実際の操作がPUTであることをGASプロキシに伝える
-                _method: "PUT", 
-                // 更新したいフィールド (Base64またはURL)
-                image: imageUrlOrBase64, 
+                // IDを含めることで、GAS側で既存データの更新と判断されることを期待
+                id: id, 
+                // 更新にはこれらの情報も必須である可能性が高いため、含める
+                asset_type: 'character', 
+                tag: tag,
+                // '（顔タグなし）'は空文字列に変換して送信
+                character_face_tag: faceTag === '（顔タグなし）' ? '' : faceTag,
+                character_special: '', // specialは変更しないため空文字として送信
+                image: imageUrlOrBase64, // Base64 or URL
             };
-
-            // アセット更新APIリクエスト
-            const res = await fetch(updateUrl, {
+            
+            // 更新APIリクエストは、uploadAssetパスを使用
+            const res = await fetch(UPDATE_API_PATH, {
                 method: 'POST', // すべての書き込み操作はPOSTで送信
                 headers: {
                     'Content-Type': 'application/json',
