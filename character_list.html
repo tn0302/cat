@@ -7,7 +7,562 @@
     
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500&family=Shippori+Mincho:wght@500;700&displa<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>立ち絵管理 - 勇者ハーレム</title>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500&family=Shippori+Mincho:wght@500;700&display=swap" rel="stylesheet">
+    
+    <style>
+        /* --- 共通テーマ設定 --- */
+        :root {
+            --bg-color: #0f172a;       /* 背景 */
+            --text-color: #e2e8f0;     /* 文字 */
+            --accent-color: #c0a080;   /* アクセント(金) */
+            --ui-bg: #1e293b;          /* カード/モーダル背景 */
+            --input-bg: #020617;       /* 入力欄背景 */
+            --font-main: 'Noto Sans JP', sans-serif;
+            --font-serif: 'Shippori Mincho', serif;
+        }
+
+        body {
+            font-family: var(--font-main);
+            margin: 0; padding: 0;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            min-height: 100vh;
+        }
+
+        /* --- ヘッダー --- */
+        header {
+            background: rgba(15, 23, 42, 0.95);
+            border-bottom: 1px solid var(--accent-color);
+            padding: 15px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            backdrop-filter: blur(10px);
+        }
+
+        h1 {
+            font-family: var(--font-serif);
+            color: var(--accent-color);
+            margin: 0;
+            font-size: 1.2rem;
+        }
+
+        /* --- コントロールエリア --- */
+        .controls {
+            padding: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .search-box {
+            width: 100%;
+            max-width: 400px;
+            padding: 10px 15px;
+            border-radius: 20px;
+            border: 1px solid #475569;
+            background: var(--input-bg);
+            color: #fff;
+            font-size: 1rem;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+        .search-box:focus { border-color: var(--accent-color); }
+
+        /* --- キャラクターリスト --- */
+        #character-container {
+            padding: 0 20px 40px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .char-group {
+            margin-bottom: 40px;
+            background: rgba(30, 41, 59, 0.4);
+            border-radius: 12px;
+            padding: 20px;
+            border: 1px solid rgba(192, 160, 128, 0.1);
+        }
+
+        .char-name-header {
+            font-family: var(--font-serif);
+            color: var(--accent-color);
+            font-size: 1.5rem;
+            margin-bottom: 15px;
+            border-bottom: 1px solid rgba(192, 160, 128, 0.3);
+            padding-bottom: 5px;
+        }
+
+        .asset-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+            gap: 15px;
+        }
+
+        /* --- アセットカード --- */
+        .asset-card {
+            background: var(--ui-bg);
+            border: 1px solid #334155;
+            border-radius: 8px;
+            overflow: hidden;
+            transition: transform 0.2s, box-shadow 0.2s;
+            position: relative;
+        }
+        .asset-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+            border-color: var(--accent-color);
+        }
+
+        .img-wrapper {
+            width: 100%;
+            height: 140px; 
+            background-image: 
+                linear-gradient(45deg, #111 25%, transparent 25%), 
+                linear-gradient(-45deg, #111 25%, transparent 25%), 
+                linear-gradient(45deg, transparent 75%, #111 75%), 
+                linear-gradient(-45deg, transparent 75%, #111 75%);
+            background-size: 20px 20px;
+            background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+            background-color: #222;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            cursor: pointer;
+        }
+
+        .asset-img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain; 
+        }
+
+        .card-info {
+            padding: 8px;
+            text-align: center;
+        }
+
+        .face-tag {
+            display: inline-block;
+            background: var(--accent-color);
+            color: #000;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        
+        .edit-btn {
+            width: 100%;
+            background: #334155;
+            border: 1px solid #475569;
+            color: #ccc;
+            padding: 4px;
+            cursor: pointer;
+            border-radius: 4px;
+            font-size: 0.85rem;
+        }
+        .edit-btn:hover { background: #475569; color: #fff; }
+
+        /* --- モーダル --- */
+        #edit-modal {
+            display: none;
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85);
+            z-index: 200;
+            justify-content: center;
+            align-items: center;
+            backdrop-filter: blur(3px);
+        }
+
+        .modal-content {
+            background: var(--ui-bg);
+            border: 1px solid var(--accent-color);
+            padding: 25px;
+            border-radius: 8px;
+            width: 90%;
+            max-width: 500px;
+            box-shadow: 0 0 30px rgba(0,0,0,0.8);
+        }
+
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; color: var(--accent-color); font-size: 0.9rem; }
+        input[type="text"], input[type="file"] {
+            width: 100%; padding: 10px;
+            background: var(--input-bg);
+            border: 1px solid #475569;
+            color: #fff;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        
+        .preview-area {
+            width: 100%;
+            height: 200px;
+            border: 1px dashed #475569;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #000;
+        }
+        .preview-img { max-height: 100%; max-width: 100%; object-fit: contain; }
+
+        .btn-row { display: flex; gap: 10px; justify-content: flex-end; }
+        
+        button.primary-btn {
+            background: var(--accent-color); color: #0f172a;
+            border: none; padding: 10px 20px; font-weight: bold;
+            border-radius: 4px; cursor: pointer;
+        }
+        button.secondary-btn {
+            background: transparent; color: #94a3b8;
+            border: 1px solid #475569; padding: 10px 20px;
+            border-radius: 4px; cursor: pointer;
+        }
+
+        /* --- ローディング --- */
+        #loading {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: #000; color: var(--accent-color); z-index: 300;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            font-family: var(--font-serif);
+            transition: opacity 0.5s;
+        }
+        .spinner {
+            width: 40px; height: 40px;
+            border: 3px solid rgba(192, 160, 128, 0.2);
+            border-top: 3px solid var(--accent-color);
+            border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 15px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* 戻るボタン */
+        .nav-btn {
+            text-decoration: none;
+            color: var(--text-color);
+            border: 1px solid #475569;
+            padding: 5px 12px;
+            border-radius: 4px;
+            font-size: 0.9rem;
+            transition: all 0.2s;
+            background: rgba(30, 41, 59, 0.5);
+        }
+        .nav-btn:hover { border-color: var(--accent-color); color: var(--accent-color); }
+
+    </style>
+</head>
+<body>
+
+    <div id="loading">
+        <div class="spinner"></div>
+        <div>Loading Assets...</div>
+    </div>
+
+    <header>
+        <h1>立ち絵一覧・管理</h1>
+        <a href="index.html" class="nav-btn">← ビューアに戻る</a>
+    </header>
+
+    <div class="controls">
+        <input type="text" id="search-input" class="search-box" placeholder="キャラクター名で検索...">
+    </div>
+
+    <div id="character-container">
+        </div>
+
+    <div id="edit-modal">
+        <div class="modal-content">
+            <h2 style="margin-top:0; color: var(--accent-color); font-family:var(--font-serif);">画像の差し替え</h2>
+            <form id="edit-form">
+                <input type="hidden" id="edit-id" name="id">
+                
+                <div class="form-group">
+                    <label>キャラクター名</label>
+                    <input type="text" id="edit-tag" name="tag" readonly style="background:#1e293b; color:#94a3b8; border:none;">
+                </div>
+                
+                <div class="form-group">
+                    <label>表情タグ</label>
+                    <input type="text" id="edit-face" name="character_face_tag" readonly style="background:#1e293b; color:#94a3b8; border:none;">
+                </div>
+
+                <div class="form-group">
+                    <label>新しい画像ファイルを選択</label>
+                    <input type="file" id="edit-file" name="file" accept="image/*">
+                    <p style="font-size:0.8rem; color:#94a3b8; margin-top:5px;">※ファイルを選択した場合、URLよりも優先されます。（Base64形式で送信されます）</p>
+                </div>
+
+                <div class="form-group">
+                    <label>または、画像URLを入力 (任意)</label>
+                    <input type="text" id="edit-url" name="image" placeholder="https://...">
+                </div>
+
+                <div class="form-group">
+                    <label>プレビュー</label>
+                    <div class="preview-area">
+                        <img id="preview-img" class="preview-img" src="" alt="プレビューなし">
+                    </div>
+                </div>
+
+                <div class="btn-row">
+                    <button type="button" class="secondary-btn" onclick="closeModal()">キャンセル</button>
+                    <button type="submit" class="primary-btn">保存して更新</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+<script>
+    // 設定
+    const CONFIG = {
+        // index.htmlと同じGAS URLを設定してください
+        GAS_BASE_URL: 'https://cat-seven-blond.vercel.app/api/gas-proxy' 
+    };
+    const ASSETS_API = `${CONFIG.GAS_BASE_URL}?api=assets`;
+
+    let allAssets = [];
+
+    // --- ユーティリティ: ファイルをData URL (Base64) として読み込む ---
+    function readFileAsDataURL(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = (error) => reject(error);
+            reader.readAsDataURL(file);
+        });
+    }
+
+    // --- 初期化 ---
+    window.onload = async () => {
+        await loadAssets();
+        
+        // 検索フィルター
+        document.getElementById('search-input').addEventListener('input', (e) => {
+            renderList(e.target.value);
+        });
+
+        // プレビュー機能: ファイル入力の監視
+        document.getElementById('edit-file').addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            const previewImg = document.getElementById('preview-img');
+            const urlInput = document.getElementById('edit-url');
+            
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    previewImg.src = e.target.result;
+                };
+                reader.readAsDataURL(file);
+                // ファイルが選択されたらURL欄はクリア（優先順位を明確にするため）
+                urlInput.value = '';
+            }
+        });
+
+        // プレビュー機能: URL入力の監視
+        document.getElementById('edit-url').addEventListener('input', (e) => {
+            const fileInput = document.getElementById('edit-file');
+            const previewImg = document.getElementById('preview-img');
+            
+            // ファイルが選択されていない場合のみURLプレビューを有効にする
+            if (!fileInput.files.length) {
+                previewImg.src = e.target.value;
+            }
+        });
+    };
+
+    // --- データ取得 ---
+    async function loadAssets() {
+        showLoading(true);
+        try {
+            // characterタイプのみ取得
+            const res = await fetch(`${ASSETS_API}&filters=asset_type[equals]character`);
+            if (!res.ok) throw new Error('Network error');
+            
+            const data = await res.json();
+            allAssets = Array.isArray(data) ? data : (data.contents || []);
+            
+            renderList();
+        } catch (e) {
+            alert('読み込みに失敗しました: ' + e.message);
+        } finally {
+            showLoading(false);
+        }
+    }
+
+    // --- リスト描画 ---
+    function renderList(keyword = '') {
+        const container = document.getElementById('character-container');
+        container.innerHTML = '';
+
+        // キーワードフィルタ
+        const filtered = allAssets.filter(a => {
+            if (!a.tag) return false;
+            return a.tag.toLowerCase().includes(keyword.toLowerCase());
+        });
+
+        if (filtered.length === 0) {
+            container.innerHTML = '<div style="text-align:center; color:#64748b;">該当するキャラクターが見つかりません</div>';
+            return;
+        }
+
+        // キャラクター名(tag)でグループ化
+        const groups = {};
+        filtered.forEach(a => {
+            if (!groups[a.tag]) groups[a.tag] = [];
+            groups[a.tag].push(a);
+        });
+
+        // グループごとに描画
+        Object.keys(groups).sort().forEach(tagName => {
+            const groupDiv = document.createElement('div');
+            groupDiv.className = 'char-group';
+
+            const header = document.createElement('div');
+            header.className = 'char-name-header';
+            header.textContent = tagName;
+            groupDiv.appendChild(header);
+
+            const grid = document.createElement('div');
+            grid.className = 'asset-grid';
+
+            // 表情タグ順にソート（defaultを先頭に）
+            const sortedAssets = groups[tagName].sort((a, b) => {
+                const fa = a.character_face_tag || '';
+                const fb = b.character_face_tag || '';
+                if (fa === 'default' || fa === '') return -1;
+                if (fb === 'default' || fb === '') return 1;
+                return fa.localeCompare(fb);
+            });
+
+            sortedAssets.forEach(asset => {
+                const card = document.createElement('div');
+                card.className = 'asset-card';
+                
+                const faceName = asset.character_face_tag || 'default';
+                
+                card.innerHTML = `
+                    <div class="img-wrapper" data-asset-id="${asset.id}">
+                        <img class="asset-img" src="${asset.image}" loading="lazy" onerror="this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDAiIGhlaWdodD0iMTAwIiB2aWV3Qm94PSIwIDAgMTAwIDEwMCI+PHJlY3Qgd2lkdGg9IjEwMCIgaGVpZ2h0PSIxMDAiIGZpbGw9IiMzMzMiLz48dGV4dCB4PSI1MCIgeT0iNTAiIGZvbnQtZmFtaWx5PSJzYW5zLXNlcmlmIiBmb250LXNpemU9IjE0IiBmaWxsPSIjOTk5IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBkeT0iLjNlbSI+Tk8gSU1BR0U8L3RleHQ+PC9zdmc+'">
+                    </div>
+                    <div class="card-info">
+                        <span class="face-tag">${faceName}</span>
+                        <button class="edit-btn" data-asset-id="${asset.id}">編集 / 差替</button>
+                    </div>
+                `;
+                grid.appendChild(card);
+                
+                // イベントリスナーを後から追加する方がより堅牢
+                card.querySelector('.edit-btn').addEventListener('click', () => openModal(asset));
+                card.querySelector('.img-wrapper').addEventListener('click', () => openModal(asset));
+            });
+
+            groupDiv.appendChild(grid);
+            container.appendChild(groupDiv);
+        });
+    }
+
+    // --- モーダル操作 ---
+    window.openModal = (asset) => {
+        const modal = document.getElementById('edit-modal');
+        document.getElementById('edit-id').value = asset.id;
+        document.getElementById('edit-tag').value = asset.tag;
+        document.getElementById('edit-face').value = asset.character_face_tag || 'default';
+        
+        // モーダルを開くときに、ファイル入力とURL入力をクリア/設定
+        document.getElementById('edit-file').value = ''; 
+        document.getElementById('edit-url').value = asset.image;
+        document.getElementById('preview-img').src = asset.image;
+        
+        modal.style.display = 'flex';
+    };
+
+    window.closeModal = () => {
+        document.getElementById('edit-modal').style.display = 'none';
+    };
+
+    // ===========================================
+    // ▼ 更新処理 (修正箇所)
+    // ===========================================
+    document.getElementById('edit-form').onsubmit = async (e) => {
+        e.preventDefault();
+        const id = document.getElementById('edit-id').value;
+        const fileInput = document.getElementById('edit-file');
+        const urlInput = document.getElementById('edit-url');
+        
+        let imageUrlOrBase64;
+        
+        showLoading(true);
+        
+        try {
+            if (fileInput.files.length > 0) {
+                // 1. ファイルが選択されている場合 (Base64を優先)
+                imageUrlOrBase64 = await readFileAsDataURL(fileInput.files[0]);
+            } else if (urlInput.value.trim()) {
+                // 2. ファイルがなく、URLが入力されている場合
+                imageUrlOrBase64 = urlInput.value.trim();
+            } else {
+                // 3. どちらも空の場合
+                alert('新しい画像ファイルを選択するか、URLを入力してください。');
+                showLoading(false);
+                return;
+            }
+
+            // APIリクエストURLを、PUTであることを示すクエリパラメータ付きで構成
+            // `asset_upload.html`で使われている確実に動作する通信方式を採用
+            const updateUrl = `${ASSETS_API}&id=${id}&method=PUT`;
+
+            // アセット更新APIリクエスト
+            const res = await fetch(updateUrl, {
+                method: 'POST', // プロキシはPOSTで受け取り、内部でPUTとして処理
+                headers: {
+                    'Content-Type': 'application/json',
+                    // X-HTTP-Method-Override: 'PUT' は削除
+                },
+                body: JSON.stringify({
+                    image: imageUrlOrBase64, // Base64 or URL
+                })
+            });
+
+            if (!res.ok) {
+                const errText = await res.text();
+                throw new Error(`Server error: ${res.status}. ${errText}`);
+            }
+
+            alert('画像を更新しました');
+            closeModal();
+            loadAssets(); // リスト再読み込み
+
+        } catch (e) {
+            console.error('更新エラー:', e);
+            alert('更新エラー: ' + e.message);
+        } finally {
+            showLoading(false);
+        }
+    };
+
+    function showLoading(show) {
+        const el = document.getElementById('loading');
+        el.style.opacity = show ? 1 : 0;
+        el.style.pointerEvents = show ? 'auto' : 'none';
+    }
+
+</script>
+</body>
+</html>y=swap" rel="stylesheet">
     
     <style>
         /* --- 共通テーマ設定 --- */
