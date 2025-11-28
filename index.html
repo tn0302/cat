@@ -49,31 +49,22 @@
 
         #background { z-index: 0; }
         
-        /* エフェクトレイヤー（乗算やスクリーンなどが必要ならmix-blend-modeを追加） */
+        /* エフェクトレイヤー */
         #effect-image { 
             z-index: 3; object-fit: cover; pointer-events: none; 
-            mix-blend-mode: screen; /* 光のエフェクト等はスクリーン合成 */
+            mix-blend-mode: screen; 
         }
 
         /* 🧍 キャラクター（1:1画像対応・大型化） */
         #character { 
             position: absolute; 
-            /* 【位置調整】1:1画像を画面下部から大きく突き出す */
-            bottom: -40%; /* 1:1画像の約半分を画面外に出す */
+            bottom: -40%; 
             left: 50%; 
             transform: translateX(-50%); 
-            
-            /* 【サイズ調整】ビューポートの高さ基準で大きく表示 */
             max-height: 140vh; 
-            
-            /* 【切り抜き】コンテナに合わせて拡大し、はみ出しを切り抜く */
             object-fit: cover; 
-            
             z-index: 1; 
-            /* 【演出強化】フィルターとトランジションは維持し、シャドウを追加 */
             transition: filter 0.3s ease, transform 0.3s ease; 
-            
-            /* 立ち絵の足元に柔らかな影を追加し、奥行きを出す */
             box-shadow: 0 0 20px rgba(0, 0, 0, 0.7); 
         }
 
@@ -84,24 +75,22 @@
             filter: brightness(0) opacity(0.7) drop-shadow(0 0 5px rgba(255,255,255,0.2)); 
         }
 
-        /* --- 💬 ダイアログボックス（スタイリッシュ・ファンタジー） --- */
+        /* --- 💬 ダイアログボックス --- */
         #dialogue-box {
             position: absolute; bottom: 0; left: 0; width: 100%; 
-            min-height: 28%; /* 少し高さを確保 */
+            min-height: 28%; 
             max-height: 45%;
-            
             background: linear-gradient(to top, var(--ui-bg) 0%, rgba(15, 23, 42, 0.8) 100%);
-            border-top: 2px solid var(--accent-color); /* ゴールドのライン */
+            border-top: 2px solid var(--accent-color);
             box-shadow: 0 -5px 20px rgba(0,0,0,0.5);
-            
-            padding: 20px 30px 40px; /* 下に余裕を持たせる */
+            padding: 20px 30px 40px; 
             box-sizing: border-box; 
             z-index: 10; 
             display: flex; flex-direction: column;
         }
         
         #character-name { 
-            font-family: var(--font-serif); /* 明朝体 */
+            font-family: var(--font-serif); 
             font-size: 1.4em; 
             font-weight: 700; 
             color: var(--accent-color);
@@ -128,13 +117,13 @@
         }
         @keyframes float { 0%, 100% { transform: translateY(0); opacity: 0.8; } 50% { transform: translateY(-5px); opacity: 1; } }
 
-        /* --- ⚙️ UIコントロール（フローティング） --- */
+        /* --- ⚙️ UIコントロール --- */
         #floating-controls {
             position: fixed; top: 15px; left: 15px;
             z-index: 150; display: flex; gap: 10px;
         }
 
-        /* 追加: 右上のコントロール */
+        /* 右上のコントロール */
         #right-controls {
             position: fixed; top: 15px; right: 15px;
             z-index: 150; display: flex; gap: 10px;
@@ -142,8 +131,8 @@
 
         .control-button { 
             width: 44px; height: 44px; 
-            border-radius: 8px; /* 角丸四角形に変更 */
-            border: 1px solid rgba(192, 160, 128, 0.3); /* 薄いゴールド枠 */
+            border-radius: 8px; 
+            border: 1px solid rgba(192, 160, 128, 0.3); 
             background: rgba(15, 23, 42, 0.6);
             backdrop-filter: blur(5px);
             color: var(--text-color); 
@@ -173,7 +162,7 @@
         }
         .dropdown-content button:hover { background-color: rgba(192, 160, 128, 0.2); }
 
-        /* --- 📝 モーダル（編集画面など） --- */
+        /* --- 📝 モーダル --- */
         #modal { 
             display: none; position: fixed; z-index: 200; left: 0; top: 0; 
             width: 100%; height: 100%; background-color: rgba(0,0,0,0.85); 
@@ -210,7 +199,7 @@
             margin-bottom: 20px;
         }
         #episode-list .control-button {
-            width: 100%; /* グリッドセルいっぱいに */
+            width: 100%; 
             height: 48px;
             font-family: var(--font-serif);
             font-size: 1.1em;
@@ -255,7 +244,7 @@
                 <button id="edit-scene-button">シーン編集</button>
                 <button id="delete-scene-button">シーン削除</button>
                 <button id="refresh-data-button">データ更新</button>
-                </div>
+            </div>
         </div>
     </div>
 
@@ -366,7 +355,7 @@
         try {
             await populateEpisodeSelect();
             
-            // ★前々回修正: オートセーブの自動適用（確認ダイアログなし）
+            // オートセーブの自動適用（確認ダイアログなし）
             const savedData = loadProgress();
             let startEp = state.episodeNumbers[0];
             let startIndex = 0;
@@ -642,7 +631,7 @@
     // モーダル開閉
     document.getElementById('episode-select-icon').onclick = () => openModal('episode-list');
     
-    // ★今回の修正: 素材管理アイコンのイベントリスナーを追加
+    // 素材管理アイコンのイベントリスナー
     document.getElementById('asset-upload-icon').onclick = () => {
         window.location.href = 'asset_upload.html';
     };
@@ -685,12 +674,12 @@
                 list.appendChild(btn);
             });
             
-            // 2. ★今回の修正: 一括入稿ボタン（+）の追加
+            // 2. 一括入稿ボタン（+）の追加
             const bulkBtn = document.createElement('button');
             bulkBtn.className = 'control-button';
             bulkBtn.textContent = '+'; 
             bulkBtn.title = '一括入稿';
-            bulkBtn.style.backgroundColor = 'var(--accent-color)'; // 目立たせる
+            bulkBtn.style.backgroundColor = 'var(--accent-color)'; 
             bulkBtn.style.color = 'var(--bg-color)'; 
             bulkBtn.style.fontWeight = 'bold';
             bulkBtn.onclick = () => {
@@ -750,44 +739,109 @@
           setOptions('backgrounds-list', Object.keys(state.loadedAssets.bg));
     }
 
-    // フォーム送信処理（API）
+    // ==========================================
+    // ▼ フォーム送信処理（API）
+    // ==========================================
     document.getElementById('edit-form').onsubmit = async (e) => {
         e.preventDefault();
         const formData = new FormData(e.target);
         const data = Object.fromEntries(formData.entries());
-        const method = state.modalMode === 'add' ? 'POST' : 'PUT';
+        
+        // 数値型に変換
+        if (data.episode) data.episode = parseInt(data.episode, 10);
+        if (data.sceneNumber) data.sceneNumber = parseInt(data.sceneNumber, 10);
+
+        // モード判定
+        const isAdd = state.modalMode === 'add';
+        const method = isAdd ? 'POST' : 'PUT';
+
         let url = PROXY.SCENES;
-        if (state.modalMode === 'edit') url += `&id=${state.episodeData[state.sceneIndex].id}`;
+        if (!isAdd) {
+            // 編集時はURLにIDを付与
+            const currentScene = state.episodeData[state.sceneIndex];
+            if (!currentScene || !currentScene.id) {
+                alert('編集対象のIDが見つかりません');
+                return;
+            }
+            url += `&id=${currentScene.id}`;
+        }
 
         try {
             showLoading(true);
-            await fetch(url, {
-                method: 'POST', 
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ ...data, _method: method })
+
+            // 旧index.htmlの通信仕様（HeadersでのOverride）に合わせる
+            const headers = { 'Content-Type': 'application/json' };
+            if (!isAdd) {
+                headers['X-HTTP-Method-Override'] = method;
+            }
+
+            const res = await fetch(url, {
+                method: isAdd ? 'POST' : method, // POST以外の場合、ブラウザによって挙動が異なる場合があるため
+                headers: headers,
+                body: JSON.stringify(data)
             });
+
+            if (!res.ok) {
+                const errText = await res.text();
+                throw new Error(`Server Error: ${res.status} ${errText}`);
+            }
+
             alert('完了しました');
             closeModal();
-            loadEpisodeData(data.episode || ui.epSelect.value);
+            
+            // データを再読み込みして画面に反映
+            const targetEp = data.episode || ui.epSelect.value;
+            if (ui.epSelect.value != targetEp) {
+                ui.epSelect.value = targetEp;
+            }
+            await loadEpisodeData(targetEp);
+
         } catch(err) {
-            alert('エラー: ' + err.message);
+            console.error(err);
+            alert('エラーが発生しました: ' + err.message);
+        } finally {
             showLoading(false);
         }
     };
     
+    // ==========================================
+    // ▼ 削除処理
+    // ==========================================
     document.getElementById('confirm-delete-button').onclick = async () => {
         if(!confirm('本当に削除しますか？')) return;
+        
+        const currentScene = state.episodeData[state.sceneIndex];
+        if (!currentScene || !currentScene.id) {
+            alert('削除対象のIDが見つかりません');
+            return;
+        }
+
         try {
             showLoading(true);
-            await fetch(`${PROXY.SCENES}&id=${state.episodeData[state.sceneIndex].id}`, { 
-                method: 'POST',
-                body: JSON.stringify({ _method: 'DELETE' })
+            
+            // 旧index.htmlの通信仕様に合わせる
+            const url = `${PROXY.SCENES}&id=${currentScene.id}`;
+            const res = await fetch(url, { 
+                method: 'DELETE',
+                headers: {
+                    'X-HTTP-Method-Override': 'DELETE'
+                }
             });
+
+            if (!res.ok) {
+                throw new Error(`Server Error: ${res.status}`);
+            }
+
             alert('削除しました');
             closeModal();
-            loadEpisodeData(ui.epSelect.value);
+            
+            // 現在のエピソードを再読み込み
+            await loadEpisodeData(ui.epSelect.value);
+
         } catch(err) {
-            alert('エラー: ' + err.message);
+            console.error(err);
+            alert('エラーが発生しました: ' + err.message);
+        } finally {
             showLoading(false);
         }
     };
