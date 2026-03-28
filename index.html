@@ -247,7 +247,6 @@
                 <button id="delete-scene-button">シーン削除</button>
                 <button id="refresh-data-button">データ更新</button>
                 <button onclick="window.location.href='asset_upload.html'">素材管理</button>
-                <button onclick="window.location.href='bulk_upload.html'">一括入稿</button> 
             </div>
         </div>
     </div>
@@ -439,7 +438,18 @@
         if (!tagSet.size) return;
         const tags = Array.from(tagSet);
         const filter = `asset_type[equals]${type}[and](` + tags.map(t => `tag[equals]${encodeURIComponent(t)}`).join('[or]') + `)`;
-        
+        // index.html の 495行目付近
+async function fetchJson(url, params = {}) {
+    const urlObj = new URL(url);
+    if(params.filters) urlObj.searchParams.append('filters', params.filters);
+    
+    // ★追加: タイムスタンプを付与してキャッシュを強制回避
+    urlObj.searchParams.append('_t', Date.now()); 
+    
+    const res = await fetch(urlObj.toString());
+    if (!res.ok) throw new Error(`API Error: ${res.status}`);
+    return res.json();
+}
         try {
             const res = await fetchJson(`${PROXY.ASSETS}`, { filters: filter });
             const list = Array.isArray(res) ? res : (res.contents || []);
@@ -630,6 +640,7 @@
 
     // モーダル開閉
     document.getElementById('episode-select-icon').onclick = () => openModal('episode-list');
+
     document.getElementById('menu-icon').onclick = (e) => {
         e.stopPropagation();
         const c = document.getElementById('menu-dropdown-content');
@@ -639,7 +650,7 @@
         if(!e.target.closest('.dropdown')) document.getElementById('menu-dropdown-content').style.display = 'none';
     });
 
-    function openModal(type) {
+        function openModal(type) {
         ui.modal.style.display = 'flex';
         document.getElementById('episode-list-container').style.display = type === 'episode-list' ? 'block' : 'none';
         document.getElementById('edit-form-container').style.display = type === 'edit' ? 'block' : 'none';
@@ -648,11 +659,10 @@
             const list = document.getElementById('episode-list');
             list.innerHTML = '';
             
-            // ★UX改善：グリッド表示用のボタン生成
+            // 1. エピソードボタンの生成（グリッド表示）
             state.episodeNumbers.forEach(ep => {
                 const btn = document.createElement('button');
                 btn.className = 'control-button';
-                // グリッド化のためinlineスタイルは削除
                 btn.textContent = ep; // 数字のみ表示
                 
                 // 現在のエピソードならハイライト
@@ -668,6 +678,20 @@
                 };
                 list.appendChild(btn);
             });
+            
+            // 2. 一括入稿ボタン（+）の追加
+            const bulkBtn = document.createElement('button');
+            bulkBtn.className = 'control-button';
+            bulkBtn.textContent = '+'; 
+            bulkBtn.title = '一括入稿';
+            bulkBtn.style.backgroundColor = 'var(--accent-color)'; 
+            bulkBtn.style.color = 'var(--bg-color)'; 
+            bulkBtn.style.fontWeight = 'bold';
+            bulkBtn.onclick = () => {
+                window.location.href = 'bulk_upload.html';
+            };
+            list.appendChild(bulkBtn);
+
         }
     }
 
@@ -700,14 +724,11 @@
         
         title.textContent = mode === 'add' ? 'シーン追加' : (mode === 'edit' ? 'シーン編集' : 'シーン削除');
 
-        if (mode === 'add') {
             document.getElementById('edit-episode').value = ui.epSelect.value;
-            document.getElementById('edit-scene-number').value = (s.sceneNumber || 0) + 1;
-        } else {
+            document.getElementById('edit-scene-number').value = (s.sceneNumber || 0) ;
             ['episode', 'sceneNumber', 'character', 'text', 'face', 'special', 'background', 'effect'].forEach(k => {
                 if(document.getElementById(`edit-${k}`)) document.getElementById(`edit-${k}`).value = s[k] || '';
             });
-        }
     }
     
     function populateEditOptions() {
@@ -721,46 +742,57 @@
     }
 
     // フォーム送信処理（API）
-    document.getElementById('edit-form').onsubmit = async (e) => {
-        e.preventDefault();
-        const formData = new FormData(e.target);
-        const data = Object.fromEntries(formData.entries());
-        const method = state.modalMode === 'add' ? 'POST' : 'PUT';
-        let url = PROXY.SCENES;
-        if (state.modalMode === 'edit') url += `&id=${state.episodeData[state.sceneIndex].id}`;
-
-        try {
-            showLoading(true);
-            await fetch(url, {
-                method: 'POST', 
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ ...data, _method: method })
-            });
-            alert('完了しました');
-            closeModal();
-            loadEpisodeData(data.episode || ui.epSelect.value);
-        } catch(err) {
-            alert('エラー: ' + err.message);
-            showLoading(false);
-        }
-    };
+   // index.html の 670行目付近
+document.getElementById('edit-form').onsubmit = async (e) => {
+    e.preventDefault();
+    const formData = new FormData(e.target);
+    const data = Object.fromEntries(formData.entries());
     
-    document.getElementById('confirm-delete-button').onclick = async () => {
-        if(!confirm('本当に削除しますか？')) return;
-        try {
-            showLoading(true);
-            await fetch(`${PROXY.SCENES}&id=${state.episodeData[state.sceneIndex].id}`, { 
-                method: 'POST',
-                body: JSON.stringify({ _method: 'DELETE' })
-            });
-            alert('削除しました');
-            closeModal();
-            loadEpisodeData(ui.epSelect.value);
-        } catch(err) {
-            alert('エラー: ' + err.message);
-            showLoading(false);
-        }
-    };
+    const method = state.modalMode === 'add' ? 'POST' : 'PUT';
+    let url = PROXY.SCENES;
+
+    if (state.modalMode === 'edit') {
+        // ★修正: URLパラメータに _method=PUT と id を繋げる
+        url += `&id=${state.episodeData[state.sceneIndex].id}&_method=PUT`;
+    }
+
+    try {
+        showLoading(true);
+        await fetch(url, {
+            method: 'POST', 
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data) // Bodyには純粋なデータだけを入れる
+        });
+        alert('完了しました');
+        closeModal();
+        loadEpisodeData(data.episode || ui.epSelect.value);
+    } catch(err) {
+        alert('エラー: ' + err.message);
+        showLoading(false);
+    }
+};
+    
+// index.html の 695行目付近
+document.getElementById('confirm-delete-button').onclick = async () => {
+    if(!confirm('本当に削除しますか？')) return;
+    try {
+        showLoading(true);
+        
+        // ★修正: URLに _method=DELETE を繋げ、Bodyは空（または不要）にする
+        const url = `${PROXY.SCENES}&id=${state.episodeData[state.sceneIndex].id}&_method=DELETE`;
+        
+        await fetch(url, { 
+            method: 'POST'
+        });
+        
+        alert('削除しました');
+        closeModal();
+        loadEpisodeData(ui.epSelect.value);
+    } catch(err) {
+        alert('エラー: ' + err.message);
+        showLoading(false);
+    }
+};
 
     window.onload = initialize;
 

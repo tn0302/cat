@@ -5,57 +5,117 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>シーン一括アップロード</title>
     <style>
-    body {
-      font-family: sans-serif;
-      margin: 2rem;
-      background-color: #222; /* 黒テイストに変更 */
-      color: #eee; /* 文字色を明るく */
+    /* 【修正点1: CSS変更】新index.htmlのテーマに統一 */
+    :root {
+        --bg-color: #0f172a;       /* 深い紺色 (背景) */
+        --text-color: #e2e8f0;     /* 白に近い灰色 (本文) */
+        --accent-color: #c0a080;   /* くすんだゴールド (強調・枠線) */
+        --ui-bg: #1e293b;          /* モーダル背景色 */
+        --font-main: 'Noto Sans JP', sans-serif;
+        --font-serif: 'Shippori Mincho', serif;
     }
-    h1, h2 {
-      color: #fff; /* 見出し色を白に */
+    
+    body {
+      font-family: var(--font-main);
+      margin: 0; 
+      padding: 2rem;
+      background-color: var(--bg-color); 
+      color: var(--text-color); 
+      overflow-y: auto; 
+      min-height: 100vh;
+      box-sizing: border-box;
+    }
+    h1 {
+      color: var(--accent-color); 
+      font-family: var(--font-serif);
+      border-bottom: 1px solid #444; 
+      padding-bottom: 10px; 
+      margin-top: 0;
+      text-align: center;
+    }
+    h2 {
+      color: var(--accent-color); 
+      font-family: var(--font-serif);
+      border-bottom: 1px solid #444; 
+      padding-bottom: 8px;
+      margin-top: 0;
+      font-size: 1.2rem;
+    }
+    .container {
+        max-width: 700px;
+        margin: 0 auto; /* 中央寄せ */
     }
     section {
-      background: #333; /* 背景色を暗く */
-      border: 1px solid #555; /* ボーダー色を調整 */
-      border-radius: 12px;
+      background: var(--ui-bg); 
+      border: 1px solid var(--accent-color); 
+      border-radius: 8px; 
       padding: 1.5rem;
       margin-bottom: 2rem;
-      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3); /* 影を濃く */
+      box-shadow: 0 0 20px rgba(0, 0, 0, 0.5); 
     }
     textarea, input[type="number"] {
       width: 100%;
       font-size: 1rem;
-      padding: 0.75rem;
-      margin-bottom: 1rem;
-      border: 1px solid #555; /* ボーダー色を調整 */
-      border-radius: 6px;
-      background: #444; /* 背景色を暗く */
-      color: #fff; /* 文字色を白に */
+      padding: 10px; 
+      margin: 5px 0 15px; 
+      border: 1px solid #475569; 
+      border-radius: 4px; 
+      background: #0f172a; 
+      color: #fff; 
       box-sizing: border-box;
+      font-family: var(--font-main);
     }
+    textarea:focus, input[type="number"]:focus { 
+        outline: none; 
+        border-color: var(--accent-color); 
+    }
+
+    /* ボタン共通スタイル */
     button {
-      font-size: 1rem;
-      padding: 0.6rem 1.2rem;
-      margin-bottom: 1rem;
-      border: none;
-      border-radius: 6px;
-      background-color: #007bff; /* ボタン色を統一 */
-      color: white;
-      cursor: pointer;
-      transition: background-color 0.2s ease; /* ホバーエフェクト追加 */
+        font-family: var(--font-main);
+        font-weight: bold;
+        border: none; 
+        padding: 12px;
+        border-radius: 4px; 
+        cursor: pointer; 
+        transition: opacity 0.2s;
+        margin-bottom: 0.5rem; 
     }
-    button:hover {
-      background-color: #0056b3; /* ホバー色を統一 */
+    
+    /* アップロード/コピーボタン（アクションボタン） */
+    .action-btn { 
+      background: var(--accent-color); 
+      color: #0f172a; 
+      width: 100%; 
+      display: block; 
     }
+    .action-btn:hover { 
+      opacity: 0.9; 
+    }
+    
+    /* 戻るボタン（キャンセルボタン） */
+    .cancel-button { 
+        background: transparent; 
+        border: 1px solid #64748b; 
+        color: #94a3b8; 
+        width: 100%; 
+        padding: 10px; 
+        margin-top: 10px;
+    }
+    .cancel-button:hover {
+        background: rgba(100, 116, 139, 0.2);
+    }
+
     #message {
       margin-top: 1rem;
       padding: 1rem;
-      border-radius: 6px;
+      border-radius: 4px; 
       white-space: pre-wrap;
+      font-family: var(--font-main);
     }
-    .message-success { background-color: #28a745; color: white; }
-    .message-error { background-color: #dc3545; color: white; }
-    .message-info { background-color: #17a2b8; color: white; }
+    .message-success { background-color: #15803d; color: #f0fdf4; border: 1px solid #4ade80;}
+    .message-error { background-color: #991b1b; color: #fee2e2; border: 1px solid #f87171;}
+    .message-info { background-color: #075985; color: #e0f2f1; border: 1px solid #22d3ee;}
     </style>
 </head>
 <body>
@@ -71,27 +131,29 @@
   <section>
     <h2>① キャラ口調ガイド生成</h2>
     <textarea id="inputText1" placeholder="ここに本文を入力してください..."></textarea>
-    <button onclick="copyTemplate(1)">コピー</button>
+    <button onclick="copyTemplate(1)" class="action-btn">コピー</button>
   </section>
 
   <section>
     <h2>② 話者特定＋口調補正</h2>
     <textarea id="inputText2" placeholder="ここにキャラクター口調ガイドを入力してください..."></textarea>
-    <button onclick="copyTemplate(2)">コピー（①の本文を使用）</button>
+    <button onclick="copyTemplate(2)" class="action-btn">コピー（①の本文を使用）</button>
   </section>
 
   <section>
     <h2>③ JSON整形テンプレート</h2>
     <textarea id="inputText3" placeholder="ここに話者明示済みの本文を入力してください..."></textarea>
-    <button onclick="copyTemplate(3)">コピー</button>
+    <button onclick="copyTemplate(3)" class="action-btn">コピー</button>
   </section>
 
   <section>
     <h2>④ JSONデータをアップロード</h2>
     <textarea id="json-input" placeholder='[{"episode": 1, "sceneNumber": 1, "character": "勇者", "text": "...", "face": "normal"}]'></textarea>
-    <button id="upload-button">アップロード</button>
+    <button id="upload-button" class="action-btn">アップロード</button>
     <div id="message"></div>
   </section>
+ 
+        <button id="return-button" class="cancel-button">ノベルビューアに戻る</button>
 
   <script>
     const episodeInput = document.getElementById("episode");
@@ -120,6 +182,8 @@
         alert("テンプレートをコピーしました！");
       });
     }
+
+    
 
     uploadButton.addEventListener('click', async () => {
       const jsonText = jsonInput.value.trim();
