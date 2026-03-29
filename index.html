@@ -99,7 +99,7 @@
         
         #character-name { 
             font-family: var(--font-serif); /* 明朝体 */
-            font-size: 1.4em; 
+            font-size: 1.2em; 
             font-weight: 700; 
             color: var(--accent-color);
             margin-bottom: 12px; 
@@ -108,7 +108,6 @@
         }
         
         #dialogue-text { 
-            font-size: 1.1em; 
             line-height: 1.8; 
             letter-spacing: 0.08em;
             color: var(--text-color);
@@ -237,18 +236,16 @@
         <button id="episode-select-icon" class="control-button" title="物語を選択">
             <span>📖</span> 
         </button>
-        <div class="dropdown">
-            <button class="control-button" id="menu-icon" title="設定・編集">
-                <span>⚙️</span>
-            </button>
-            <div class="dropdown-content" id="menu-dropdown-content">
-                <button id="add-scene-button">シーン追加</button>
-                <button id="edit-scene-button">シーン編集</button>
-                <button id="delete-scene-button">シーン削除</button>
-                <button id="refresh-data-button">データ更新</button>
-                <button onclick="window.location.href='asset_upload.html'">素材管理</button>
-            </div>
-        </div>
+
+        <button id="edit-scene-button" class="control-button" >
+            <span>✏️</span> 
+        </button>
+    
+     
+        <button onclick="window.location.href='asset_upload.html'"  class="control-button" >
+            <span>🖼️</span> 
+        </button>
+
     </div>
     
     <select id="episode-select" style="display: none;"></select>
@@ -276,8 +273,19 @@
             <button type="button" onclick="closeModal()" class="cancel-button">閉じる</button>
         </div>
         
-        <div id="edit-form-container" class="modal-container" style="display: none;">
-            <h2 id="modal-title">シーン編集</h2>
+<div id="edit-form-container" class="modal-container" style="display: none;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <h2 id="modal-title" style="margin: 0;">シーン編集</h2>
+        
+        <div style="display: flex; gap: 15px; align-items: center;">
+            <button type="button" id="header-add-switch-btn" class="icon-btn" title="新規シーン追加へ切替" style="background: none; border: none; cursor: pointer; font-size: 1.4rem; color: #add8e6;">
+                ➕
+            </button>
+            <button type="button" id="header-delete-btn" class="icon-btn" title="シーンを削除" style="background: none; border: none; cursor: pointer; font-size: 1.2rem; color: #ff6b6b; display: none;">
+                🗑️
+            </button>
+        </div>
+    </div>
             <form id="edit-form">
                 <label>エピソード: <input type="text" id="edit-episode" name="episode"></label>
                 <label>シーン番号: <input type="text" id="edit-scene-number" name="sceneNumber"></label>
@@ -298,9 +306,9 @@
                 <label>エフェクト: <input type="text" id="edit-effect" name="effect" list="effects-list"></label>
                 <datalist id="effects-list"></datalist>
 
-                <button type="submit" id="save-scene-button" class="action-btn">保存</button>
-                <button type="button" id="confirm-delete-button" class="delete-button" style="display: none;">削除確定</button>
-                <button type="button" id="cancel-edit-button" class="cancel-button">キャンセル</button>
+               <button type="submit" id="save-scene-button" class="action-btn">保存</button>
+        <button type="button" id="confirm-delete-button" style="display: none;"></button>
+        <button type="button" id="cancel-edit-button" class="cancel-button">キャンセル</button>
             </form>
         </div>
     </div>
@@ -374,33 +382,44 @@
         }
     }
 
-    async function loadEpisodeData(episodeNumber, startIndex = 0) {
-        showLoading(true);
+// 第2引数を targetSceneNumber (探したいシーン番号) に変更
+async function loadEpisodeData(episodeNumber, targetSceneNumber = null) {
+    showLoading(true);
+    
+    try {
+        state.episodeData = await fetchJson(`${PROXY.SCENES}&episode=${episodeNumber}`);
+        // 数値として正しく並ぶようにソート
+        state.episodeData.sort((a, b) => Number(a.sceneNumber) - Number(b.sceneNumber));
         
-        try {
-            state.episodeData = await fetchJson(`${PROXY.SCENES}&episode=${episodeNumber}`);
-            state.episodeData.sort((a, b) => a.sceneNumber - b.sceneNumber);
-            
-            if (state.episodeData.length === 0) throw new Error('データがありません');
+        if (state.episodeData.length === 0) throw new Error('データがありません');
 
-            if (startIndex >= state.episodeData.length) startIndex = 0;
-            state.sceneIndex = startIndex;
-
-            // 最初の数シーンの画像を先読み
-            await preloadAssetsSmart(startIndex, CONFIG.PRELOAD_COUNT);
-
-            showLoading(false);
-            populateEditOptions();
-            renderScene(state.episodeData[state.sceneIndex]);
-
-            // 残りを裏でロード
-            backgroundLoadRest(startIndex + CONFIG.PRELOAD_COUNT);
-
-        } catch (e) {
-            alert('ロードエラー: ' + e.message);
-            showLoading(false);
+        // --- 追加・修正箇所：再開位置の特定 ---
+        let startIndex = 0;
+        if (targetSceneNumber !== null) {
+            // 保存したシーン番号と一致する要素のインデックスを探す
+            const foundIndex = state.episodeData.findIndex(s => Number(s.sceneNumber) === Number(targetSceneNumber));
+            // 見つかればその位置を、見つからなければ 0（先頭）を使用
+            startIndex = foundIndex !== -1 ? foundIndex : 0;
         }
+        // ------------------------------------
+
+        state.sceneIndex = startIndex;
+
+        // 最初の数シーンの画像を先読み
+        await preloadAssetsSmart(startIndex, CONFIG.PRELOAD_COUNT);
+
+        showLoading(false);
+        populateEditOptions();
+        renderScene(state.episodeData[state.sceneIndex]);
+
+        // 残りを裏でロード
+        backgroundLoadRest(startIndex + CONFIG.PRELOAD_COUNT);
+
+    } catch (e) {
+        alert('ロードエラー: ' + e.message);
+        showLoading(false);
     }
+}
 
     async function preloadAssetsSmart(currentIndex, count) {
         const endIndex = Math.min(currentIndex + count, state.episodeData.length);
@@ -641,14 +660,7 @@ async function fetchJson(url, params = {}) {
     // モーダル開閉
     document.getElementById('episode-select-icon').onclick = () => openModal('episode-list');
 
-    document.getElementById('menu-icon').onclick = (e) => {
-        e.stopPropagation();
-        const c = document.getElementById('menu-dropdown-content');
-        c.style.display = c.style.display === 'block' ? 'none' : 'block';
-    };
-    document.addEventListener('click', e => {
-        if(!e.target.closest('.dropdown')) document.getElementById('menu-dropdown-content').style.display = 'none';
-    });
+
 
         function openModal(type) {
         ui.modal.style.display = 'flex';
@@ -701,35 +713,72 @@ async function fetchJson(url, params = {}) {
     };
 
     // 編集フォーム設定
-    document.getElementById('add-scene-button').onclick = () => setupEdit('add');
     document.getElementById('edit-scene-button').onclick = () => setupEdit('edit');
-    document.getElementById('delete-scene-button').onclick = () => setupEdit('delete');
     document.getElementById('cancel-edit-button').onclick = closeModal;
-    document.getElementById('refresh-data-button').onclick = () => {
-            if(confirm('再読み込みしますか？')) location.reload();
-    };
 
-    function setupEdit(mode) {
-        state.modalMode = mode;
-        openModal('edit');
-        const form = document.getElementById('edit-form');
-        form.reset();
-        const s = state.episodeData[state.sceneIndex] || {};
-        const title = document.getElementById('modal-title');
-        const saveBtn = document.getElementById('save-scene-button');
-        const delBtn = document.getElementById('confirm-delete-button');
+function setupEdit(mode) {
+   state.modalMode = mode;
+    openModal('edit');
+    
+    const s = state.episodeData[state.sceneIndex] || {};
+    const title = document.getElementById('modal-title');
+    const headerDeleteBtn = document.getElementById('header-delete-btn');
+    const headerAddBtn = document.getElementById('header-add-switch-btn');
 
-        saveBtn.style.display = mode === 'delete' ? 'none' : 'block';
-        delBtn.style.display = mode === 'delete' ? 'block' : 'none';
+
+    // モードによってボタンの表示を切り替え
+if (mode === 'add') {
+        // 【追加モード】
+        title.textContent = 'シーン追加';
+        headerDeleteBtn.style.display = 'none';
+        headerAddBtn.style.display = 'none';
+
+        // エピソードとシーン番号のみ更新（話者と表情はそのまま）
+        document.getElementById('edit-episode').value = ui.epSelect.value;
+        const nextNum = s.sceneNumber ? Number(s.sceneNumber) + 1 : 1;
+        document.getElementById('edit-scene-number').value = nextNum;
         
-        title.textContent = mode === 'add' ? 'シーン追加' : (mode === 'edit' ? 'シーン編集' : 'シーン削除');
-
-            document.getElementById('edit-episode').value = ui.epSelect.value;
-            document.getElementById('edit-scene-number').value = (s.sceneNumber || 0) ;
-            ['episode', 'sceneNumber', 'character', 'text', 'face', 'special', 'background', 'effect'].forEach(k => {
-                if(document.getElementById(`edit-${k}`)) document.getElementById(`edit-${k}`).value = s[k] || '';
-            });
+        // 本文（text）は新しいシーン用になので空にする
+        document.getElementById('edit-text').value = '';
+    } else {
+        // 【編集モード】一旦リセットしてから現在のシーンデータをセット
+        document.getElementById('edit-form').reset();
+        title.textContent = 'シーン編集';
+        headerDeleteBtn.style.display = 'block';
+        headerAddBtn.style.display = 'block';
+        
+        const fields = ['episode', 'sceneNumber', 'character', 'text', 'face', 'special', 'background', 'effect'];
+        fields.forEach(k => {
+            const id = `edit-${k.replace(/([A-Z])/g, '-$1').toLowerCase()}`;
+            const input = document.getElementById(id);
+            if (input) input.value = s[k] || '';
+        });
     }
+
+
+    // モードによってゴミ箱アイコンの表示・非表示を切り替える
+    headerDeleteBtn.style.display = (mode === 'edit') ? 'block' : 'none';
+    
+    title.textContent = mode === 'add' ? 'シーン追加' : 'シーン編集';
+
+    if (mode === 'add') {
+        document.getElementById('edit-episode').value = ui.epSelect.value;
+        const nextNum = s.sceneNumber ? Number(s.sceneNumber)  : 1;
+        document.getElementById('edit-scene-number').value = nextNum;
+    } else {
+        // 編集モード：データをセット
+        ['episode', 'sceneNumber', 'character', 'text', 'face', 'special', 'background', 'effect'].forEach(k => {
+            const input = document.getElementById(`edit-${k.replace(/([A-Z])/g, '-$1').toLowerCase()}`);
+            if (input) input.value = s[k] || '';
+        });
+    }
+}
+
+// プラスボタンを押した時の処理（追加モードへ切り替え）
+document.getElementById('header-add-switch-btn').onclick = () => {
+  
+    setupEdit('add');
+};
     
     function populateEditOptions() {
           const setOptions = (listId, keys) => {
@@ -763,36 +812,59 @@ document.getElementById('edit-form').onsubmit = async (e) => {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(data) // Bodyには純粋なデータだけを入れる
         });
-        alert('完了しました');
         closeModal();
-        loadEpisodeData(data.episode || ui.epSelect.value);
+        
+        // 保存した時の「エピソード番号」と「シーン番号」を使ってリロード
+    // data.sceneNumber を第2引数に渡します
+    loadEpisodeData(data.episode || ui.epSelect.value, data.sceneNumber);
+
     } catch(err) {
         alert('エラー: ' + err.message);
         showLoading(false);
     }
 };
-    
+ 
+
+// ゴミ箱アイコンをクリックしたら、上記の削除確定ボタンを代わりにクリックする
+document.getElementById('header-delete-btn').onclick = () => {
+    document.getElementById('confirm-delete-button').click();
+};
+
 // index.html の 695行目付近
 document.getElementById('confirm-delete-button').onclick = async () => {
-    if(!confirm('本当に削除しますか？')) return;
+    // 1. 削除対象のデータを特定
+    const currentScene = state.episodeData[state.sceneIndex];
+    if (!currentScene) return;
+
+    // 2. 削除確認
+    if (!confirm(`シーン番号 ${currentScene.sceneNumber} を本当に削除しますか？`)) return;
+
     try {
         showLoading(true);
+
+        // 3. 削除後の再開位置（削除する番号のひとつ前、最小1）を計算
+        const targetNum = Math.max(1, Number(currentScene.sceneNumber) - 1);
+
+        // 4. API実行
+        const url = `${PROXY.SCENES}&id=${currentScene.id}&_method=DELETE`;
         
-        // ★修正: URLに _method=DELETE を繋げ、Bodyは空（または不要）にする
-        const url = `${PROXY.SCENES}&id=${state.episodeData[state.sceneIndex].id}&_method=DELETE`;
-        
-        await fetch(url, { 
+        const response = await fetch(url, { 
             method: 'POST'
         });
-        
-        alert('削除しました');
+
+        if (!response.ok) throw new Error('サーバーエラーが発生しました');
+
         closeModal();
-        loadEpisodeData(ui.epSelect.value);
+
+        // 5. 削除した箇所の付近（targetNum）から再読み込み
+        loadEpisodeData(ui.epSelect.value, targetNum);
+
     } catch(err) {
         alert('エラー: ' + err.message);
         showLoading(false);
     }
 };
+
 
     window.onload = initialize;
 
