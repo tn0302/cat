@@ -335,12 +335,18 @@ const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
     /**
      * 状態管理
      */
-    let state = {
+    let globalLastBackground = "";
+
+let state = {
         episodeData: [],
         sceneIndex: 0,
+        isAuto: false,
+        autoTimer: null,
         episodeNumbers: [],
-        loadedAssets: { bg: {}, char: {}, effect: {}, special: {} },
-        modalMode: ''
+        // 名称と構造を以下のように変更
+        loadedAssets: { bg: {}, char: {}, special: {}, effect: {} },
+        modalMode: '',
+        lastBackgroundTag: "" 
     };
 
     const ui = {
@@ -386,7 +392,6 @@ const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
         }
     }
 // 他の state 定義などがある場所に追記
-let globalLastBackground = ""; // エピソードを跨いで背景を保持する変数
 async function loadEpisodeData(episodeNumber, target_scene_number = null) {
     showLoading(true);
     try {
@@ -403,22 +408,24 @@ async function loadEpisodeData(episodeNumber, target_scene_number = null) {
             return;
         }
 
-        // --- 📥 データの穴埋め・特殊演出処理 ---
+        // --- 📥 データの穴埋め・背景引き継ぎ処理 ---
         let lastCharacterImg = "";
         let characterDisplayEnabled = false; 
         
-        // 背景は前回の最後（グローバル）から引き継ぐ
+        // 【重要】背景は「グローバルに保存されている前回の画像」から開始する
         let currentProcessBackground = globalLastBackground;
 
         const filledData = data.map(scene => {
-            // --- A. 背景の処理 ---
+            // --- A. 背景の引き継ぎ処理 ---
+            // 背景画像(URL)が空の場合、直前の画像URLをセットする
             if (!scene.background_image || scene.background_image === "") {
                 scene.background_image = currentProcessBackground;
             } else {
-                // 背景が切り替わったら、キャラ表示フラグをリセット
+                // 新しい背景が設定されている場合、キャラ表示フラグをリセット（場所移動の想定）
                 if (currentProcessBackground !== scene.background_image) {
                     characterDisplayEnabled = false;
                 }
+                // 最新の背景画像URLを更新
                 currentProcessBackground = scene.background_image;
             }
 
@@ -434,9 +441,10 @@ async function loadEpisodeData(episodeNumber, target_scene_number = null) {
                 lastCharacterImg = scene.character_image;
             }
 
-            // 表示の確定
+            // 表示の確定ロジック
             if (isIllustrationMode) {
                 scene.character_image = "";
+                // 挿絵のときは背景を消す（もし背景の上に挿絵を出すならここを調整）
                 scene.background_image = ""; 
             } else if (!characterDisplayEnabled) {
                 scene.character_image = "";
@@ -452,13 +460,13 @@ async function loadEpisodeData(episodeNumber, target_scene_number = null) {
             return scene;
         });
 
-        // 最後に現れた背景をグローバルに保存（次のエピソード用）
+        // 最後に現れた背景画像URLを保存（次のエピソード読み込み時に利用）
         globalLastBackground = currentProcessBackground;
 
         // 2. 状態を更新
         state.episodeData = filledData;
 
-   // 3. 表示位置（インデックス）を決定
+        // 3. 表示位置（インデックス）を決定
         if (target_scene_number) {
             const idx = filledData.findIndex(s => Number(s.scene_number) === Number(target_scene_number));
             state.sceneIndex = idx !== -1 ? idx : 0;
@@ -466,10 +474,8 @@ async function loadEpisodeData(episodeNumber, target_scene_number = null) {
             state.sceneIndex = 0;
         }
 
-        // --- 修正箇所：引数に現在のシーンデータを渡す ---
         renderScene(state.episodeData[state.sceneIndex]); 
         updateUI();
-
 
     } catch (err) {
         console.error('Data loading error:', err);
@@ -478,7 +484,8 @@ async function loadEpisodeData(episodeNumber, target_scene_number = null) {
         showLoading(false);
     }
 }
-    async function preloadAssetsSmart(currentIndex, count) {
+
+async function preloadAssetsSmart(currentIndex, count) {
         const endIndex = Math.min(currentIndex + count, state.episodeData.length);
         const targets = state.episodeData.slice(currentIndex, endIndex);
         
@@ -556,10 +563,11 @@ function renderScene(s) {
     // ① special に値があり、かつ "OFF" でない場合は挿絵モード
     const isIllustrationMode = (s.special && s.special !== "OFF");
 
-    // --- 🌌 背景（Background）の描画 ---
-    // 挿絵モードなら special を、そうでなければ background_image を使う
+// --- 🌌 背景（Background）の描画 ---
     const bgUrl = isIllustrationMode ? (s.special_image || s.special) : (s.background_image || s.background);
-    updateImage(ui.bgDiv, bgUrl, state.loadedAssets.bg, true);
+   
+ // ui.bg を ui.bgDiv に変更// ui.bg ではなく ui.bgDiv を使う
+updateImage(ui.bgDiv, bgUrl, state.loadedAssets.bg, true);
 
     // --- 👥 キャラクター（Character）の描画 ---
     if (isIllustrationMode || (!s.character_image && !s.character)) {
