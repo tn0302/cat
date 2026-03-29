@@ -458,7 +458,7 @@ async function loadEpisodeData(episodeNumber, target_scene_number = null) {
         // 2. 状態を更新
         state.episodeData = filledData;
 
-        // 3. 表示位置（インデックス）を決定
+   // 3. 表示位置（インデックス）を決定
         if (target_scene_number) {
             const idx = filledData.findIndex(s => Number(s.scene_number) === Number(target_scene_number));
             state.sceneIndex = idx !== -1 ? idx : 0;
@@ -466,9 +466,10 @@ async function loadEpisodeData(episodeNumber, target_scene_number = null) {
             state.sceneIndex = 0;
         }
 
-        // 4. 重要：ここで明示的に描画を実行する
-        renderScene(); 
+        // --- 修正箇所：引数に現在のシーンデータを渡す ---
+        renderScene(state.episodeData[state.sceneIndex]); 
         updateUI();
+
 
     } catch (err) {
         console.error('Data loading error:', err);
@@ -509,25 +510,13 @@ async function loadEpisodeData(episodeNumber, target_scene_number = null) {
         }
     }
 
-    async function fetchAssets(type, tagSet, targetStore) {
-        if (!tagSet.size) return;
-        const tags = Array.from(tagSet);
-        const filter = `asset_type[equals]${type}[and](` + tags.map(t => `tag[equals]${encodeURIComponent(t)}`).join('[or]') + `)`;
-        // index.html の 495行目付近
-async function fetchJson(url, params = {}) {
-    const urlObj = new URL(url);
-    if(params.filters) urlObj.searchParams.append('filters', params.filters);
+  async function fetchAssets(type, tagSet, targetStore) {
+    if (!tagSet.size) return;
     
-    // ★追加: タイムスタンプを付与してキャッシュを強制回避
-    urlObj.searchParams.append('_t', Date.now()); 
-    
-    const res = await fetch(urlObj.toString());
-    if (!res.ok) throw new Error(`API Error: ${res.status}`);
-    return res.json();
-}
-        try {
-        // Supabaseから指定した種類のアセットを取得
-        const { data: list, error } = await supabase
+    try {
+        // 修正ポイント1: supabase -> supabaseClient に変更
+        // 修正ポイント2: 必要なアセットタイプで絞り込み
+        const { data: list, error } = await supabaseClient
             .from('assets')
             .select('*')
             .eq('asset_type', type);
@@ -535,22 +524,24 @@ async function fetchJson(url, params = {}) {
         if (error) throw error;
 
         (list || []).forEach(a => {
-            if (a.tag && a.image) {
-                // キャラクターかつ表情タグがある場合
-                if (type === 'character' && a.character_face_tag) {
-                    const key = `${a.tag}_${a.character_face_tag}`;
-                    targetStore[key] = a.image;
+            // 修正ポイント3: カラム名を image_url と face に合わせる
+            if (a.tag && a.image_url) {
+                if (type === 'character' && a.face) {
+                    // キャラクター名_表情タグ をキーにする
+                    const key = `${a.tag}_${a.face}`;
+                    targetStore[key] = a.image_url;
                 } else {
-                    // 背景やエフェクト、または表情指定なしのキャラ
-                    targetStore[a.tag] = a.image;
+                    // 背景や演出用
+                    targetStore[a.tag] = a.image_url;
                 }
             }
         });
     } catch (e) {
-        console.warn(`Failed to fetch assets for ${type}`, e);
+        console.warn(`Failed to fetch assets for ${type}:`, e);
     }
 }
-    /* =================================================================
+
+/* =================================================================
         描画 (レンダリング)
        ================================================================= */
 
@@ -839,17 +830,21 @@ const { data, error } = await supabaseClient
         }
     }
 
-    window.closeModal = () => {
-        ui.modal.style.display = 'none';
-        state.modalMode = '';
-    };
+ window.closeModal = () => {
+    ui.modal.style.display = 'none';
+    state.modalMode = '';
+    // 閉じる時にボタンの表示を復活させておく
+    document.getElementById('header-add-switch-btn').style.display = 'block';
+};
 
     // 編集フォーム設定
     document.getElementById('edit-scene-button').onclick = () => setupEdit('edit');
     document.getElementById('cancel-edit-button').onclick = closeModal;
 
+/* --- index.html の setupEdit 関数を以下のように書き換えてください --- */
+
 function setupEdit(mode) {
-   state.modalMode = mode;
+    state.modalMode = mode;
     openModal('edit');
     
     const s = state.episodeData[state.sceneIndex] || {};
@@ -857,53 +852,37 @@ function setupEdit(mode) {
     const headerDeleteBtn = document.getElementById('header-delete-btn');
     const headerAddBtn = document.getElementById('header-add-switch-btn');
 
+    // 【修正ポイント】まず、ボタンの表示状態を初期化（表示）する
+    headerAddBtn.style.display = 'block';
 
-    // モードによってボタンの表示を切り替え
-if (mode === 'add') {
+    if (mode === 'add') {
         // 【追加モード】
         title.textContent = 'シーン追加';
         headerDeleteBtn.style.display = 'none';
+        
+        // 追加モードの時だけプラスボタンを隠す
         headerAddBtn.style.display = 'none';
 
-        // エピソードとシーン番号のみ更新（話者と表情はそのまま）
         document.getElementById('edit-episode').value = ui.epSelect.value;
-        const nextNum = s.scene_number ? Number(s.scene_number) + 1 : 1;
+        const nextNum = s.scene_number ? Number(s.scene_number)  : 1;
         document.getElementById('edit-scene-number').value = nextNum;
-        
-        // 本文（text）は新しいシーン用になので空にする
         document.getElementById('edit-text').value = '';
     } else {
         // 【編集モード】
         document.getElementById('edit-form').reset();
         title.textContent = 'シーン編集';
         
+        // 編集モードならプラスボタンを表示（念のためここでも明示）
+        headerAddBtn.style.display = 'block';
+        headerDeleteBtn.style.display = 'block';
+
         const fields = ['episode', 'scene_number', 'character', 'text', 'face', 'special', 'background', 'effect'];
         fields.forEach(k => {
-            // プロパティ名の中のアンダースコア(_)をハイフン(-)に変換してIDを作る
-            // 例: scene_number -> edit-scene-number
             const id = `edit-${k.replace(/_/g, '-')}`;
             const input = document.getElementById(id);
             if (input) {
                 input.value = s[k] || '';
             }
-        });
-    }
-
-
-    // モードによってゴミ箱アイコンの表示・非表示を切り替える
-    headerDeleteBtn.style.display = (mode === 'edit') ? 'block' : 'none';
-    
-    title.textContent = mode === 'add' ? 'シーン追加' : 'シーン編集';
-
-    if (mode === 'add') {
-        document.getElementById('edit-episode').value = ui.epSelect.value;
-        const nextNum = s.scene_number ? Number(s.scene_number)  : 1;
-        document.getElementById('edit-scene-number').value = nextNum;
-    } else {
-        // 編集モード：データをセット
-        ['episode', 'scene_number', 'character', 'text', 'face', 'special', 'background', 'effect'].forEach(k => {
-            const input = document.getElementById(`edit-${k.replace(/([A-Z])/g, '-$1').toLowerCase()}`);
-            if (input) input.value = s[k] || '';
         });
     }
 }
@@ -960,7 +939,6 @@ try {
             if (error) throw error;
         }
 
-        alert('完了しました');
         closeModal();
         loadEpisodeData(sceneData.episode, sceneData.scene_number);
     } catch (err) {
@@ -990,7 +968,6 @@ document.getElementById('confirm-delete-button').onclick = async () => {
 
         if (error) throw error;
 
-        alert('削除しました');
         closeModal();
         loadEpisodeData(ui.epSelect.value, targetNum);
     } catch (err) {
