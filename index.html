@@ -9,7 +9,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500&family=Shippori+Mincho:wght@500;700&display=swap" rel="stylesheet">
-    
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         /* --- 🎨 テーマ設定 (異世界ファンタジー・シンプル) --- */
         :root {
@@ -288,7 +288,7 @@
     </div>
             <form id="edit-form">
                 <label>エピソード: <input type="text" id="edit-episode" name="episode"></label>
-                <label>シーン番号: <input type="text" id="edit-scene-number" name="sceneNumber"></label>
+                <label>シーン番号: <input type="text" id="edit-scene-number" name="scene_number"></label>
                 <label>話者: <input type="text" id="edit-character" name="character" list="characters-list"></label>
                 <datalist id="characters-list"></datalist>
                 
@@ -314,19 +314,23 @@
     </div>
 
 <script>
-    /**
+/**
      * 設定定数
      */
+
+    /* --- ⚙️ API設定 (Supabase) --- */
+    // ※ プロジェクトの設定画面 (Settings > API) からコピーした値を貼り付けてください
+    const SUPABASE_URL = 'https://sluvdcvxtzlpbqrxfpsg.supabase.co';
+    const SUPABASE_KEY = 'sb_publishable_dXIvPQtvu-2PunZ1FNkzyA_yczzig09'; 
+    // 変数名を supabaseClient ではなく supabase にする
+    // ライブラリの supabase と区別するため、変数名を変更します
+// 変数名を supabaseClient にして重複を避ける
+const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
     const CONFIG = {
-        GAS_BASE_URL: 'https://cat-seven-blond.vercel.app/api/gas-proxy',
         PRELOAD_COUNT: 5,       // 先読み数
         STORAGE_KEY: 'novel_viewer_save'
     };
 
-    const PROXY = {
-        SCENES: `${CONFIG.GAS_BASE_URL}?api=scenes`,
-        ASSETS: `${CONFIG.GAS_BASE_URL}?api=assets`
-    };
 
     /**
      * 状態管理
@@ -381,46 +385,98 @@
             showLoading(false);
         }
     }
-
-// 第2引数を targetSceneNumber (探したいシーン番号) に変更
-async function loadEpisodeData(episodeNumber, targetSceneNumber = null) {
+// 他の state 定義などがある場所に追記
+let globalLastBackground = ""; // エピソードを跨いで背景を保持する変数
+async function loadEpisodeData(episodeNumber, target_scene_number = null) {
     showLoading(true);
-    
     try {
-        state.episodeData = await fetchJson(`${PROXY.SCENES}&episode=${episodeNumber}`);
-        // 数値として正しく並ぶようにソート
-        state.episodeData.sort((a, b) => Number(a.sceneNumber) - Number(b.sceneNumber));
-        
-        if (state.episodeData.length === 0) throw new Error('データがありません');
+        // 1. Supabaseからデータを取得
+        const { data, error } = await supabaseClient
+            .from('vs_scenes_with_assets')
+            .select('*')
+            .eq('episode', episodeNumber)
+            .order('scene_number', { ascending: true });
 
-        // --- 追加・修正箇所：再開位置の特定 ---
-        let startIndex = 0;
-        if (targetSceneNumber !== null) {
-            // 保存したシーン番号と一致する要素のインデックスを探す
-            const foundIndex = state.episodeData.findIndex(s => Number(s.sceneNumber) === Number(targetSceneNumber));
-            // 見つかればその位置を、見つからなければ 0（先頭）を使用
-            startIndex = foundIndex !== -1 ? foundIndex : 0;
+        if (error) throw error;
+        if (!data || data.length === 0) {
+            alert('指定されたエピソードにデータがありません。');
+            return;
         }
-        // ------------------------------------
 
-        state.sceneIndex = startIndex;
+        // --- 📥 データの穴埋め・特殊演出処理 ---
+        let lastCharacterImg = "";
+        let characterDisplayEnabled = false; 
+        
+        // 背景は前回の最後（グローバル）から引き継ぐ
+        let currentProcessBackground = globalLastBackground;
 
-        // 最初の数シーンの画像を先読み
-        await preloadAssetsSmart(startIndex, CONFIG.PRELOAD_COUNT);
+        const filledData = data.map(scene => {
+            // --- A. 背景の処理 ---
+            if (!scene.background_image || scene.background_image === "") {
+                scene.background_image = currentProcessBackground;
+            } else {
+                // 背景が切り替わったら、キャラ表示フラグをリセット
+                if (currentProcessBackground !== scene.background_image) {
+                    characterDisplayEnabled = false;
+                }
+                currentProcessBackground = scene.background_image;
+            }
 
-        showLoading(false);
-        populateEditOptions();
-        renderScene(state.episodeData[state.sceneIndex]);
+            // --- B. 挿絵モード（Special）の判定 ---
+            const isIllustrationMode = (scene.special && scene.special !== "OFF");
 
-        // 残りを裏でロード
-        backgroundLoadRest(startIndex + CONFIG.PRELOAD_COUNT);
+            // --- C. キャラクター画像の処理 ---
+            const charName = scene.character || "";
+            const isSkipTarget = (charName === "ナレーション" || charName === "チハル");
 
-    } catch (e) {
-        alert('ロードエラー: ' + e.message);
+            if (!isSkipTarget && scene.character_image) {
+                characterDisplayEnabled = true;
+                lastCharacterImg = scene.character_image;
+            }
+
+            // 表示の確定
+            if (isIllustrationMode) {
+                scene.character_image = "";
+                scene.background_image = ""; 
+            } else if (!characterDisplayEnabled) {
+                scene.character_image = "";
+            } else if (isSkipTarget) {
+                scene.character_image = lastCharacterImg;
+            } else {
+                if (!scene.character_image || scene.character_image === "") {
+                    scene.character_image = lastCharacterImg;
+                } else {
+                    lastCharacterImg = scene.character_image;
+                }
+            }
+            return scene;
+        });
+
+        // 最後に現れた背景をグローバルに保存（次のエピソード用）
+        globalLastBackground = currentProcessBackground;
+
+        // 2. 状態を更新
+        state.episodeData = filledData;
+
+        // 3. 表示位置（インデックス）を決定
+        if (target_scene_number) {
+            const idx = filledData.findIndex(s => Number(s.scene_number) === Number(target_scene_number));
+            state.sceneIndex = idx !== -1 ? idx : 0;
+        } else {
+            state.sceneIndex = 0;
+        }
+
+        // 4. 重要：ここで明示的に描画を実行する
+        renderScene(); 
+        updateUI();
+
+    } catch (err) {
+        console.error('Data loading error:', err);
+        alert('読み込みエラー: ' + err.message);
+    } finally {
         showLoading(false);
     }
 }
-
     async function preloadAssetsSmart(currentIndex, count) {
         const endIndex = Math.min(currentIndex + count, state.episodeData.length);
         const targets = state.episodeData.slice(currentIndex, endIndex);
@@ -470,48 +526,94 @@ async function fetchJson(url, params = {}) {
     return res.json();
 }
         try {
-            const res = await fetchJson(`${PROXY.ASSETS}`, { filters: filter });
-            const list = Array.isArray(res) ? res : (res.contents || []);
-            list.forEach(a => {
-                if (a.tag && a.image) {
-                    if (type === 'character' && a.character_face_tag) {
-                        const key = `${a.tag}_${a.character_face_tag}`;
-                        targetStore[key] = a.image;
-                    } else if (type === 'character') {
-                        targetStore[a.tag] = a.image;
-                    } else {
-                        targetStore[a.tag] = a.image;
-                    }
-                }
-            });
-        } catch (e) {
-            console.warn(`Failed to fetch assets for ${type}`, e);
-        }
-    }
+        // Supabaseから指定した種類のアセットを取得
+        const { data: list, error } = await supabase
+            .from('assets')
+            .select('*')
+            .eq('asset_type', type);
 
+        if (error) throw error;
+
+        (list || []).forEach(a => {
+            if (a.tag && a.image) {
+                // キャラクターかつ表情タグがある場合
+                if (type === 'character' && a.character_face_tag) {
+                    const key = `${a.tag}_${a.character_face_tag}`;
+                    targetStore[key] = a.image;
+                } else {
+                    // 背景やエフェクト、または表情指定なしのキャラ
+                    targetStore[a.tag] = a.image;
+                }
+            }
+        });
+    } catch (e) {
+        console.warn(`Failed to fetch assets for ${type}`, e);
+    }
+}
     /* =================================================================
         描画 (レンダリング)
        ================================================================= */
 
-    function renderScene(s) {
-        if (!s) return;
+function renderScene(s) {
+    if (!s) return;
 
-        ui.name.textContent = s.character || '';
-        ui.text.textContent = s.text || ''; 
+    // --- 💬 テキスト・名前の表示 ---
+    ui.name.textContent = s.character || '';
+    ui.text.textContent = s.text || ''; 
 
-        // 優先順位: 直接URL > アセットタグ
-        updateImage(ui.bgDiv, s.background_image || s.background, state.loadedAssets.bg, true);
+    // --- 🖼️ 描画判定 ---
+    // ① special に値があり、かつ "OFF" でない場合は挿絵モード
+    const isIllustrationMode = (s.special && s.special !== "OFF");
+
+    // --- 🌌 背景（Background）の描画 ---
+    // 挿絵モードなら special を、そうでなければ background_image を使う
+    const bgUrl = isIllustrationMode ? (s.special_image || s.special) : (s.background_image || s.background);
+    updateImage(ui.bgDiv, bgUrl, state.loadedAssets.bg, true);
+
+    // --- 👥 キャラクター（Character）の描画 ---
+    if (isIllustrationMode || (!s.character_image && !s.character)) {
+        // 挿絵モード、またはキャラ指定がない場合は非表示
+        ui.charImg.style.display = 'none';
+    } else {
+        ui.charImg.style.display = 'block';
         updateImage(ui.charImg, s.character_image || s.character, state.loadedAssets.char, false);
-        updateImage(ui.specialImg, s.special_image || s.special, state.loadedAssets.special, false);
-        updateImage(ui.effectImg, s.effect_image || s.effect, state.loadedAssets.effect, false);
-
-        ui.charImg.className = ''; 
-        if (s.effect && String(s.effect).includes('影')) {
-            ui.charImg.classList.add('flashback-shadow');
-        }
-        
-        saveProgress();
     }
+
+    // --- ✨ エフェクト・その他 ---
+    // SpecialImgは背景として使っているので、ここでは個別に表示させない（または非表示にする）
+    if (ui.specialImg) ui.specialImg.style.display = 'none';
+
+    updateImage(ui.effectImg, s.effect_image || s.effect, state.loadedAssets.effect, false);
+
+    // キャラクターの演出クラス
+    ui.charImg.className = ''; 
+    if (s.effect && String(s.effect).includes('影')) {
+        ui.charImg.classList.add('flashback-shadow');
+    }
+    
+    saveProgress();
+}
+
+// 画面上のUI（ボタンの活性・非活性など）を更新する関数
+function updateUI() {
+    if (!state.episodeData || state.episodeData.length === 0) return;
+
+    const isFirst = state.sceneIndex === 0;
+    const isLast = state.sceneIndex === state.episodeData.length - 1;
+
+    // 前へ・次へボタンの制御（ID名はご自身のHTMLに合わせてください）
+    const prevBtn = document.getElementById('prev-btn');
+    const nextBtn = document.getElementById('next-btn');
+
+    if (prevBtn) prevBtn.disabled = isFirst;
+    if (nextBtn) nextBtn.disabled = isLast;
+
+    // 現在の進捗表示（例：1 / 20）
+    const counter = document.getElementById('scene-counter');
+    if (counter) {
+        counter.textContent = `${state.sceneIndex + 1} / ${state.episodeData.length}`;
+    }
+}
 
     function updateImage(el, tag, assetStore, isBg) {
         const currentScene = state.episodeData[state.sceneIndex];
@@ -642,20 +744,34 @@ async function fetchJson(url, params = {}) {
         UI連携 (編集・モーダル)
        ================================================================= */
     
-    async function populateEpisodeSelect() {
-        const allScenes = await fetchJson(PROXY.SCENES); 
+async function populateEpisodeSelect() {
+    try {
+        // scenesテーブルから episode 列だけを取得
+        const { data, error } = await supabaseClient
+            .from('scenes')
+            .select('episode');
+
+        if (error) throw error;
+
+        // Setを使って重複を削除し、数値順にソート
         const eps = new Set();
-        allScenes.forEach(s => { if(s.episode) eps.add(parseInt(s.episode)); });
-        state.episodeNumbers = Array.from(eps).sort((a,b)=>a-b);
+        data.forEach(s => { 
+            if(s.episode) eps.add(Number(s.episode)); 
+        });
+        state.episodeNumbers = Array.from(eps).sort((a, b) => a - b);
         
+        // プルダウンの生成
         ui.epSelect.innerHTML = '';
         state.episodeNumbers.forEach(ep => {
             const opt = document.createElement('option');
             opt.value = ep;
-            opt.textContent = ep;
+            opt.textContent = `第 ${ep} 話`;
             ui.epSelect.appendChild(opt);
         });
+    } catch (e) {
+        console.error('エピソードリストの取得に失敗しました:', e);
     }
+}
 
     // モーダル開閉
     document.getElementById('episode-select-icon').onclick = () => openModal('episode-list');
@@ -735,23 +851,25 @@ if (mode === 'add') {
 
         // エピソードとシーン番号のみ更新（話者と表情はそのまま）
         document.getElementById('edit-episode').value = ui.epSelect.value;
-        const nextNum = s.sceneNumber ? Number(s.sceneNumber) + 1 : 1;
+        const nextNum = s.scene_number ? Number(s.scene_number) + 1 : 1;
         document.getElementById('edit-scene-number').value = nextNum;
         
         // 本文（text）は新しいシーン用になので空にする
         document.getElementById('edit-text').value = '';
     } else {
-        // 【編集モード】一旦リセットしてから現在のシーンデータをセット
+        // 【編集モード】
         document.getElementById('edit-form').reset();
         title.textContent = 'シーン編集';
-        headerDeleteBtn.style.display = 'block';
-        headerAddBtn.style.display = 'block';
         
-        const fields = ['episode', 'sceneNumber', 'character', 'text', 'face', 'special', 'background', 'effect'];
+        const fields = ['episode', 'scene_number', 'character', 'text', 'face', 'special', 'background', 'effect'];
         fields.forEach(k => {
-            const id = `edit-${k.replace(/([A-Z])/g, '-$1').toLowerCase()}`;
+            // プロパティ名の中のアンダースコア(_)をハイフン(-)に変換してIDを作る
+            // 例: scene_number -> edit-scene-number
+            const id = `edit-${k.replace(/_/g, '-')}`;
             const input = document.getElementById(id);
-            if (input) input.value = s[k] || '';
+            if (input) {
+                input.value = s[k] || '';
+            }
         });
     }
 
@@ -763,11 +881,11 @@ if (mode === 'add') {
 
     if (mode === 'add') {
         document.getElementById('edit-episode').value = ui.epSelect.value;
-        const nextNum = s.sceneNumber ? Number(s.sceneNumber)  : 1;
+        const nextNum = s.scene_number ? Number(s.scene_number)  : 1;
         document.getElementById('edit-scene-number').value = nextNum;
     } else {
         // 編集モード：データをセット
-        ['episode', 'sceneNumber', 'character', 'text', 'face', 'special', 'background', 'effect'].forEach(k => {
+        ['episode', 'scene_number', 'character', 'text', 'face', 'special', 'background', 'effect'].forEach(k => {
             const input = document.getElementById(`edit-${k.replace(/([A-Z])/g, '-$1').toLowerCase()}`);
             if (input) input.value = s[k] || '';
         });
@@ -792,38 +910,48 @@ document.getElementById('header-add-switch-btn').onclick = () => {
 
     // フォーム送信処理（API）
    // index.html の 670行目付近
-document.getElementById('edit-form').onsubmit = async (e) => {
+ document.getElementById('edit-form').onsubmit = async (e) => {
     e.preventDefault();
     const formData = new FormData(e.target);
-    const data = Object.fromEntries(formData.entries());
-    
-    const method = state.modalMode === 'add' ? 'POST' : 'PUT';
-    let url = PROXY.SCENES;
+    const rawData = Object.fromEntries(formData.entries());
 
-    if (state.modalMode === 'edit') {
-        // ★修正: URLパラメータに _method=PUT と id を繋げる
-        url += `&id=${state.episodeData[state.sceneIndex].id}&_method=PUT`;
-    }
+    // DBの列名（スネークケース）に合わせてマッピング
+    const sceneData = {
+        episode: Number(rawData.episode),
+        scene_number: Number(rawData.scene_number),
+        character: rawData.character,
+        text: rawData.text,
+        face: rawData.face,
+        special: rawData.special,
+        background: rawData.background,
+        effect: rawData.effect
+    };
 
-    try {
+try {
         showLoading(true);
-        await fetch(url, {
-            method: 'POST', 
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(data) // Bodyには純粋なデータだけを入れる
-        });
-        closeModal();
-        
-        // 保存した時の「エピソード番号」と「シーン番号」を使ってリロード
-    // data.sceneNumber を第2引数に渡します
-    loadEpisodeData(data.episode || ui.epSelect.value, data.sceneNumber);
+        if (state.modalMode === 'add') {
+            // 新規追加：ここを修正！
+            const { error } = await supabaseClient  // ← supabase から supabaseClient へ
+                .from('scenes')
+                .insert([sceneData]);
+            if (error) throw error;
+        } else {
+            // 更新：ここを修正！
+            const { error } = await supabaseClient  // ← supabase から supabaseClient へ
+                .from('scenes')
+                .update(sceneData)
+                .eq('id', state.episodeData[state.sceneIndex].id);
+            if (error) throw error;
+        }
 
-    } catch(err) {
-        alert('エラー: ' + err.message);
+        alert('完了しました');
+        closeModal();
+        loadEpisodeData(sceneData.episode, sceneData.scene_number);
+    } catch (err) {
+        alert('保存エラー: ' + err.message);
         showLoading(false);
     }
 };
- 
 
 // ゴミ箱アイコンをクリックしたら、上記の削除確定ボタンを代わりにクリックする
 document.getElementById('header-delete-btn').onclick = () => {
@@ -832,39 +960,28 @@ document.getElementById('header-delete-btn').onclick = () => {
 
 // index.html の 695行目付近
 document.getElementById('confirm-delete-button').onclick = async () => {
-    // 1. 削除対象のデータを特定
     const currentScene = state.episodeData[state.sceneIndex];
-    if (!currentScene) return;
-
-    // 2. 削除確認
-    if (!confirm(`シーン番号 ${currentScene.sceneNumber} を本当に削除しますか？`)) return;
+    if (!currentScene || !confirm(`シーン番号 ${currentScene.scene_number} を削除しますか？`)) return;
 
     try {
         showLoading(true);
+        const targetNum = Math.max(1, currentScene.scene_number - 1);
 
-        // 3. 削除後の再開位置（削除する番号のひとつ前、最小1）を計算
-        const targetNum = Math.max(1, Number(currentScene.sceneNumber) - 1);
+        const { error } = await supabaseClient
+            .from('scenes')
+            .delete()
+            .eq('id', currentScene.id);
 
-        // 4. API実行
-        const url = `${PROXY.SCENES}&id=${currentScene.id}&_method=DELETE`;
-        
-        const response = await fetch(url, { 
-            method: 'POST'
-        });
+        if (error) throw error;
 
-        if (!response.ok) throw new Error('サーバーエラーが発生しました');
-
+        alert('削除しました');
         closeModal();
-
-        // 5. 削除した箇所の付近（targetNum）から再読み込み
         loadEpisodeData(ui.epSelect.value, targetNum);
-
-    } catch(err) {
-        alert('エラー: ' + err.message);
+    } catch (err) {
+        alert('削除エラー: ' + err.message);
         showLoading(false);
     }
 };
-
 
     window.onload = initialize;
 
