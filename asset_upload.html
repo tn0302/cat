@@ -276,66 +276,70 @@
         }
 
         // 6. アップロード実行
-        uploadButton.addEventListener('click', async () => {
-            const file = assetFileInput.files[0];
-            const type = assetTypeSelect.value;
-            const tag = tagSelect.value;
-            const face = faceSelect.value;
+        // アップロード実行部分の修正
+uploadButton.addEventListener('click', async () => {
+    const file = assetFileInput.files[0];
+    const type = assetTypeSelect.value;
+    const tag = tagSelect.value;
+    const face = faceSelect.value;
 
-            displayMessage('アップロード中...', 'info');
-            uploadButton.disabled = true;
+    displayMessage('アップロード中...', 'info');
+    uploadButton.disabled = true;
 
-            try {
-                // Cloudinaryへ送信 (Vercel API Proxy)
-                const formData = new FormData();
-                formData.append('file', file);
-                formData.append('asset_type', type);
-                formData.append('tag', tag);
+    try {
+        // --- 1. Cloudinaryへの送信（ここは既存のまま） ---
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('asset_type', type);
+        formData.append('tag', tag);
+        const cloudRes = await fetch('/api/media', { method: 'POST', body: formData });
+        const cloudData = await cloudRes.json();
+        if (!cloudRes.ok) throw new Error(cloudData.error || 'アップロード失敗');
+        const imageUrl = cloudData.url;
 
-                const cloudRes = await fetch('/api/media', { method: 'POST', body: formData });
-                const cloudData = await cloudRes.json();
-                if (!cloudRes.ok) throw new Error(cloudData.error || 'Cloudinaryへのアップロード失敗');
+        // --- 2. Supabaseへの保存（ここを修正） ---
+        
+        // 既存のレコードがあるか再確認
+        const target = noImageAssetsData.find(i => 
+            i.type === type && i.tag === tag && i.face === face
+        );
 
-                const imageUrl = cloudData.url;
+        const payload = {
+            asset_type: type,
+            tag: tag,
+            face: face || null,
+            image_url: imageUrl
+        };
 
-                // Supabase更新対象の特定
-                const target = noImageAssetsData.find(i => 
-                    i.type === type && i.tag === tag && i.face === face
-                );
+        let result;
+        if (target && target.id) {
+            // IDが存在する場合は、そのIDを指定して【UPDATE】
+            console.log("既存レコードを更新します ID:", target.id);
+            result = await supabaseClient
+                .from('assets')
+                .update(payload)
+                .eq('id', target.id);
+        } else {
+            // IDがない場合は【INSERT】（IDはSupabaseに自動採番させるためpayloadに含めない）
+            console.log("新規レコードを作成します");
+            result = await supabaseClient
+                .from('assets')
+                .insert([payload]);
+        }
 
-                const payload = {
-                    asset_type: type,
-                    tag: tag,
-                    face: face || null,
-                    image_url: imageUrl
-                };
+        if (result.error) throw result.error;
 
-                let dbError;
-                if (target && target.id) {
-                    // 既存行を更新
-                    const { error } = await supabaseClient.from('assets').update(payload).eq('id', target.id);
-                    dbError = error;
-                } else {
-                    // 新規行を挿入
-                    const { error } = await supabaseClient.from('assets').insert([payload]);
-                    dbError = error;
-                }
+        displayMessage(`✅ 完了しました！`, 'success');
+        assetFileInput.value = '';
+        await fetchNoImageAssets(); // リストを最新の状態に更新
 
-                if (dbError) throw dbError;
-
-                displayMessage(`✅ アップロード完了！\nURL: ${imageUrl}`, 'success');
-                
-                // 入力リセット
-                assetFileInput.value = '';
-                await fetchNoImageAssets(); // リストを再取得
-
-            } catch (err) {
-                console.error(err);
-                displayMessage(`エラー: ${err.message}`, 'error');
-            } finally {
-                uploadButton.disabled = false;
-            }
-        });
+    } catch (err) {
+        console.error("エラー詳細:", err);
+        displayMessage(`エラー: ${err.message}`, 'error');
+    } finally {
+        uploadButton.disabled = false;
+    }
+});
 
         function displayMessage(msg, type) {
             messageDiv.textContent = msg;
