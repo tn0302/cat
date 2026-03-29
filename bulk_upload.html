@@ -148,80 +148,100 @@
 
   <section>
     <h2>④ JSONデータをアップロード</h2>
-    <textarea id="json-input" placeholder='[{"episode": 1, "sceneNumber": 1, "character": "勇者", "text": "...", "face": "normal"}]'></textarea>
+    <textarea id="json-input" placeholder='[{"episode": 1, "scene_number": 1, "character": "勇者", "text": "...", "face": "normal"}]'></textarea>
     <button id="upload-button" class="action-btn">アップロード</button>
     <div id="message"></div>
   </section>
  
         <button id="return-button" class="cancel-button">ノベルビューアに戻る</button>
 
-  <script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<script>
+    // --- ⚙️ Supabase設定 ---
+    const SUPABASE_URL = 'https://sluvdcvxtzlpbqrxfpsg.supabase.co';
+    const SUPABASE_KEY = 'sb_publishable_dXIvPQtvu-2PunZ1FNkzyA_yczzig09'; 
+    const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
     const episodeInput = document.getElementById("episode");
     const jsonInput = document.getElementById("json-input");
     const uploadButton = document.getElementById("upload-button");
     const messageDiv = document.getElementById("message");
-    const GAS_BASE_URL = 'https://cat-seven-blond.vercel.app/api/gas-proxy';
-    const SCENES_PROXY_PATH = `${GAS_BASE_URL}?api=scenes`;
+    const returnButton = document.getElementById("return-button");
 
+    // テンプレートコピー機能（既存のまま）
     function copyTemplate(type) {
-      const ep = episodeInput.value || "1";
-      const input1 = document.getElementById("inputText1").value.trim();
-      const input2 = document.getElementById("inputText2").value.trim();
-      const input3 = document.getElementById("inputText3").value.trim();
-      let output = "";
+        const ep = episodeInput.value || "1";
+        const input1 = document.getElementById("inputText1").value.trim();
+        const input2 = document.getElementById("inputText2").value.trim();
+        const input3 = document.getElementById("inputText3").value.trim();
+        let output = "";
 
-      if (type === 1) {
-        output = `以下はファンタジー物語『勇者ハーレム』の抜粋です。\n\nこの本文をもとに、登場キャラクターの話し方・語尾・性格などを分析し、下記のフォーマットで出力してください。\nナレーションも一つの話者として扱ってください。\n\n---\n\n【出力フォーマット】\nキャラ名:  \n一人称:  \n二人称（主人公の呼び方）:  \n語尾・話し方:  \n性格傾向:  \n特徴的な口癖や言い回し:  \n\n---\n\n【入力本文】\n${input1}`;
-      } else if (type === 2) {
-        output = `以下はファンタジー物語『勇者ハーレム』の本文抜粋です。\n\nこの文章をもとに、各行の「話者（キャラクター）」を自動的に特定し、\nその話者の話し方や語尾が「キャラクター口調ガイド」と一致していない場合は補正してください。\n物語にふさわしい文体になるよう、各キャラクターの性格や状況に応じた自然なセリフに言い換えてください。\nナレーション行も三人称で簡潔・詩的に整えてください。\n\n---\n\n【キャラクター口調ガイド】\n${input2}\n\n---\n\n【出力形式】\n話者：セリフまたはナレーションの補正済み文章\n\n---\n\n${input1}`;
-      } else if (type === 3) {
-        output = `以下はファンタジー物語『勇者ハーレム』のエピソード${ep}です。\n\nこの文章をもとに、以下の条件に従って整形してください。\n\n---\n\n## 🔹【目的】\n+\n- 表情（感情）タグを付与（固定レパートリー内から選択）\n- 出力をJSON形式に整形し、後処理しやすくする\n\n---\n\n## 🔹【整形条件】\n- 話者（character）は必ず記載してください。\n- 表情（face）は「表情タグ一覧」から最も適切なものを1つ選んで記載してください。\n\n---\n\n## 🔹【表情タグ一覧】\n\n- normal（通常）\n- smile（笑顔）\n- angry（怒り）\n- shy（恥じらい）\n- sad（悲しみ）\n- cold（冷笑）\n- surprised（驚き）\n- corrupt（堕落）\n- ecstasy（恍惚）\n\n※JSON内では英語表記で統一してください。\n\n---\n\n## 🔹【出力形式】\n\n- 以下のJSON構造で出力してください\n- background, effect, specialは省略可能（後処理で追加）\n\n\`\`\`json\n[\n  {\n    "episode": ${ep},\n    "sceneNumber": 1,\n    "character": "ナレーション",\n    "text": "チハルは魔王が管理する森へやってきた。",\n    "background": "forest"\n  },\n  {\n    "episode": ${ep},\n    "sceneNumber": 2,\n    "character": "チハル",\n    "text": "これはエピソード1の最初のシーンだ。一括アップロードテスト。",\n    "face": "normal",\n    "background": "forest"\n  },\n  {\n    "episode": ${ep},\n    "sceneNumber": 3,\n    "character": "魔王",\n    "text": "ほう、新たなシーンが追加されたか。面白い。",\n    "face": "angry",\n    "background": "forest"\n  }\n]\n\`\`\`\n\n🔹【整形対象本文】\n${input3}`;
-      }
+        if (type === 1) {
+            output = `以下はファンタジー物語『勇者ハーレム』の抜粋です。\n\nこの本文をもとに、登場キャラクターの話し方・語尾・性格などを分析し、下記のフォーマットで出力してください。\nナレーションも一つの話者として扱ってください。\n\n---\n\n【出力フォーマット】\nキャラ名:  \n一人称:  \n二人称（主人公の呼び方）:  \n語尾・話し方:  \n性格傾向:  \n特徴的な口癖や言い回し:  \n\n---\n\n【入力本文】\n${input1}`;
+        } else if (type === 2) {
+            output = `以下はファンタジー物語『勇者ハーレム』の本文抜粋です。\n\nこの文章をもとに、各行の「話者（キャラクター）」を自動的に特定し、\nその話者の話し方や語尾が「キャラクター口調ガイド」と一致していない場合は補正してください。\n物語にふさわしい文体になるよう、各キャラクターの性格や状況に応じた自然なセリフに言い換えてください。\nナレーション行も三人称で簡潔・詩的に整えてください。\n\n---\n\n【キャラクター口調ガイド】\n${input2}\n\n---\n\n【出力形式】\n話者：セリフまたはナレーションの補正済み文章\n\n---\n\n${input1}`;
+        } else if (type === 3) {
+            output = `以下はファンタジー物語『勇者ハーレム』のエピソード${ep}です。\n\nこの文章をもとに、以下の条件に従って整形してください。\n\n---\n\n## 🔹【目的】\n- 表情（感情）タグを付与\n- 出力をJSON形式に整形\n\n---\n\n## 🔹【表情タグ一覧】\nnormal, smile, angry, shy, sad, cold, surprised, corrupt, ecstasy\n\n---\n\n## 🔹【出力形式】\n\`\`\`json\n[\n  {\n    "episode": ${ep},\n    "scene_number": 1,\n    "character": "ナレーション",\n    "text": "テキスト...",\n    "face": "normal",\n    "background": "forest"\n  }\n]\n\`\`\`\n\n🔹【整形対象本文】\n${input3}`;
+        }
 
-      navigator.clipboard.writeText(output).then(() => {
-        alert("テンプレートをコピーしました！");
-      });
+        navigator.clipboard.writeText(output).then(() => {
+            alert("テンプレートをコピーしました！");
+        });
     }
 
-    
-
+    // --- 🚀 Supabaseへの一括アップロード機能 ---
     uploadButton.addEventListener('click', async () => {
-      const jsonText = jsonInput.value.trim();
-      if (!jsonText) return displayMessage('JSONデータを入力してください。', 'error');
-      displayMessage('データを処理中...', 'info');
-      uploadButton.disabled = true;
+        const jsonText = jsonInput.value.trim();
+        if (!jsonText) return displayMessage('JSONデータを入力してください。', 'error');
+        
+        displayMessage('Supabaseへアップロード中...', 'info');
+        uploadButton.disabled = true;
 
-      try {
-        const jsonData = JSON.parse(jsonText);
-        if (!Array.isArray(jsonData)) return displayMessage('JSONは配列形式である必要があります。', 'error');
-        if (jsonData.length === 0) return displayMessage('シーンデータが空です。', 'info');
+        try {
+            // 1. JSONのパースとバリデーション
+            const jsonData = JSON.parse(jsonText);
+            if (!Array.isArray(jsonData)) throw new Error('JSONは配列形式 [{}, {}] である必要があります。');
 
-        const response = await fetch(SCENES_PROXY_PATH, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(jsonData),
-        });
+            // 2. データ整形（念のためカラム名をテーブルに合わせる）
+            // テーブルのカラム名が character, text, face, episode, scene_number, background であると想定
+            const formattedData = jsonData.map(item => ({
+                episode: parseInt(item.episode),
+                scene_number: parseInt(item.scene_number),
+                character: item.character || '',
+                text: item.text || '',
+                face: item.face || 'normal',
+                background: item.background || ''
+            }));
 
-        const result = await response.json();
-        if (response.ok) {
-          displayMessage(`全 ${jsonData.length} 件のシーンをアップロードしました！\n${JSON.stringify(result, null, 2)}`, 'success');
-        } else {
-          let errorMessage = `アップロード失敗: ${response.status} ${response.statusText}\n`;
-          if (result.message) errorMessage += `詳細: ${result.message}\n`;
-          if (result.error) errorMessage += `エラー: ${result.error}\n`;
-          displayMessage(errorMessage, 'error');
+            // 3. Supabaseに一括インサート
+            const { data, error } = await supabaseClient
+                .from('scenes')
+                .insert(formattedData)
+                .select(); // 挿入結果を取得
+
+            if (error) throw error;
+
+            displayMessage(`✅ 成功！ ${formattedData.length} 件のシーンを Supabase に登録しました。`, 'success');
+            jsonInput.value = ''; // 成功したら入力欄を空にする
+
+        } catch (error) {
+            console.error(error);
+            displayMessage(`アップロード失敗: ${error.message}`, 'error');
+        } finally {
+            uploadButton.disabled = false;
         }
-      } catch (error) {
-        displayMessage(`エラーが発生しました: ${error.message}`, 'error');
-      } finally {
-        uploadButton.disabled = false;
-      }
+    });
+
+    // 戻るボタン
+    returnButton.addEventListener('click', () => {
+        window.location.href = 'index.html';
     });
 
     function displayMessage(message, type) {
-      messageDiv.textContent = message;
-      messageDiv.className = `message-${type}`;
+        messageDiv.textContent = message;
+        messageDiv.className = `message-${type}`;
     }
-  </script>
+</script>
 </body>
 </html>

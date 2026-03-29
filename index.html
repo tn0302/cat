@@ -740,27 +740,39 @@ function updateUI() {
         return json ? JSON.parse(json) : null;
     }
 
-    /* =================================================================
-        UI連携 (編集・モーダル)
-       ================================================================= */
-    
+/* =================================================================
+    UI連携 (エピソード選択) 修正版
+   ================================================================= */
 async function populateEpisodeSelect() {
     try {
-        // scenesテーブルから episode 列だけを取得
-        const { data, error } = await supabaseClient
-            .from('scenes')
-            .select('episode');
+        // 修正ポイント：全行取得ではなく、一意(unique)なエピソード番号のみを取得するように最適化
+ // populateEpisodeSelect内
+const { data, error } = await supabaseClient
+    .from('distinct_episodes')
+    .select('*');
+// ...あとは data.map(d => d.episode) で取得可能
 
         if (error) throw error;
 
-        // Setを使って重複を削除し、数値順にソート
+        // Setを使ってJS側で確実に重複を排除
         const eps = new Set();
         data.forEach(s => { 
-            if(s.episode) eps.add(Number(s.episode)); 
+            if(s.episode !== null && s.episode !== undefined) {
+                eps.add(Number(s.episode)); 
+            }
         });
+
+        // 数値として昇順にソート（1, 2, ... 10, 11 と正しく並ぶようにする）
         state.episodeNumbers = Array.from(eps).sort((a, b) => a - b);
         
-        // プルダウンの生成
+        console.log("取得済みエピソード一覧:", state.episodeNumbers);
+
+        if (state.episodeNumbers.length === 0) {
+            console.warn('エピソードが見つかりません。');
+            return;
+        }
+
+        // プルダウン（隠し要素）の生成
         ui.epSelect.innerHTML = '';
         state.episodeNumbers.forEach(ep => {
             const opt = document.createElement('option');
@@ -768,6 +780,10 @@ async function populateEpisodeSelect() {
             opt.textContent = `第 ${ep} 話`;
             ui.epSelect.appendChild(opt);
         });
+
+        // モーダル内のエピソードボタン一覧を再描画する必要がある場合はここで実行
+        // (openModal時に描画する設計ならそのままでOK)
+
     } catch (e) {
         console.error('エピソードリストの取得に失敗しました:', e);
     }
