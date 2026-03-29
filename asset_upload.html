@@ -277,33 +277,31 @@
 
         // 6. アップロード実行
         // アップロード実行部分の修正
+// --- アップロードボタンのクリックイベント内 ---
 uploadButton.addEventListener('click', async () => {
     const file = assetFileInput.files[0];
     const type = assetTypeSelect.value;
     const tag = tagSelect.value;
     const face = faceSelect.value;
 
-    displayMessage('アップロード中...', 'info');
+    displayMessage('新規アセットとして登録中...', 'info');
     uploadButton.disabled = true;
 
     try {
-        // --- 1. Cloudinaryへの送信（ここは既存のまま） ---
+        // 1. Cloudinaryへの送信
         const formData = new FormData();
         formData.append('file', file);
         formData.append('asset_type', type);
         formData.append('tag', tag);
+
         const cloudRes = await fetch('/api/media', { method: 'POST', body: formData });
         const cloudData = await cloudRes.json();
-        if (!cloudRes.ok) throw new Error(cloudData.error || 'アップロード失敗');
+        if (!cloudRes.ok) throw new Error(cloudData.error || 'Cloudinaryへのアップロード失敗');
+
         const imageUrl = cloudData.url;
 
-        // --- 2. Supabaseへの保存（ここを修正） ---
-        
-        // 既存のレコードがあるか再確認
-        const target = noImageAssetsData.find(i => 
-            i.type === type && i.tag === tag && i.face === face
-        );
-
+        // 2. Supabaseへの保存 (常に INSERT)
+        // 【重要】 id を含めないことで、Supabaseが新しいIDを自動採番します
         const payload = {
             asset_type: type,
             tag: tag,
@@ -311,27 +309,24 @@ uploadButton.addEventListener('click', async () => {
             image_url: imageUrl
         };
 
-        let result;
-        if (target && target.id) {
-            // IDが存在する場合は、そのIDを指定して【UPDATE】
-            console.log("既存レコードを更新します ID:", target.id);
-            result = await supabaseClient
-                .from('assets')
-                .update(payload)
-                .eq('id', target.id);
-        } else {
-            // IDがない場合は【INSERT】（IDはSupabaseに自動採番させるためpayloadに含めない）
-            console.log("新規レコードを作成します");
-            result = await supabaseClient
-                .from('assets')
-                .insert([payload]);
+        console.log("新規レコードとして挿入します:", payload);
+
+        // .insert() を使用。IDを指定しないのがポイントです。
+        const { error } = await supabaseClient
+            .from('assets')
+            .insert([payload]); 
+
+        if (error) {
+            // もし「重複」と言われたら、それはIDではなく「type, tag, faceの組み合わせ」に制約がある可能性があります
+            throw error;
         }
 
-        if (result.error) throw result.error;
-
-        displayMessage(`✅ 完了しました！`, 'success');
+        displayMessage(`✅ 新規登録が完了しました！\nURL: ${imageUrl}`, 'success');
+        
+        // フォームのリセット
         assetFileInput.value = '';
-        await fetchNoImageAssets(); // リストを最新の状態に更新
+        // リストを更新（登録したものは不足リストから消えるはずです）
+        await fetchNoImageAssets(); 
 
     } catch (err) {
         console.error("エラー詳細:", err);
