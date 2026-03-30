@@ -850,7 +850,6 @@ const { data, error } = await supabaseClient
     document.getElementById('cancel-edit-button').onclick = closeModal;
 
 /* --- index.html の setupEdit 関数を以下のように書き換えてください --- */
-
 function setupEdit(mode) {
     state.modalMode = mode;
     openModal('edit');
@@ -860,27 +859,29 @@ function setupEdit(mode) {
     const headerDeleteBtn = document.getElementById('header-delete-btn');
     const headerAddBtn = document.getElementById('header-add-switch-btn');
 
-    // 【修正ポイント】まず、ボタンの表示状態を初期化（表示）する
     headerAddBtn.style.display = 'block';
 
     if (mode === 'add') {
         // 【追加モード】
         title.textContent = 'シーン追加';
         headerDeleteBtn.style.display = 'none';
-        
-        // 追加モードの時だけプラスボタンを隠す
         headerAddBtn.style.display = 'none';
 
         document.getElementById('edit-episode').value = ui.epSelect.value;
-        const nextNum = s.scene_number ? Number(s.scene_number)  : 1;
+        
+        // --- 修正箇所：現在のシーン番号に +1 した値をデフォルトにする ---
+        // シーンが存在すればその番号+1、なければ1にする
+        const nextNum = s.scene_number ? (Number(s.scene_number) + 1) : 1;
         document.getElementById('edit-scene-number').value = nextNum;
+        
         document.getElementById('edit-text').value = '';
+        // テキスト以外（キャラ名や背景タグ）もクリアしたい場合はここに追加してください
+        document.getElementById('edit-character').value = '';
+        document.getElementById('edit-background').value = '';
     } else {
-        // 【編集モード】
+        // 【編集モード】（変更なし）
         document.getElementById('edit-form').reset();
         title.textContent = 'シーン編集';
-        
-        // 編集モードならプラスボタンを表示（念のためここでも明示）
         headerAddBtn.style.display = 'block';
         headerDeleteBtn.style.display = 'block';
 
@@ -894,7 +895,6 @@ function setupEdit(mode) {
         });
     }
 }
-
 // プラスボタンを押した時の処理（追加モードへ切り替え）
 document.getElementById('header-add-switch-btn').onclick = () => {
   
@@ -913,15 +913,18 @@ document.getElementById('header-add-switch-btn').onclick = () => {
 
     // フォーム送信処理（API）
    // index.html の 670行目付近
- document.getElementById('edit-form').onsubmit = async (e) => {
+ // index.html の 670行目付近を修正
+document.getElementById('edit-form').onsubmit = async (e) => {
     e.preventDefault();
     const formData = new FormData(e.target);
     const rawData = Object.fromEntries(formData.entries());
 
-    // DBの列名（スネークケース）に合わせてマッピング
+    const episodeNum = Number(rawData.episode);
+    const targetSceneNum = Number(rawData.scene_number);
+
     const sceneData = {
-        episode: Number(rawData.episode),
-        scene_number: Number(rawData.scene_number),
+        episode: episodeNum,
+        scene_number: targetSceneNum,
         character: rawData.character,
         text: rawData.text,
         face: rawData.face,
@@ -930,17 +933,46 @@ document.getElementById('header-add-switch-btn').onclick = () => {
         effect: rawData.effect
     };
 
-try {
+    try {
         showLoading(true);
+
         if (state.modalMode === 'add') {
-            // 新規追加：ここを修正！
-            const { error } = await supabaseClient  // ← supabase から supabaseClient へ
+            // --- ★追加：シーン番号の繰り上げ処理 ---
+            // 同じエピソード内で、挿入したい番号以上のシーンをすべて +1 する
+            // 直接 SQL を叩けないため、RPCを使うか、一度取得して更新する必要があります。
+            // ここではシンプルに「現在の番号以上のものをすべてカウントアップ」するロジックを入れます。
+            
+            // 1. 挿入箇所より後ろのシーンを特定
+            const { data: laterScenes, error: fetchError } = await supabaseClient
+                .from('scenes')
+                .select('id, scene_number')
+                .eq('episode', episodeNum)
+                .gte('scene_number', targetSceneNum);
+
+            if (fetchError) throw fetchError;
+
+            // 2. 後ろのシーンがある場合、番号を +1 更新（逆順に更新しないと重複エラーが出る可能性があるためループで処理）
+            if (laterScenes && laterScenes.length > 0) {
+                // 大きい順にソートして更新（一意制約エラー対策）
+                laterScenes.sort((a, b) => b.scene_number - a.scene_number);
+                
+                for (const scene of laterScenes) {
+                    await supabaseClient
+                        .from('scenes')
+                        .update({ scene_number: scene.scene_number + 1 })
+                        .eq('id', scene.id);
+                }
+            }
+
+            // 3. 空いた場所に新規挿入
+            const { error: insertError } = await supabaseClient
                 .from('scenes')
                 .insert([sceneData]);
-            if (error) throw error;
+            if (insertError) throw insertError;
+
         } else {
-            // 更新：ここを修正！
-            const { error } = await supabaseClient  // ← supabase から supabaseClient へ
+            // 更新（既存の編集）
+            const { error } = await supabaseClient
                 .from('scenes')
                 .update(sceneData)
                 .eq('id', state.episodeData[state.sceneIndex].id);
@@ -948,42 +980,72 @@ try {
         }
 
         closeModal();
-        loadEpisodeData(sceneData.episode, sceneData.scene_number);
+        // 追加・更新した番号のシーンへ移動
+        loadEpisodeData(episodeNum, targetSceneNum);
+        
     } catch (err) {
+        console.error(err);
         alert('保存エラー: ' + err.message);
         showLoading(false);
     }
 };
-
 // ゴミ箱アイコンをクリックしたら、上記の削除確定ボタンを代わりにクリックする
 document.getElementById('header-delete-btn').onclick = () => {
     document.getElementById('confirm-delete-button').click();
 };
 
-// index.html の 695行目付近
+// index.html 700行目付近を修正
 document.getElementById('confirm-delete-button').onclick = async () => {
     const currentScene = state.episodeData[state.sceneIndex];
-    if (!currentScene || !confirm(`シーン番号 ${currentScene.scene_number} を削除しますか？`)) return;
+    if (!currentScene || !confirm(`シーン番号 ${currentScene.scene_number} を削除しますか？\n(以降のシーン番号は自動的に繰り上げられます)`)) return;
 
     try {
         showLoading(true);
-        const targetNum = Math.max(1, currentScene.scene_number - 1);
+        const episodeNum = Number(ui.epSelect.value);
+        const deletedSceneNum = Number(currentScene.scene_number);
 
-        const { error } = await supabaseClient
+        // 1. 対象のシーンを削除
+        const { error: deleteError } = await supabaseClient
             .from('scenes')
             .delete()
             .eq('id', currentScene.id);
 
-        if (error) throw error;
+        if (deleteError) throw deleteError;
 
+        // 2. ★追加：削除された番号より後ろのシーンをすべて「-1」する
+        const { data: laterScenes, error: fetchError } = await supabaseClient
+            .from('scenes')
+            .select('id, scene_number')
+            .eq('episode', episodeNum)
+            .gt('scene_number', deletedSceneNum); // 削除した番号より大きいもの
+
+        if (fetchError) throw fetchError;
+
+        if (laterScenes && laterScenes.length > 0) {
+            // 小さい順にソートして更新（一意制約エラーを避けるため）
+            laterScenes.sort((a, b) => a.scene_number - b.scene_number);
+
+            for (const scene of laterScenes) {
+                await supabaseClient
+                    .from('scenes')
+                    .update({ scene_number: scene.scene_number - 1 })
+                    .eq('id', scene.id);
+            }
+        }
+
+        alert('削除と番号の整理が完了しました');
         closeModal();
-        loadEpisodeData(ui.epSelect.value, targetNum);
+
+        // 前のシーン、もしくは先頭に戻る
+        const targetNum = Math.max(1, deletedSceneNum - 1);
+        loadEpisodeData(episodeNum, targetNum);
+
     } catch (err) {
+        console.error(err);
         alert('削除エラー: ' + err.message);
         showLoading(false);
     }
 };
-
     window.onload = initialize;
 
 </script>
