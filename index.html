@@ -91,7 +91,7 @@
             border-top: 2px solid var(--accent-color); /* ゴールドのライン */
             box-shadow: 0 -5px 20px rgba(0,0,0,0.5);
             
-            padding: 20px 30px 40px; /* 下に余裕を持たせる */
+            padding: 20px; /* 下に余裕を持たせる */
             box-sizing: border-box; 
             z-index: 10; 
             display: flex; flex-direction: column;
@@ -108,7 +108,6 @@
         }
         
         #dialogue-text { 
-            line-height: 1.8; 
             letter-spacing: 0.08em;
             color: var(--text-color);
             text-shadow: 1px 1px 2px rgba(0,0,0,0.8); 
@@ -159,24 +158,133 @@
         .dropdown-content button {
             color: var(--text-color); padding: 12px 16px; width: 100%; text-align: left;
             background: none; border: none; cursor: pointer; font-family: var(--font-main);
-            border-bottom: 1px solid rgba(255,255,255,0.1);
         }
         .dropdown-content button:hover { background-color: rgba(192, 160, 128, 0.2); }
 
-        /* --- 📝 モーダル（編集画面など） --- */
-        #modal { 
-            display: none; position: fixed; z-index: 200; left: 0; top: 0; 
-            width: 100%; height: 100%; background-color: rgba(0,0,0,0.85); 
-            justify-content: center; align-items: center; 
-            backdrop-filter: blur(5px);
-        }
-        .modal-container { 
-            background: #1e293b; 
-            border: 1px solid var(--accent-color);
-            padding: 25px; border-radius: 8px; 
-            width: 90%; max-width: 500px; max-height: 90vh; overflow-y: auto; 
-            box-shadow: 0 0 30px rgba(0,0,0,0.7);
-        }
+  /* --- 📝 モーダル：基本構造 --- */
+#modal {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    z-index: 2000; display: none; justify-content: center; align-items: center;
+}
+#modal-overlay {
+    position: absolute; width: 100%; height: 100%;
+    background: rgba(0, 0, 0, 0.85); backdrop-filter: blur(4px);
+}
+#modal-content {
+    position: relative; width: 90%; max-width: 800px;
+    background: var(--bg-color); border: 1px solid var(--accent-color);
+    border-radius: 16px; padding: 30px; z-index: 2001;
+    max-height: 80vh; overflow-y: auto; /* overflowを修正 */
+}
+.modal-close-btn {
+    position: absolute;
+    top: 15px;
+    right: 20px;
+    background: rgba(192, 160, 128, 0.1);
+    border: 1px solid var(--accent-color);
+    color: var(--accent-color);
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+    transition: 0.3s;
+}
+
+/* フルスクリーン用のスタイル */
+.fullscreen-content {
+    position: relative;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: 100% !important;
+    max-height: 100vh !important;
+    background: var(--bg-color);
+    padding: 80px 20px 40px 20px !important; /* 上部にヘッダー分の余白 */
+    box-sizing: border-box;
+    overflow-y: auto !important; /* コンテンツが長くてもスクロール可能に */
+    -webkit-overflow-scrolling: touch;
+    border: none !important;
+    border-radius: 0 !important;
+}
+
+/* あらすじの長文エリア */
+.ep-summary-fulltext {
+    font-size: 1rem;
+    line-height: 1.8;
+    color: var(--text-color);
+    white-space: pre-wrap;
+    margin-bottom: 40px;
+    background: rgba(255,255,255,0.03);
+    padding: 15px;
+    border-radius: 8px;
+}
+
+/* 下部に流れるボタン群 */
+.ep-footer-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    margin-top: 20px;
+    padding-bottom: 40px; /* 最後のボタンの下に余白 */
+}
+
+.cancel-button-link {
+    background: none;
+    border: none;
+    color: #94a3b8;
+    text-decoration: underline;
+    cursor: pointer;
+    font-size: 0.9rem;
+}
+
+/* ヘッダー固定 */
+.modal-header-controls {
+    position: fixed; /* absoluteからfixedに変更してスクロールしても付いてくるように */
+    top: 0;
+    left: 0;
+    right: 0;
+    padding: 15px 20px;
+    display: flex;
+    gap: 10px;
+}
+
+.custom-select-mini {
+    flex-grow: 1; /* プルダウンを可能な限り広げる */
+    padding: 8px;
+    border: 1px solid var(--accent-color);
+    color: var(--text-color);
+    border-radius: 6px;
+    font-size: 0.9rem;
+}
+
+.modal-control-btn {
+    flex: 0 0 40px;
+    height: 40px;
+    background: rgba(192, 160, 128, 0.1);
+    border: 1px solid var(--accent-color);
+    color: var(--accent-color);
+    border-radius: 6px;
+    cursor: pointer;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 1.2rem;
+}
+
+.ep-button-group {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 20px;
+}
+
+
+.modal-close-btn:hover {
+    background: var(--accent-color);
+    color: var(--bg-color);
+}
         h2 { color: var(--accent-color); font-family: var(--font-serif); border-bottom: 1px solid #444; padding-bottom: 10px; margin-top: 0; }
         
         input, textarea, select {
@@ -192,21 +300,164 @@
         .cancel-button { background: transparent; border: 1px solid #64748b; color: #94a3b8; margin-top: 10px; width: 100%; padding: 10px; border-radius: 4px; cursor: pointer; }
         .delete-button { background: #7f1d1d; color: #fecaca; width: 100%; padding: 10px; border: none; border-radius: 4px; cursor: pointer; }
 
-        /* --- 🔢 エピソードリスト（グリッド表示） --- */
-        #episode-list {
-            display: grid;
-            grid-template-columns: repeat(5, 1fr); /* 5列表示 */
-            gap: 8px;
-            margin-bottom: 20px;
-        }
-        #episode-list .control-button {
-            width: 100%; /* グリッドセルいっぱいに */
-            height: 48px;
-            font-family: var(--font-serif);
-            font-size: 1.1em;
-            margin: 0;
-            padding: 0;
-        }
+
+        #immersive-edit-trigger {
+    position: fixed;
+    top: 15px;
+    right: 70px; /* メニューボタンの隣 */
+    width: 40px;
+    height: 40px;
+    background: rgba(192, 160, 128, 0.2);
+    border: 1px solid var(--accent-color);
+    color: var(--accent-color);
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+    z-index: 100;
+    transition: 0.3s;
+    backdrop-filter: blur(5px);
+}
+
+.modal-close-btn-circle {
+    background: rgba(192, 160, 128, 0.1);
+    border: 1px solid var(--accent-color);
+    color: var(--accent-color);
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+    font-size: 1.2rem;
+    transition: 0.3s;
+}
+
+.modal-close-btn-circle:hover {
+    background: var(--accent-color);
+    color: var(--bg-color);
+    transform: translateY(-2px);
+}
+
+/* 編集フォーム内のラベル */
+#ep-edit-form-area .label {
+    font-size: 0.75rem;
+    color: var(--accent-color);
+    display: block;
+    margin-bottom: 5px;
+}
+
+#immersive-edit-trigger:hover {
+    background: var(--accent-color);
+    color: var(--bg-color);
+    transform: scale(1.1);
+}
+
+/* 編集モード中のダイアログボックス強調 */
+.editing-active #dialogue-box {
+    border-top: 2px solid #ffeb3b; /* 編集中の色 */
+    box-shadow: 0 -5px 30px rgba(255, 235, 59, 0.2);
+}
+/* =================================================================
+    UX改善：インライン編集 & アセット変更CSS
+   ================================================================= */
+
+/* 1. 枠なしインライン編集フォーム：通常テキストと区別がつかないデザイン */
+#inline-edit-form {
+    display: none;
+    flex-direction: column;
+    width: 100%;
+}
+
+
+/* 保存/戻るボタンコンテナ */
+#inline-edit-form .button-container {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+    margin-top: 5px;
+}
+
+/* 保存ボタン */
+#inline-save-btn {
+    background: var(--accent-color);
+    color: var(--bg-color);
+    border: none;
+    padding: 3px 12px;
+    cursor: pointer;
+    border-radius: 4px;
+    font-weight: bold;
+}
+
+/* 戻るボタン */
+#inline-cancel-btn {
+    color: #ccc;
+    border: none;
+    padding: 3px 12px;
+    cursor: pointer;
+    border-radius: 4px;
+}
+
+/* 2. 編集時の追加/削除ボタン（左下） */
+#inline-edit-actions {
+    position: absolute;
+    left: 10px;
+    bottom: 10px;
+    display: none; /* 初期非表示 */
+    gap: 10px;
+    z-index: 105; /* dialogue-box(100)内 */
+}
+
+/* シンプルで馴染むアイコンボタン */
+#inline-add-btn, #inline-delete-btn {
+    background: none;
+    border: none;
+    color: var(--accent-color);
+    cursor: pointer;
+    opacity: 0.6;
+    padding: 5px;
+    transition: opacity 0.2s, color 0.2s;
+}
+
+#inline-add-btn:hover, #inline-delete-btn:hover {
+    opacity: 1;
+}
+
+#inline-delete-btn:hover {
+    color: #ff6b6b; /* ゴミ箱はホバー時に赤く */
+}
+
+/* 3. 右上のアセット変更ボックス */
+#novel-asset-controls {
+    position: absolute;
+    top: 10px;
+    right: 70px; /* フローティングコントロールの左隣 */
+    display: none; /* 初期非表示 */
+    gap: 8px;
+    background: rgba(0,0,0,0.7);
+    padding: 5px;
+    border-radius: 5px;
+    z-index: 110; /* dialogue-box(100)より上 */
+}
+
+/* シンプルなセレクトボックス */
+#novel-asset-controls select {
+    background: transparent;
+    border: 1px solid rgba(255,255,255,0.3);
+    color: white;
+    padding: 2px 5px;
+    font-size: 0.8rem;
+    cursor: pointer;
+    border-radius: 3px;
+    font-family: 'Noto Sans JP', sans-serif;
+}
+
+#novel-asset-controls select option {
+    background: #222;
+    color: white;
+}
 
         /* --- ⏳ ローディング --- */
         #loading-indicator {
@@ -224,6 +475,102 @@
         }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
+
+  .edit-tabs .tab-btn {
+    flex: 1; background: rgba(255,255,255,0.05); border: 1px solid #444; color: #888;
+    padding: 6px; font-size: 0.75rem; border-radius: 4px 4px 0 0; cursor: pointer;
+}
+.edit-tabs .tab-btn.active {
+    background: rgba(192,160,128,0.2); color: var(--accent-color); border-color: var(--accent-color);
+}
+.tab-content label { display: block; font-size: 0.65rem; color: var(--accent-color); margin-bottom: 2px; }
+.tab-content input, .tab-content textarea {
+    background: rgba(0,0,0,0.4); border: 1px solid #555; color: white; padding: 6px; border-radius: 4px; font-size: 0.9rem;
+}
+
+
+.ep-tag {
+    background: rgba(192, 160, 128, 0.2);
+    padding: 2px 8px;
+    border-radius: 4px;
+}
+
+.add-card {
+    border: 2px dashed rgba(192, 160, 128, 0.4);
+    background: transparent;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+}
+
+.add-icon {
+    font-size: 3rem;
+    color: var(--accent-color);
+    margin-bottom: 10px;
+}
+
+.ep-selector-wrapper { display: flex; flex-direction: column; gap: 20px; padding: 10px; }
+.custom-select {
+    width: 100%; padding: 12px; background: rgba(30, 41, 59, 0.8);
+    border: 1px solid var(--accent-color); color: var(--text-color);
+    border-radius: 8px; font-size: 1rem; outline: none;
+}
+.ep-preview-card {
+    padding: 20px;
+}
+
+.ep-summary-text {
+    font-size: 0.95rem;
+    line-height: 1.6;
+    margin-bottom: 20px;
+    color: #cbd5e1;
+    font-style: italic;
+}
+
+.ep-info-grid {
+    display: grid;
+    gap: 15px;
+    margin-bottom: 25px;
+}
+
+.info-item .label {
+    display: block;
+    font-size: 0.75rem;
+    color: var(--accent-color);
+    margin-bottom: 4px;
+}
+
+.char-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+/* 読むボタン */
+.start-btn {
+    width: 100%;
+    padding: 15px;
+    background: linear-gradient(to right, #c0a080, #a88a68);
+    color: #0f172a;
+    border: none;
+    border-radius: 8px;
+    font-weight: bold;
+    font-size: 1.1rem;
+    cursor: pointer;
+    transition: 0.3s;
+}
+
+.start-btn:hover {
+    filter: brightness(1.2);
+    transform: scale(1.02);
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
     </style>
 </head>
 <body>
@@ -235,12 +582,7 @@
     <div id="floating-controls">
         <button id="episode-select-icon" class="control-button" title="物語を選択">
             <span>📖</span> 
-        </button>
-
-        <button id="edit-scene-button" class="control-button" >
-            <span>✏️</span> 
-        </button>
-    
+        </button> 
      
         <button onclick="window.location.href='asset_upload.html'"  class="control-button" >
             <span>🖼️</span> 
@@ -248,6 +590,13 @@
 
     </div>
     
+    <div id="novel-asset-controls">
+        <select id="asset-background" title="背景"></select>
+        <select id="asset-special" title="特殊画像"></select>
+        <select id="asset-effect" title="エフェクト"></select>
+    </div>
+
+
     <select id="episode-select" style="display: none;"></select>
     
     <div id="novel-container">
@@ -260,58 +609,123 @@
         <img id="effect-image" class="layer-image" src="" alt="" style="display: none;">
 
         <div id="dialogue-box">
-            <div id="character-name"></div>
-            <div id="dialogue-text"></div>
-            <div id="next-indicator">▼</div>
-        </div>
+    <div id="display-area" style="display: block; position: relative; width: 100%; height: 100%;">
+        <div id="character-name"></div>
+        <div id="dialogue-text"></div>
     </div>
 
-    <div id="modal">
-        <div id="episode-list-container" class="modal-container" style="display: none;">
-            <h2>物語の選択</h2>
-            <div id="episode-list"></div>
-            <button type="button" onclick="closeModal()" class="cancel-button">閉じる</button>
+    <div id="inline-edit-form" style="display: none; flex-direction: column; gap: 8px; width: 100%;">
+        <div class="edit-tabs" style="display: flex; gap: 4px; margin-bottom: 2px;">
+            <button type="button" onclick="switchInlineEditTab('char')" class="tab-btn active" id="tab-btn-char">キャラ・台詞</button>
+            <button type="button" onclick="switchInlineEditTab('asset')" class="tab-btn" id="tab-btn-asset">背景・演出</button>
         </div>
-        
-<div id="edit-form-container" class="modal-container" style="display: none;">
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-        <h2 id="modal-title" style="margin: 0;">シーン編集</h2>
-        
-        <div style="display: flex; gap: 15px; align-items: center;">
-            <button type="button" id="header-add-switch-btn" class="icon-btn" title="新規シーン追加へ切替" style="background: none; border: none; cursor: pointer; font-size: 1.4rem; color: #add8e6;">
-                ➕
-            </button>
-            <button type="button" id="header-delete-btn" class="icon-btn" title="シーンを削除" style="background: none; border: none; cursor: pointer; font-size: 1.2rem; color: #ff6b6b; display: none;">
-                🗑️
-            </button>
+
+        <div id="tab-content-char" class="tab-content">
+            <div style="display: flex; align-items: center; width: 100%; gap: 8px; ">
+                <input type="text" id="inline-edit-name" placeholder="名前" style="flex: 1; background: rgba(255,255,255,0.1); border: 1px solid #444; color: white; padding: 4px 8px; border-radius: 4px;">
+                <input type="text" id="inline-edit-face" placeholder="表情" style="width: 100px; background: rgba(255,255,255,0.1); border: 1px solid #444; color: white; padding: 4px 8px; border-radius: 4px;">
+            </div>
+            <textarea id="inline-edit-textarea" placeholder="セリフを入力..." style="width: 100%; height: 70px; background: rgba(255,255,255,0.1); border: 1px solid #444; color: white; padding: 8px; border-radius: 4px; resize: none;"></textarea>
+        </div>
+
+        <div id="tab-content-asset" class="tab-content" style="display: none;">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                <div>
+                    <label style="display: block; font-size: 0.7rem; color: var(--accent-color); margin-bottom: 2px;">背景タグ</label>
+                    <input type="text" id="inline-edit-bg" placeholder="bg_forest" style="width: 100%; background: rgba(255,255,255,0.1); border: 1px solid #444; color: white; padding: 4px 8px; border-radius: 4px;">
+                </div>
+                <div>
+                    <label style="display: block; font-size: 0.7rem; color: var(--accent-color); margin-bottom: 2px;">演出画像</label>
+                    <input type="text" id="inline-edit-special" placeholder="flash_red" style="width: 100%; background: rgba(255,255,255,0.1); border: 1px solid #444; color: white; padding: 4px 8px; border-radius: 4px;">
+                </div>
+                <div style="grid-column: span 2;">
+                    <label style="display: block; font-size: 0.7rem; color: var(--accent-color); margin-bottom: 2px;">エフェクト</label>
+                    <input type="text" id="inline-edit-effect" placeholder="shake_heavy" style="width: 100%; background: rgba(255,255,255,0.1); border: 1px solid #444; color: white; padding: 4px 8px; border-radius: 4px;">
+                </div>
+            </div>
+        </div>
+
+        <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;  ">
+            <div style="display: flex; gap: 12px;">
+                <button id="inline-add-btn" title="新しいシーンを追加" style="background:none; border:none; color:var(--accent-color); cursor:pointer;">
+                    <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                </button>
+                <button id="inline-delete-btn" title="このシーンを削除" style="background:none; border:none; color:#ff6b6b; cursor:pointer;">
+                    <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+                </button>
+            </div>
+            <div style="display: flex; gap: 8px;">
+                <button id="inline-cancel-btn" style="background: #64748b; color: white; border: none; padding: 6px 16px; border-radius: 4px; cursor: pointer; font-size: 0.85rem;">戻る</button>
+                <button id="inline-save-btn" style="background: var(--accent-color); color: #0f172a; border: none; padding: 6px 16px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 0.85rem;">保存</button>
+            </div>
         </div>
     </div>
-            <form id="edit-form">
-                <label>エピソード: <input type="text" id="edit-episode" name="episode"></label>
-                <label>シーン番号: <input type="text" id="edit-scene-number" name="scene_number"></label>
-                <label>話者: <input type="text" id="edit-character" name="character" list="characters-list"></label>
-                <datalist id="characters-list"></datalist>
-                
-                <label>本文: <textarea id="edit-text" name="text" rows="3"></textarea></label>
-                
-                <label>表情タグ: <input type="text" id="edit-face" name="face" list="faces-list"></label>
-                <datalist id="faces-list"></datalist>
-                
-                <label>背景: <input type="text" id="edit-background" name="background" list="backgrounds-list"></label>
-                <datalist id="backgrounds-list"></datalist>
-                
-                <label>特殊画像: <input type="text" id="edit-special" name="special" list="special-list"></label>
-                <datalist id="special-list"></datalist>
+    <button id="inline-edit-btn" title="このシーンを編集" style="position: absolute; right: 10px; bottom: 10px; background: none; border: none; color: var(--accent-color); cursor: pointer; opacity: 0.6; padding: 5px; transition: opacity 0.2s;">
+            <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+            </svg>
+        </button>
+</div>
 
-                <label>エフェクト: <input type="text" id="edit-effect" name="effect" list="effects-list"></label>
-                <datalist id="effects-list"></datalist>
+    </div>
 
-               <button type="submit" id="save-scene-button" class="action-btn">保存</button>
-        <button type="button" id="confirm-delete-button" style="display: none;"></button>
-        <button type="button" id="cancel-edit-button" class="cancel-button">キャンセル</button>
-            </form>
+<div id="modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 2000;">
+    <div id="modal-overlay" style="position: absolute; width: 100%; height: 100%; background: var(--bg-color);"></div>
+    
+    <div id="modal-content" class="fullscreen-content">
+        <div class="modal-header-controls">
+            <select id="ep-dial-select" class="custom-select-mini">
+                <option value="">話を選択</option>
+            </select>
+            <button class="modal-control-btn" onclick="openEpisodeEdit()" title="エピソード情報を編集">✎</button>
+            <button class="modal-control-btn" onclick="window.location.href='bulk_upload.html'" title="新規エピソード入稿">＋</button>
+        </div>
+
+        <div id="episode-list-container">
+            
+            <div id="ep-preview-area" style="display:none;">
+                <h2 id="preview-title" class="full-ep-title"></h2>
+                
+                <div class="ep-info-grid">
+                    <div class="info-item">
+                        <span class="label">👤 登場人物</span>
+                        <div id="preview-characters" class="char-tags"></div>
+                    </div>
+                    <div class="info-item">
+                        <span class="label">📍 主な場所</span>
+                        <div id="preview-locations" class="value"></div>
+                    </div>
+                </div>
+
+                <div class="label">📜 あらすじ</div>
+                <div id="preview-summary" class="ep-summary-fulltext"></div>
+                
+                <div class="ep-footer-buttons">
+                    <button id="start-episode-btn" class="start-btn">このエピソードを読む</button>
+                    <button class="cancel-button-link" onclick="closeModal()">戻る</button>
+                </div>
+            </div>
+
+            <div id="ep-edit-form-area" style="display:none;">
+                <h3 style="color:var(--accent-color);">エピソード設定</h3>
+                <label class="label">タイトル</label>
+                <input type="text" id="edit-ep-title">
+                <label class="label">概要・あらすじ</label>
+                <textarea id="edit-ep-summary" rows="10"></textarea>
+                
+                <div class="ep-footer-buttons">
+                    <button class="action-btn" onclick="saveEpisodeInfo()">変更を保存</button>
+                    <button class="cancel-button-link" onclick="closeEpisodeEdit()">キャンセル</button>
+                </div>
+            </div>
         </div>
     </div>
+</div>
+
+</div>
+</div>
+</div>
 
 <script>
 /**
@@ -343,24 +757,76 @@ let state = {
         isAuto: false,
         autoTimer: null,
         episodeNumbers: [],
-        // 名称と構造を以下のように変更
         loadedAssets: { bg: {}, char: {}, special: {}, effect: {} },
         modalMode: '',
+        isInlineEditing: false,
         lastBackgroundTag: "" 
     };
+const ui = {
+    // 基本UI
+    text: document.getElementById('dialogue-text'),
+    name: document.getElementById('character-name'),
+    charImg: document.getElementById('character'),
+    bgDiv: document.getElementById('background'),
+    specialImg: document.getElementById('special-image'),
+    effectImg: document.getElementById('effect-image'),
+    container: document.getElementById('novel-container'),
+    loading: document.getElementById('loading-indicator'),
+    epSelect: document.getElementById('episode-select'),
+    dialogueBox: document.getElementById('dialogue-box'),
+    modal: document.getElementById('modal'),
 
-    const ui = {
-        text: document.getElementById('dialogue-text'),
-        name: document.getElementById('character-name'),
-        charImg: document.getElementById('character'),
-        bgDiv: document.getElementById('background'),
-        specialImg: document.getElementById('special-image'),
-        effectImg: document.getElementById('effect-image'),
-        container: document.getElementById('novel-container'),
-        loading: document.getElementById('loading-indicator'),
-        epSelect: document.getElementById('episode-select'),
-        modal: document.getElementById('modal')
-    };
+    // インライン編集（イマーシブ）
+   displayArea: document.getElementById('display-area'), // 追加推奨：表示エリアの切替用
+    inlineEditBtn: document.getElementById('inline-edit-btn'),
+    inlineEditForm: document.getElementById('inline-edit-form'),
+    inlineEditName: document.getElementById('inline-edit-name'),
+    inlineEditFace: document.getElementById('inline-edit-face'),
+    inlineEditTextarea: document.getElementById('inline-edit-textarea'),
+    inlineSaveBtn: document.getElementById('inline-save-btn'),
+    inlineCancelBtn: document.getElementById('inline-cancel-btn'),
+    
+// ★タブ化に伴い追加が必要な「背景・演出」タブの入力欄
+    inlineEditBg: document.getElementById('inline-edit-bg'),
+    inlineEditSpecial: document.getElementById('inline-edit-special'),
+    inlineEditEffect: document.getElementById('inline-edit-effect'),
+
+    inlineSaveBtn: document.getElementById('inline-save-btn'),
+    inlineCancelBtn: document.getElementById('inline-cancel-btn'),
+
+    // イマーシブ内の追加・削除ボタン
+    inlineAddBtn: document.getElementById('inline-add-btn'),
+    inlineDeleteBtn: document.getElementById('inline-delete-btn')
+};
+
+// メッセージウィンドウ内でのクリックを「外側（進む・戻る）」に伝えない
+ui.dialogueBox.onclick = (e) => {
+    e.stopPropagation(); 
+};
+
+// 編集ボタン自体も、背景にイベントを伝えないようにする
+ui.inlineEditBtn.onclick = (e) => {
+    e.stopPropagation();
+    state.isInlineEditing = true;
+    
+    const s = state.episodeData[state.sceneIndex];
+    if (!s) return;
+
+    // 値をセット
+    ui.inlineEditName.value = s.character || "";
+    ui.inlineEditFace.value = s.face || ""; // テキスト入力欄に表情名をセット
+    ui.inlineEditTextarea.value = s.text || "";
+
+    // 表示切り替え
+    ui.name.style.display = 'none';
+    ui.text.style.display = 'none';
+    ui.inlineEditBtn.style.display = 'none';
+    ui.inlineEditForm.style.display = 'flex';
+    
+    if (ui.charImg) ui.charImg.style.cursor = 'pointer';
+    if (ui.novelAssetControls) ui.novelAssetControls.style.display = 'flex';
+    ui.inlineEditTextarea.focus();
+};
 
     /* =================================================================
         初期化 & データロード
@@ -414,6 +880,43 @@ async function loadEpisodeData(episodeNumber, target_scene_number = null) {
         
         // 【重要】背景は「グローバルに保存されている前回の画像」から開始する
         let currentProcessBackground = globalLastBackground;
+
+// --- 📥 データの穴埋め・背景引き継ぎ処理 --- の直前あたりに追加
+
+        // --- ★新機能：アセットセレクトボックスのOptionを生成する ---
+        // 汎用関数
+        const populateSelect = (select, tags, isOptional = true) => {
+            select.innerHTML = '';
+            if (isOptional) {
+                const opt = document.createElement('option');
+                opt.value = '';
+                opt.textContent = '(なし)';
+                select.appendChild(opt);
+            }
+            tags.forEach(tag => {
+                if (!tag) return;
+                const opt = document.createElement('option');
+                opt.value = tag;
+                opt.textContent = tag;
+                select.appendChild(opt);
+            });
+        };
+
+        // アセットの抽出（既存の処理）
+        const charTags = new Set();
+        const bgTags = new Set();
+        const specialTags = new Set();
+        const effectTags = new Set();
+        // ... (data.forEach 内で各Setにtagを追加する既存のループ処理) ...
+        data.forEach(scene => {
+            if (scene.background) bgTags.add(scene.background);
+            if (scene.face) charTags.add(scene.face);
+            if (scene.special) specialTags.add(scene.special);
+            if (scene.effect) effectTags.add(scene.effect);
+        });
+
+
+        // --- データの穴埋め（filledData）へ続く ---
 
         const filledData = data.map(scene => {
             // --- A. 背景の引き継ぎ処理 ---
@@ -548,6 +1051,56 @@ async function preloadAssetsSmart(currentIndex, count) {
     }
 }
 
+
+// エピソード編集画面を開く
+function openEpisodeEdit() {
+    const epId = document.getElementById('ep-dial-select').value;
+    if (!epId) {
+        alert("編集するエピソードを先に選択してください");
+        return;
+    }
+    document.getElementById('ep-preview-area').style.display = 'none';
+    document.getElementById('ep-edit-form-area').style.display = 'block';
+    
+    // 現在の値をフォームにセット
+    document.getElementById('edit-ep-title').value = document.getElementById('preview-title')?.textContent || "";
+    document.getElementById('edit-ep-summary').value = document.getElementById('preview-summary').textContent || "";
+}
+
+function closeEpisodeEdit() {
+    document.getElementById('ep-edit-form-area').style.display = 'none';
+    document.getElementById('ep-preview-area').style.display = 'block';
+}
+
+// エピソード情報の保存
+async function saveEpisodeInfo() {
+    const epId = document.getElementById('ep-dial-select').value;
+    const newTitle = document.getElementById('edit-ep-title').value;
+    const newSummary = document.getElementById('edit-ep-summary').value;
+
+    showLoading(true);
+    try {
+        const { error } = await supabaseClient
+            .from('episodes')
+            .upsert({ 
+                id: parseInt(epId), 
+                title: newTitle, 
+                summary: newSummary 
+            });
+
+        if (error) throw error;
+        alert("エピソード情報を更新しました");
+        
+        // リロードせずに表示を更新
+        renderEpisodeDial(); 
+        closeEpisodeEdit();
+    } catch (err) {
+        alert("保存に失敗しました: " + err.message);
+    } finally {
+        showLoading(false);
+    }
+}
+
 /* =================================================================
         描画 (レンダリング)
        ================================================================= */
@@ -669,18 +1222,80 @@ function updateUI() {
         }
     }
 
-    /* =================================================================
-        操作イベント
-       ================================================================= */
+// 1180行目付近
+ui.container.addEventListener('pointerup', e => {
+    // 【最優先ガード】インライン編集モード中は、どこをクリックしてもページ送りを絶対にさせない
+    if (state.isInlineEditing) return;
 
-    ui.container.addEventListener('pointerup', e => {
-        if (state.modalMode || ui.modal.style.display === 'flex') return;
-        if (e.target.closest('#floating-controls')) return;
+    // モーダルが開いている時も何もしない
+    if (state.modalMode || ui.modal.style.display === 'flex') return;
+    
+    // 以下、通常のページ送り判定（既存のコードを活かす）
+    if (e.target.closest('#floating-controls')) return;
+    if (e.target.closest('#dialogue-box')) return;
 
-        const isLeft = e.clientX < window.innerWidth * 0.3;
-        if (isLeft) prevScene();
-        else nextScene();
-    });
+    const isLeft = e.clientX < window.innerWidth * 0.3;
+    if (isLeft) prevScene();
+    else nextScene();
+});
+
+
+// タブ切り替え
+window.switchInlineEditTab = (tab) => {
+    const tChar = document.getElementById('tab-content-char');
+    const tAsset = document.getElementById('tab-content-asset');
+    const bChar = document.getElementById('tab-btn-char');
+    const bAsset = document.getElementById('tab-btn-asset');
+    if (!tChar || !tAsset) return;
+
+    if (tab === 'char') {
+        tChar.style.display = 'block'; tAsset.style.display = 'none';
+        bChar.classList.add('active'); bAsset.classList.remove('active');
+    } else {
+        tChar.style.display = 'none'; tAsset.style.display = 'block';
+        bChar.classList.remove('active'); bAsset.classList.add('active');
+    }
+};
+
+// 編集開始ボタンの動作
+if (ui.inlineEditBtn) {
+    ui.inlineEditBtn.onclick = (e) => {
+        e.stopPropagation();
+        
+        // 現在表示中のシーンデータを取得
+        const s = state.episodeData[state.sceneIndex];
+        if (!s) return;
+
+        state.isInlineEditing = true;
+
+        // --- 既存のデータを入力欄にセット ---
+        ui.inlineEditName.value = s.character || "";
+        ui.inlineEditFace.value = s.face || "";
+        ui.inlineEditTextarea.value = s.text || "";
+        
+   // 背景・演出タブの項目（DBのフィールド名と合わせる）
+        if (ui.inlineEditBg) ui.inlineEditBg.value = s.background || "";
+        if (ui.inlineEditSpecial) ui.inlineEditSpecial.value = s.special || ""; // 以前のフォーム名に合わせて 'special'
+        if (ui.inlineEditEffect) ui.inlineEditEffect.value = s.effect || "";   // 以前のフォーム名に合わせて 'effect'
+
+        // 表示の切り替え
+        ui.displayArea.style.display = 'none';
+        ui.inlineEditForm.style.display = 'flex';
+        
+        // 初期タブを「キャラ・台詞」に設定
+        switchInlineEditTab('char');
+    };
+}
+
+// 戻るボタン
+if (ui.inlineCancelBtn) {
+    ui.inlineCancelBtn.onclick = (e) => {
+        e.stopPropagation();
+        state.isInlineEditing = false;
+        ui.inlineEditForm.style.display = 'none';
+        ui.displayArea.style.display = 'block';
+    };
+}
 
     function nextScene() {
         if (state.sceneIndex < state.episodeData.length - 1) {
@@ -791,261 +1406,323 @@ const { data, error } = await supabaseClient
     // モーダル開閉
     document.getElementById('episode-select-icon').onclick = () => openModal('episode-list');
 
+function openModal(type) {
+    // 確実に要素を取得する
+    const modal = document.getElementById('modal');
+    const container = document.getElementById('episode-list-container');
+    
+    if (!modal) return;
 
+    // モーダル全体を表示
+    modal.style.display = 'flex';
 
-        function openModal(type) {
-        ui.modal.style.display = 'flex';
-        document.getElementById('episode-list-container').style.display = type === 'episode-list' ? 'block' : 'none';
-        document.getElementById('edit-form-container').style.display = type === 'edit' ? 'block' : 'none';
-        
-        if (type === 'episode-list') {
-            const list = document.getElementById('episode-list');
-            list.innerHTML = '';
-            
-            // 1. エピソードボタンの生成（グリッド表示）
-            state.episodeNumbers.forEach(ep => {
-                const btn = document.createElement('button');
-                btn.className = 'control-button';
-                btn.textContent = ep; // 数字のみ表示
-                
-                // 現在のエピソードならハイライト
-                if(ep == ui.epSelect.value) {
-                     btn.style.borderColor = 'var(--accent-color)';
-                     btn.style.background = 'rgba(192, 160, 128, 0.3)';
-                     btn.style.boxShadow = '0 0 10px rgba(192, 160, 128, 0.5)';
-                }
-                btn.onclick = () => {
-                    ui.epSelect.value = ep;
-                    loadEpisodeData(ep);
-                    closeModal();
-                };
-                list.appendChild(btn);
-            });
-            
-            // 2. 一括入稿ボタン（+）の追加
-            const bulkBtn = document.createElement('button');
-            bulkBtn.className = 'control-button';
-            bulkBtn.textContent = '+'; 
-            bulkBtn.title = '一括入稿';
-            bulkBtn.style.backgroundColor = 'var(--accent-color)'; 
-            bulkBtn.style.color = 'var(--bg-color)'; 
-            bulkBtn.style.fontWeight = 'bold';
-            bulkBtn.onclick = () => {
-                window.location.href = 'bulk_upload.html';
-            };
-            list.appendChild(bulkBtn);
-
-        }
+    if (type === 'episode-list') {
+        if (container) container.style.display = 'block';
+        // プルダウンとプレビューの生成関数を呼ぶ
+        renderEpisodeDial(); 
     }
+}
 
- window.closeModal = () => {
-    ui.modal.style.display = 'none';
-    state.modalMode = '';
-    // 閉じる時にボタンの表示を復活させておく
-    document.getElementById('header-add-switch-btn').style.display = 'block';
+// 閉じる処理も確実に
+window.closeModal = () => {
+    const modal = document.getElementById('modal');
+    if (modal) modal.style.display = 'none';
 };
 
-    // 編集フォーム設定
-    document.getElementById('edit-scene-button').onclick = () => setupEdit('edit');
-    document.getElementById('cancel-edit-button').onclick = closeModal;
-
-/* --- index.html の setupEdit 関数を以下のように書き換えてください --- */
-function setupEdit(mode) {
-    state.modalMode = mode;
-    openModal('edit');
+async function renderEpisodeDial() {
+    const select = document.getElementById('ep-dial-select');
+    const previewArea = document.getElementById('ep-preview-area');
+    const currentEpNum = ui.epSelect.value; // 現在読み込んでいるエピソード番号
     
-    const s = state.episodeData[state.sceneIndex] || {};
-    const title = document.getElementById('modal-title');
-    const headerDeleteBtn = document.getElementById('header-delete-btn');
-    const headerAddBtn = document.getElementById('header-add-switch-btn');
+    const { data: episodes, error } = await supabaseClient.from('distinct_episodes').select('*');
+    if (error || !episodes) return;
 
-    headerAddBtn.style.display = 'block';
+    select.innerHTML = '<option value="">話を選択</option>';
+    episodes.forEach(ep => {
+        const opt = document.createElement('option');
+        opt.value = ep.episode;
+        opt.textContent = `第${ep.episode}話：${ep.title || ''}`;
+        select.appendChild(opt);
+    });
 
-    if (mode === 'add') {
-        // 【追加モード】
-        title.textContent = 'シーン追加';
-        headerDeleteBtn.style.display = 'none';
-        headerAddBtn.style.display = 'none';
+    // 選択イベント
+    select.onchange = async () => {
+        const ep = episodes.find(e => e.episode == select.value);
+        if (ep) {
+            updatePreviewUI(ep);
+            previewArea.style.display = 'block';
+            document.getElementById('ep-edit-form-area').style.display = 'none';
+        }
+    };
 
-        document.getElementById('edit-episode').value = ui.epSelect.value;
-        
-        // --- 修正箇所：現在のシーン番号に +1 した値をデフォルトにする ---
-        // シーンが存在すればその番号+1、なければ1にする
-        const nextNum = s.scene_number ? (Number(s.scene_number) + 1) : 1;
-        document.getElementById('edit-scene-number').value = nextNum;
-        
-        document.getElementById('edit-text').value = '';
-        // テキスト以外（キャラ名や背景タグ）もクリアしたい場合はここに追加してください
-        document.getElementById('edit-character').value = '';
-        document.getElementById('edit-background').value = '';
-    } else {
-        // 【編集モード】（変更なし）
-        document.getElementById('edit-form').reset();
-        title.textContent = 'シーン編集';
-        headerAddBtn.style.display = 'block';
-        headerDeleteBtn.style.display = 'block';
+    // 【重要】初期状態で現在のエピソードを選択
+    if (currentEpNum) {
+        select.value = currentEpNum;
+        const initialEp = episodes.find(e => e.episode == currentEpNum);
+        if (initialEp) {
+            updatePreviewUI(initialEp);
+            previewArea.style.display = 'block';
+        }
+    }
+}
 
-        const fields = ['episode', 'scene_number', 'character', 'text', 'face', 'special', 'background', 'effect'];
-        fields.forEach(k => {
-            const id = `edit-${k.replace(/_/g, '-')}`;
-            const input = document.getElementById(id);
-            if (input) {
-                input.value = s[k] || '';
+// プレビュー表示の共通処理
+async function updatePreviewUI(ep) {
+    document.getElementById('preview-title').textContent = `第${ep.episode}話 ${ep.title || ''}`;
+    document.getElementById('preview-summary').textContent = ep.summary || "あらすじはありません。";
+    
+    const exclude = ['ナレーション', 'チハル', 'なし', ''];
+    const filteredChars = (ep.characters || "").split(', ').filter(c => !exclude.includes(c));
+    document.getElementById('preview-characters').innerHTML = 
+        filteredChars.map(c => `<span class="ep-tag">${c}</span>`).join('') || "（主要キャラのみ）";
+
+    // 背景（場所）を動的に取得
+    const { data: scenes } = await supabaseClient.from('scenes').select('background').eq('episode', ep.episode);
+    const locations = [...new Set(scenes.map(s => s.background).filter(Boolean))];
+    document.getElementById('preview-locations').textContent = locations.join('、') || "設定なし";
+
+    document.getElementById('start-episode-btn').onclick = () => {
+        ui.epSelect.value = ep.episode;
+        loadEpisodeData(ep.episode);
+        closeModal();
+    };
+}
+
+function toggleImmersiveEdit() {
+    // 編集ボタン（鉛筆）がすでにHTML内にある ui.inlineEditBtn と連動させます
+    if (ui.inlineEditBtn) {
+        // 編集フォームが閉じているなら開き、開いているなら保存（またはキャンセル）
+        if (ui.inlineEditForm.style.display === 'none') {
+            ui.inlineEditBtn.click(); // 既存の編集開始処理を呼び出す
+            document.body.classList.add('editing-active');
+        } else {
+            // 保存かキャンセルかは運用によりますが、ここでは一旦閉じます
+            ui.inlineCancelBtn.click();
+            document.body.classList.remove('editing-active');
+        }
+    }
+}
+
+window.closeModal = () => {
+    if (!ui.modal) return; // モーダルがない場合は中断
+    
+    ui.modal.style.display = 'none';
+    state.modalMode = '';
+    
+    // 【修正】要素が存在するか確認してから style を操作する
+    const addBtn = document.getElementById('header-add-switch-btn');
+    if (addBtn) {
+        addBtn.style.display = 'block';
+    }
+};
+
+
+// window.onload などの初期化処理の中に追加
+/* =================================================================
+    UX改善：インライン編集 & アセット変更のロジック
+   ================================================================= */
+
+if (ui.inlineEditBtn) {
+    let characterFaceCache = {};
+
+    // --- 表情連動関数 ---
+    const updateFaceOnly = async (nextFace) => {
+        const s = state.episodeData[state.sceneIndex];
+        if (!s) return;
+        try {
+            await supabaseClient.from('scenes').update({ face: nextFace }).eq('id', s.id);
+            const { data: assetData } = await supabaseClient.from('assets').select('image_url').eq('asset_type', 'character').eq('tag', s.character).eq('face', nextFace).single();
+            s.face = nextFace;
+            if (assetData) s.character_image = assetData.image_url;
+            if (ui.inlineEditFace) ui.inlineEditFace.value = nextFace;
+            renderScene(s); 
+        } catch (err) { console.error("表情更新失敗:", err); }
+    };
+
+    // --- キャラ画像タッチで表情切り替え ---
+    if (ui.charImg) {
+        ui.charImg.addEventListener('pointerup', async (e) => {
+            if (!state.isInlineEditing) return;
+            e.stopPropagation();
+            const s = state.episodeData[state.sceneIndex];
+            if (!s || !s.character || s.character === "ナレーション") return;
+            let faceList = characterFaceCache[s.character];
+            if (!faceList) {
+                const { data } = await supabaseClient.from('assets').select('face').eq('asset_type', 'character').eq('tag', s.character);
+                if (data) { faceList = data.map(item => item.face); characterFaceCache[s.character] = faceList; }
+            }
+            if (faceList && faceList.length >= 2) {
+                const currentIndex = faceList.indexOf(s.face);
+                const nextIndex = (currentIndex + 1) % faceList.length;
+                await updateFaceOnly(faceList[nextIndex]);
             }
         });
     }
-}
-// プラスボタンを押した時の処理（追加モードへ切り替え）
-document.getElementById('header-add-switch-btn').onclick = () => {
-  
-    setupEdit('add');
-};
-    
-    function populateEditOptions() {
-          const setOptions = (listId, keys) => {
-             const dl = document.getElementById(listId);
-             dl.innerHTML = '';
-             keys.forEach(k => { const op = document.createElement('option'); op.value = k; dl.appendChild(op); });
-          };
-          setOptions('characters-list', Object.keys(state.loadedAssets.char));
-          setOptions('backgrounds-list', Object.keys(state.loadedAssets.bg));
-    }
 
-    // フォーム送信処理（API）
-   // index.html の 670行目付近
- // index.html の 670行目付近を修正
-document.getElementById('edit-form').onsubmit = async (e) => {
-    e.preventDefault();
-    const formData = new FormData(e.target);
-    const rawData = Object.fromEntries(formData.entries());
+    // --- シーン追加（現在のシーンをコピーして次に挿入） ---
+    if (ui.inlineAddBtn) {
+        ui.inlineAddBtn.onclick = async (e) => {
+            e.stopPropagation();
+            const s = state.episodeData[state.sceneIndex];
+            if (!s) return;
+            if (!confirm("現在のシーンをコピーして新しく追加しますか？")) return;
 
-    const episodeNum = Number(rawData.episode);
-    const targetSceneNum = Number(rawData.scene_number);
+            try {
+                showLoading(true);
+                const newSceneNum = s.scene_number + 1;
+                const episodeId = s.episode;
 
-    const sceneData = {
-        episode: episodeNum,
-        scene_number: targetSceneNum,
-        character: rawData.character,
-        text: rawData.text,
-        face: rawData.face,
-        special: rawData.special,
-        background: rawData.background,
-        effect: rawData.effect
-    };
-
-    try {
-        showLoading(true);
-
-        if (state.modalMode === 'add') {
-            // --- ★追加：シーン番号の繰り上げ処理 ---
-            // 同じエピソード内で、挿入したい番号以上のシーンをすべて +1 する
-            // 直接 SQL を叩けないため、RPCを使うか、一度取得して更新する必要があります。
-            // ここではシンプルに「現在の番号以上のものをすべてカウントアップ」するロジックを入れます。
-            
-            // 1. 挿入箇所より後ろのシーンを特定
-            const { data: laterScenes, error: fetchError } = await supabaseClient
-                .from('scenes')
-                .select('id, scene_number')
-                .eq('episode', episodeNum)
-                .gte('scene_number', targetSceneNum);
-
-            if (fetchError) throw fetchError;
-
-            // 2. 後ろのシーンがある場合、番号を +1 更新（逆順に更新しないと重複エラーが出る可能性があるためループで処理）
-            if (laterScenes && laterScenes.length > 0) {
-                // 大きい順にソートして更新（一意制約エラー対策）
-                laterScenes.sort((a, b) => b.scene_number - a.scene_number);
-                
-                for (const scene of laterScenes) {
-                    await supabaseClient
-                        .from('scenes')
-                        .update({ scene_number: scene.scene_number + 1 })
-                        .eq('id', scene.id);
-                }
-            }
-
-            // 3. 空いた場所に新規挿入
-            const { error: insertError } = await supabaseClient
-                .from('scenes')
-                .insert([sceneData]);
-            if (insertError) throw insertError;
-
-        } else {
-            // 更新（既存の編集）
-            const { error } = await supabaseClient
-                .from('scenes')
-                .update(sceneData)
-                .eq('id', state.episodeData[state.sceneIndex].id);
-            if (error) throw error;
-        }
-
-        closeModal();
-        // 追加・更新した番号のシーンへ移動
-        loadEpisodeData(episodeNum, targetSceneNum);
-        
-    } catch (err) {
-        console.error(err);
-        alert('保存エラー: ' + err.message);
-        showLoading(false);
-    }
-};
-// ゴミ箱アイコンをクリックしたら、上記の削除確定ボタンを代わりにクリックする
-document.getElementById('header-delete-btn').onclick = () => {
-    document.getElementById('confirm-delete-button').click();
-};
-
-// index.html 700行目付近を修正
-document.getElementById('confirm-delete-button').onclick = async () => {
-    const currentScene = state.episodeData[state.sceneIndex];
-    if (!currentScene || !confirm(`シーン番号 ${currentScene.scene_number} を削除しますか？\n(以降のシーン番号は自動的に繰り上げられます)`)) return;
-
-    try {
-        showLoading(true);
-        const episodeNum = Number(ui.epSelect.value);
-        const deletedSceneNum = Number(currentScene.scene_number);
-
-        // 1. 対象のシーンを削除
-        const { error: deleteError } = await supabaseClient
-            .from('scenes')
-            .delete()
-            .eq('id', currentScene.id);
-
-        if (deleteError) throw deleteError;
-
-        // 2. ★追加：削除された番号より後ろのシーンをすべて「-1」する
-        const { data: laterScenes, error: fetchError } = await supabaseClient
-            .from('scenes')
-            .select('id, scene_number')
-            .eq('episode', episodeNum)
-            .gt('scene_number', deletedSceneNum); // 削除した番号より大きいもの
-
-        if (fetchError) throw fetchError;
-
-        if (laterScenes && laterScenes.length > 0) {
-            // 小さい順にソートして更新（一意制約エラーを避けるため）
-            laterScenes.sort((a, b) => a.scene_number - b.scene_number);
-
-            for (const scene of laterScenes) {
-                await supabaseClient
+                // 1. 後続の番号を後ろから順に+1
+                const { data: laterScenes } = await supabaseClient
                     .from('scenes')
-                    .update({ scene_number: scene.scene_number - 1 })
-                    .eq('id', scene.id);
-            }
-        }
+                    .select('id, scene_number')
+                    .eq('episode', episodeId)
+                    .gte('scene_number', newSceneNum)
+                    .order('scene_number', { ascending: false });
 
-        alert('削除と番号の整理が完了しました');
-        closeModal();
+                if (laterScenes) {
+                    for (const row of laterScenes) {
+                        await supabaseClient.from('scenes').update({ scene_number: row.scene_number + 1 }).eq('id', row.id);
+                    }
+                }
 
-        // 前のシーン、もしくは先頭に戻る
-        const targetNum = Math.max(1, deletedSceneNum - 1);
-        loadEpisodeData(episodeNum, targetNum);
+                // 2. コピー挿入
+                const { error } = await supabaseClient.from('scenes').insert([{
+                    episode: episodeId,
+                    scene_number: newSceneNum,
+                    character: s.character,
+                    face: s.face,
+                    background: s.background,
+                    text: s.text 
+                }]);
 
-    } catch (err) {
-        console.error(err);
-        alert('削除エラー: ' + err.message);
-        showLoading(false);
+                if (error) throw error;
+                window.location.reload();
+            } catch (err) { alert("追加失敗: " + err.message); } 
+            finally { showLoading(false); }
+        };
     }
-};
+
+    // --- シーン削除 ---
+    if (ui.inlineDeleteBtn) {
+        ui.inlineDeleteBtn.onclick = async (e) => {
+            e.stopPropagation();
+            const s = state.episodeData[state.sceneIndex];
+            if (!s || !confirm("このシーンを削除してもよろしいですか？")) return;
+
+            try {
+                showLoading(true);
+                const deletedNum = s.scene_number;
+                const episodeId = s.episode;
+
+                await supabaseClient.from('scenes').delete().eq('id', s.id);
+
+                const { data: laterScenes } = await supabaseClient
+                    .from('scenes')
+                    .select('id, scene_number')
+                    .eq('episode', episodeId)
+                    .gt('scene_number', deletedNum)
+                    .order('scene_number', { ascending: true });
+
+                if (laterScenes) {
+                    for (const row of laterScenes) {
+                        await supabaseClient.from('scenes').update({ scene_number: row.scene_number - 1 }).eq('id', row.id);
+                    }
+                }
+                window.location.reload();
+            } catch (err) { alert("削除失敗: " + err.message); } 
+            finally { showLoading(false); }
+        };
+    }
+
+// --- 保存ボタン ---
+// --- 保存ボタン ---
+    if (ui.inlineSaveBtn) {
+        ui.inlineSaveBtn.onclick = async (e) => {
+            e.stopPropagation();
+            const s = state.episodeData[state.sceneIndex];
+            if (!s) return; // 変数名を s に統一
+        
+            try {
+                showLoading(true);
+                // 1. 入力された値（タグ名）を取得
+                const up = { 
+                    character: ui.inlineEditName.value, 
+                    face: ui.inlineEditFace.value, 
+                    text: ui.inlineEditTextarea.value, 
+                    background: ui.inlineEditBg ? ui.inlineEditBg.value : s.background,
+                    special: ui.inlineEditSpecial ? ui.inlineEditSpecial.value : s.special,
+                    effect: ui.inlineEditEffect ? ui.inlineEditEffect.value : s.effect
+                };
+                await supabaseClient.from('scenes').update(up).eq('id', s.id);
+                Object.assign(s, up);
+                
+                // 2. Supabase のデータを更新（タグを保存）
+                const { error } = await supabaseClient.from('scenes').update(up).eq('id', s.id);
+                if (error) throw error;
+
+                // 3. ローカルデータ (s) を更新
+                Object.assign(s, up);
+
+                // ★重要：タグ名から実際の画像URLを再割り当てする
+                // これを行わないと、renderScene を呼んだ時に画像URLが空になり背景が消えます
+                if (state.loadedAssets.bg[s.background]) {
+                    s.background_image = state.loadedAssets.bg[s.background];
+                }
+                if (state.loadedAssets.special[s.special]) {
+                    s.special_image = state.loadedAssets.special[s.special];
+                }
+                if (state.loadedAssets.effect[s.effect]) {
+                    s.effect_image = state.loadedAssets.effect[s.effect];
+                }
+                
+                    // 画面を元の表示に戻す
+                state.isInlineEditing = false;
+                ui.inlineEditForm.style.display = 'none';
+                ui.name.style.display = 'block';
+                ui.text.style.display = 'block';
+                ui.inlineEditBtn.style.display = 'block';
+                
+                 renderScene(s);
+            } catch (err) { alert("保存失敗: " + err.message); } 
+            finally { showLoading(false); }
+        };
+    }
+// --- キャンセル（戻る）ボタン ---
+    if (ui.inlineCancelBtn) {
+        ui.inlineCancelBtn.onclick = (e) => { 
+            e.stopPropagation(); 
+            state.isInlineEditing = false;
+            ui.inlineEditForm.style.display = 'none';
+            ui.name.style.display = 'block';
+            ui.text.style.display = 'block';
+            ui.inlineEditBtn.style.display = 'block';
+        };
+    }
+
+    // --- 編集開始（鉛筆アイコン） ---
+    ui.inlineEditBtn.onclick = (e) => {
+        e.stopPropagation();
+        state.isInlineEditing = true;
+        const s = state.episodeData[state.sceneIndex];
+        if (!s) return;
+        
+        ui.inlineEditName.value = s.character || "";
+        ui.inlineEditFace.value = s.face || "";
+        ui.inlineEditTextarea.value = s.text || "";
+        // 背景・演出タブのデータ（以前のフォーム名: background, special, effect）
+        if (ui.inlineEditBg) ui.inlineEditBg.value = s.background || "";
+        if (ui.inlineEditSpecial) ui.inlineEditSpecial.value = s.special || "";
+        if (ui.inlineEditEffect) ui.inlineEditEffect.value = s.effect || "";
+
+
+        ui.name.style.display = 'none';
+        ui.text.style.display = 'none';
+        ui.inlineEditBtn.style.display = 'none';
+        ui.inlineEditForm.style.display = 'flex';
+        ui.inlineEditTextarea.focus();
+    };
+}
     window.onload = initialize;
 
 </script>
