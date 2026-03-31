@@ -31,11 +31,15 @@
         }
 
         /* --- 🖼️ ビューアエリア --- */
-        #novel-container { 
-            position: relative; width: 100%; height: 100%; 
-            background-color: #000;
-            overflow: hidden; /* 画像のはみ出し防止 */
-        }
+ #novel-container {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    background-color: #000;
+    overflow: hidden;
+    /* 【重要】ブラウザのデフォルトスワイプ（戻る・進む）を無効化し、JSで制御可能にする */
+    touch-action: none; 
+}
 
         /* レイヤー共通設定 */
         .layer-image {
@@ -55,24 +59,26 @@
             mix-blend-mode: screen; /* 光のエフェクト等はスクリーン合成 */
         }
 
-        /* 🧍 キャラクター（1:1画像対応・大型化） */
-        #character { 
-            position: absolute; 
-            /* 【位置調整】1:1画像を画面下部から大きく突き出す */
-            left: 50%; 
-            transform: translateX(-50%); 
-            
-            /* 【サイズ調整】ビューポートの高さ基準で大きく表示 */
-            max-height: 140vh; 
-            
-            /* 【切り抜き】コンテナに合わせて拡大し、はみ出しを切り抜く */
-            object-fit: cover; 
-            
-            z-index: 1; 
-            /* 【演出強化】フィルターとトランジションは維持し、シャドウを追加 */
-            transition: filter 0.3s ease, transform 0.3s ease; 
-            
-        }
+#character {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    max-height: 140vh;
+    object-fit: cover;
+    z-index: 1;
+    transition: filter 0.3s ease, transform 0.3s ease;
+}
+
+/* styleタグ内に追加・修正 */
+#novel-container {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    background-color: #000;
+    overflow: hidden;
+    /* ブラウザ固有の左右スワイプ挙動を無効化し、JSでの制御を優先させる */
+    touch-action: pan-y; 
+}
 
         #character.visible { opacity: 1; }
         
@@ -571,6 +577,41 @@
     to { opacity: 1; transform: translateY(0); }
 }
 
+/* 固定フッターのスタイル */
+.ep-footer-fixed {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: linear-gradient(to top, var(--bg-color) 80%, transparent);
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    z-index: 2020;
+}
+
+/* スワイプエリアの調整 */
+.swipe-area {
+    min-height: 100%;
+    padding-bottom: 150px; /* フッターと被らないように余白を確保 */
+    touch-action: pan-y; /* 上下スクロールは許容し、左右はJSで制御 */
+}
+
+/* ページ切り替え時のアニメーション（任意） */
+.fade-in-swipe {
+    animation: fadeInSwipe 0.3s ease-out;
+}
+@keyframes fadeInSwipe {
+    from { opacity: 0; transform: translateX(20px); }
+    to { opacity: 1; transform: translateX(0); }
+}
+
+.fullscreen-content {
+    /* 前回の設定を継承しつつ微調整 */
+    padding-top: 80px !important;
+}
+
     </style>
 </head>
 <body>
@@ -679,11 +720,10 @@
                 <option value="">話を選択</option>
             </select>
             <button class="modal-control-btn" onclick="openEpisodeEdit()" title="エピソード情報を編集">✎</button>
-            <button class="modal-control-btn" onclick="window.location.href='bulk_upload.html'" title="新規エピソード入稿">＋</button>
+            <button class="modal-control-btn" onclick="window.location.href='bulk_upload.html'" title="新規入稿">＋</button>
         </div>
 
-        <div id="episode-list-container">
-            
+        <div id="episode-list-container" class="swipe-area">
             <div id="ep-preview-area" style="display:none;">
                 <h2 id="preview-title" class="full-ep-title"></h2>
                 
@@ -700,11 +740,6 @@
 
                 <div class="label">📜 あらすじ</div>
                 <div id="preview-summary" class="ep-summary-fulltext"></div>
-                
-                <div class="ep-footer-buttons">
-                    <button id="start-episode-btn" class="start-btn">このエピソードを読む</button>
-                    <button class="cancel-button-link" onclick="closeModal()">戻る</button>
-                </div>
             </div>
 
             <div id="ep-edit-form-area" style="display:none;">
@@ -713,14 +748,20 @@
                 <input type="text" id="edit-ep-title">
                 <label class="label">概要・あらすじ</label>
                 <textarea id="edit-ep-summary" rows="10"></textarea>
-                
-                <div class="ep-footer-buttons">
-                    <button class="action-btn" onclick="saveEpisodeInfo()">変更を保存</button>
-                    <button class="cancel-button-link" onclick="closeEpisodeEdit()">キャンセル</button>
-                </div>
             </div>
         </div>
+
+        <div id="ep-preview-footer" class="ep-footer-fixed" style="display:none;">
+            <button id="start-episode-btn" class="start-btn">このエピソードを読む</button>
+            <button class="cancel-button-link" onclick="closeModal()">戻る</button>
+        </div>
+        
+        <div id="ep-edit-footer" class="ep-footer-fixed" style="display:none;">
+            <button class="action-btn" onclick="saveEpisodeInfo()">変更を保存</button>
+            <button class="cancel-button-link" onclick="closeEpisodeEdit()">キャンセル</button>
+        </div>
     </div>
+</div>
 </div>
 
 </div>
@@ -1429,14 +1470,18 @@ window.closeModal = () => {
     if (modal) modal.style.display = 'none';
 };
 
+let touchStartX = 0;
+let touchEndX = 0;
+
 async function renderEpisodeDial() {
     const select = document.getElementById('ep-dial-select');
     const previewArea = document.getElementById('ep-preview-area');
-    const currentEpNum = ui.epSelect.value; // 現在読み込んでいるエピソード番号
+    const previewFooter = document.getElementById('ep-preview-footer');
     
     const { data: episodes, error } = await supabaseClient.from('distinct_episodes').select('*');
     if (error || !episodes) return;
 
+    // プルダウン生成（中略：以前のロジックと同様）
     select.innerHTML = '<option value="">話を選択</option>';
     episodes.forEach(ep => {
         const opt = document.createElement('option');
@@ -1445,25 +1490,74 @@ async function renderEpisodeDial() {
         select.appendChild(opt);
     });
 
-    // 選択イベント
-    select.onchange = async () => {
-        const ep = episodes.find(e => e.episode == select.value);
+    // 表示更新関数
+    const updateDisplay = async (epId) => {
+        const ep = episodes.find(e => e.episode == epId);
         if (ep) {
-            updatePreviewUI(ep);
+            select.value = epId;
+            updatePreviewUI(ep); // 以前作成したUI更新関数
             previewArea.style.display = 'block';
-            document.getElementById('ep-edit-form-area').style.display = 'none';
+            previewFooter.style.display = 'flex';
+            
+            // アニメーション適用
+            previewArea.classList.remove('fade-in-swipe');
+            void previewArea.offsetWidth; // reflow
+            previewArea.classList.add('fade-in-swipe');
         }
     };
 
-    // 【重要】初期状態で現在のエピソードを選択
-    if (currentEpNum) {
-        select.value = currentEpNum;
-        const initialEp = episodes.find(e => e.episode == currentEpNum);
-        if (initialEp) {
-            updatePreviewUI(initialEp);
-            previewArea.style.display = 'block';
+    select.onchange = () => updateDisplay(select.value);
+
+    // --- 左右スワイプの実装 ---
+    const container = document.getElementById('episode-list-container');
+    
+    container.ontouchstart = e => {
+        touchStartX = e.changedTouches[0].screenX;
+    };
+
+    container.ontouchend = e => {
+        touchEndX = e.changedTouches[0].screenX;
+        handleSwipe();
+    };
+
+    function handleSwipe() {
+        const swipeDistance = touchEndX - touchStartX;
+        const threshold = 50; // スワイプと判定する距離
+        
+        const currentIndex = episodes.findIndex(e => e.episode == select.value);
+        
+        if (swipeDistance < -threshold) {
+            // 右から左へスワイプ：次のエピソード
+            if (currentIndex < episodes.length - 1) {
+                updateDisplay(episodes[currentIndex + 1].episode);
+            }
+        } else if (swipeDistance > threshold) {
+            // 左から右へスワイプ：前のエピソード
+            if (currentIndex > 0) {
+                updateDisplay(episodes[currentIndex - 1].episode);
+            }
         }
     }
+
+    // 初期表示（現在のエピソード）
+    if (ui.epSelect.value) {
+        updateDisplay(ui.epSelect.value);
+    }
+}
+
+// 編集画面の切り替え時もフッターを制御
+function openEpisodeEdit() {
+    document.getElementById('ep-preview-area').style.display = 'none';
+    document.getElementById('ep-preview-footer').style.display = 'none';
+    document.getElementById('ep-edit-form-area').style.display = 'block';
+    document.getElementById('ep-edit-footer').style.display = 'flex';
+}
+
+function closeEpisodeEdit() {
+    document.getElementById('ep-edit-form-area').style.display = 'none';
+    document.getElementById('ep-edit-footer').style.display = 'none';
+    document.getElementById('ep-preview-area').style.display = 'block';
+    document.getElementById('ep-preview-footer').style.display = 'flex';
 }
 
 // プレビュー表示の共通処理
@@ -1723,6 +1817,65 @@ if (ui.inlineEditBtn) {
         ui.inlineEditTextarea.focus();
     };
 }
+
+let mainTouchStartX = 0;
+
+function setupMainControls() {
+    // 既存のクリックイベントを無効化
+    ui.container.onclick = null;
+
+    // タッチ開始時の座標を記録
+    ui.container.addEventListener('touchstart', (e) => {
+        // 編集モード中やモーダル（概要画面）が出ている時はスワイプさせない
+        if (state.isInlineEditing || (ui.modal && ui.modal.style.display === 'flex')) return;
+        mainTouchStartX = e.changedTouches[0].screenX;
+    }, { passive: true });
+
+    // タッチ終了時の判定
+    ui.container.addEventListener('touchend', (e) => {
+        if (state.isInlineEditing || (ui.modal && ui.modal.style.display === 'flex')) return;
+        
+        const mainTouchEndX = e.changedTouches[0].screenX;
+        const swipeDistance = mainTouchEndX - mainTouchStartX;
+        const threshold = 50; // スワイプと判定する距離(px)
+
+        if (swipeDistance < -threshold) {
+            // 右から左へスワイプ(←)
+            console.log("スワイプ: 前に戻る");
+            prevScene();
+        } else if (swipeDistance > threshold) {
+            // 左から右へスワイプ(→)
+            console.log("スワイプ: 次に進む");
+            nextScene();
+        }
+    }, { passive: true });
+}
+
+// 前に戻る処理
+function prevScene() {
+    if (state.sceneIndex > 0) {
+        state.sceneIndex--;
+        renderScene(state.episodeData[state.sceneIndex]);
+    }
+}
+
+// 次に進む処理
+function nextScene() {
+    if (state.sceneIndex < state.episodeData.length - 1) {
+        state.sceneIndex++;
+        renderScene(state.episodeData[state.sceneIndex]);
+    } else {
+        // エピソード終了時の処理が必要ならここに記述
+        console.log("エピソードの最後です");
+    }
+}
+// スクリプトの最後の方で実行
+document.addEventListener('DOMContentLoaded', () => {
+    // 既存の初期化処理...
+    setupMainControls();
+});
+
+
     window.onload = initialize;
 
 </script>
