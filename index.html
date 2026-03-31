@@ -1263,22 +1263,27 @@ function updateUI() {
         }
     }
 
-// 1180行目付近
+// --- 修正後：タップでのページ送りを廃止する ---
 ui.container.addEventListener('pointerup', e => {
-    // 【最優先ガード】インライン編集モード中は、どこをクリックしてもページ送りを絶対にさせない
+    // インライン編集モード中、またはモーダル表示中はガード
     if (state.isInlineEditing) return;
-
-    // モーダルが開いている時も何もしない
     if (state.modalMode || ui.modal.style.display === 'flex') return;
     
-    // 以下、通常のページ送り判定（既存のコードを活かす）
+    // UIパーツ（ボタンやダイアログ）のクリックは許容するが、
+    // それ以外の「画面の左右タップ」による prevScene() / nextScene() を削除します。
+    
     if (e.target.closest('#floating-controls')) return;
     if (e.target.closest('#dialogue-box')) return;
 
-    const isLeft = e.clientX < window.innerWidth * 0.3;
-    if (isLeft) prevScene();
-    else nextScene();
+    // ★ ここにあった isLeft の判定と prevScene/nextScene の実行を削除しました。
+    // これにより、タップしても何も起きなくなります。
 });
+
+ui.container.addEventListener('touchstart', (e) => {
+    if (state.isInlineEditing || (ui.modal && ui.modal.style.display === 'flex')) return;
+    mainTouchStartX = e.changedTouches[0].screenX;
+}, { passive: true });
+
 
 
 // タブ切り替え
@@ -1471,7 +1476,6 @@ window.closeModal = () => {
 };
 
 let touchStartX = 0;
-let touchEndX = 0;
 
 async function renderEpisodeDial() {
     const select = document.getElementById('ep-dial-select');
