@@ -21,14 +21,75 @@
             --font-serif: 'Shippori Mincho', serif; /* タイトル・名前用 */
         }
 
-        html, body { 
-            margin: 0; padding: 0; height: 100%; 
-            background: var(--bg-color); 
-            color: var(--text-color);
-            font-family: var(--font-main);
-            overflow: hidden; 
-            user-select: none;
-        }
+ html, body {
+    margin: 0; padding: 0; 
+    height: 100%; width: 100%;
+    background: #000; 
+    color: var(--text-color);
+    font-family: var(--font-main);
+    overflow: hidden;
+    user-select: none;
+    display: flex;
+    flex-direction: column;
+}
+
+/* 上部の黒い画面（ヘッダー用スペース） */
+.safe-area-top {
+    height: 30px; /* ヘッダーの高さに合わせて調整 */
+    background-color: #000;
+    width: 100%;
+    flex-shrink: 0;
+}
+
+/* 下部の黒い画面（フッター用スペース） */
+.safe-area-bottom {
+    height: 30px; /* フッター（シークバー含む）の高さに合わせて調整 */
+    background-color: #000;
+    width: 100%;
+    flex-shrink: 0;
+}
+
+/* ビューアー本体：上下の黒い帯に挟まれたエリア */
+/* --- 📱 2. レイアウト構造 --- */
+#novel-container {
+    flex-grow: 1;
+    position: relative;
+    width: 100%;
+    background-color: #000;
+    overflow: hidden;
+    touch-action: pan-y; /* スワイプJS制御用 */
+}
+
+/* ヘッダー */
+.hud-header {
+    top: 0;
+    height: var(--hud-height);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid rgba(192, 160, 128, 0.3);
+}
+
+.hud-header-left {
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    color: var(--accent-color);
+    font-weight: 500;
+}
+
+.hud-icon-btn-mini {
+    background: none;
+    border: none;
+    font-size: 1.5rem; /* スマホ用に少し大きく */
+    cursor: pointer;
+    color: var(--text-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+
 
         /* --- 🖼️ ビューアエリア --- */
  #novel-container {
@@ -40,7 +101,14 @@
     /* 【重要】ブラウザのデフォルトスワイプ（戻る・進む）を無効化し、JSで制御可能にする */
     touch-action: none; 
 }
-
+/* フッター */
+.hud-footer {
+    bottom: 0;
+    height: 65px; /* シークバー操作用に少し厚め */
+    display: flex;
+    align-items: center;
+    border-top: 1px solid rgba(192, 160, 128, 0.2);
+}
         /* レイヤー共通設定 */
         .layer-image {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
@@ -80,19 +148,12 @@
     touch-action: pan-y; 
 }
 
-        #character.visible { opacity: 1; }
-        
-        /* 回想シーンなどで使用するシルエット化 */
-        #character.flashback-shadow { 
-            filter: brightness(0) opacity(0.7) drop-shadow(0 0 5px rgba(255,255,255,0.2)); 
-        }
-
         /* --- 💬 ダイアログボックス（スタイリッシュ・ファンタジー） --- */
         #dialogue-box {
             position: absolute; bottom: 0; left: 0; width: 100%; 
             min-height: 28%; /* 少し高さを確保 */
             max-height: 45%;
-            
+            z-index: 100;
             background: linear-gradient(to top, var(--ui-bg) 0%, rgba(15, 23, 42, 0.8) 100%);
             border-top: 2px solid var(--accent-color); /* ゴールドのライン */
             box-shadow: 0 -5px 20px rgba(0,0,0,0.5);
@@ -577,19 +638,6 @@
     to { opacity: 1; transform: translateY(0); }
 }
 
-/* 固定フッターのスタイル */
-.ep-footer-fixed {
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    background: linear-gradient(to top, var(--bg-color) 80%, transparent);
-    padding: 20px;
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    z-index: 2020;
-}
 
 /* スワイプエリアの調整 */
 .swipe-area {
@@ -612,41 +660,82 @@
     padding-top: 80px !important;
 }
 
+.hud-layer {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    z-index: 1500;
+    pointer-events: none; /* 下のコンテンツを触れるように */
+}
+
+.hud-header, .hud-footer {
+    position: absolute;
+    width: 100%;
+    background: rgba(0, 0, 0, 0.85);
+    padding: 0 15px;
+    box-sizing: border-box;
+    pointer-events: auto; /* ボタン類は反応するように */
+}
+
+.hud-seekbar-flex-container {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    gap: 15px; /* シークバーと数字の間隔 */
+}
+
+#hud-seekbar {
+    flex-grow: 1;
+    height: 8px;
+    accent-color: var(--accent-color);
+    transform: scaleX(-1); /* 右がMIN、左がMAX */
+    cursor: pointer;
+}
+
+#hud-page-counter-inline {
+    white-space: nowrap;
+    font-size: 0.9rem;
+    font-family: monospace;
+    min-width: 70px;
+    text-align: right;
+}
+
+.hud-action-grid {
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+}
+
+/* --- フッター・アイコンの最適化 --- */
+.hud-icon-btn {
+    background: none;
+    border: none;
+    color: var(--text-color);
+    font-size: 1.5rem; /* アイコン自体を大きく */
+    padding: 12px;     /* タップ領域を拡大 */
+    cursor: pointer;
+    opacity: 0.9;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 44px;   /* スマホの推奨タップサイズ */
+    min-height: 44px;
+}
     </style>
 </head>
 <body>
+
+<div class="safe-area-top"></div>
+
     <div id="loading-indicator">
         <div class="spinner"></div>
         <div id="loading-text">Loading World...</div>
     </div>
-
-    <div id="floating-controls">
-        <button id="episode-select-icon" class="control-button" title="物語を選択">
-            <span>📖</span> 
-        </button> 
-     
-        <button onclick="window.location.href='asset_upload.html'"  class="control-button" >
-            <span>🖼️</span> 
-        </button>
-
-    </div>
-    
-    <div id="novel-asset-controls">
-        <select id="asset-background" title="背景"></select>
-        <select id="asset-special" title="特殊画像"></select>
-        <select id="asset-effect" title="エフェクト"></select>
-    </div>
-
-
-    <select id="episode-select" style="display: none;"></select>
     
     <div id="novel-container">
         <div id="background" class="layer-image"></div>
-        
         <img id="special-image" class="layer-image" src="" alt="" style="display: none;">
-        
         <img id="character" src="" alt="">
-        
         <img id="effect-image" class="layer-image" src="" alt="" style="display: none;">
 
         <div id="dialogue-box">
@@ -709,7 +798,43 @@
         </button>
 </div>
 
+<div id="floating-controls"></div>
     </div>
+
+    <div class="safe-area-bottom"></div>
+<div id="viewer-hud" class="hud-layer" style="display: none;">
+    <div class="hud-header">
+        <div class="hud-header-left" onclick="openModal()">
+            <span id="hud-episode-number">← 第 - 話</span>
+        </div>
+        <div class="hud-header-right">
+            <button class="hud-icon-btn-mini" onclick="window.location.href='asset_upload.html'" title="素材管理">🖼️</button>
+        </div>
+    </div>
+
+    <div class="hud-footer">
+        <div class="hud-seekbar-flex-container">
+            <input type="range" id="hud-seekbar" min="0" max="100" value="0">
+            <div id="hud-page-counter-inline">
+                <span id="hud-current-scene">1</span> / <span id="hud-total-scenes">1</span>
+            </div>
+        </div>
+    </div>
+</div>
+</div>
+
+
+
+    <div id="novel-asset-controls">
+        <select id="asset-background" title="背景"></select>
+        <select id="asset-special" title="特殊画像"></select>
+        <select id="asset-effect" title="エフェクト"></select>
+    </div>
+
+
+    <select id="episode-select" style="display: none;"></select>
+    
+
 
 <div id="modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 2000;">
     <div id="modal-overlay" style="position: absolute; width: 100%; height: 100%; background: var(--bg-color);"></div>
@@ -1010,6 +1135,9 @@ async function loadEpisodeData(episodeNumber, target_scene_number = null) {
         // 2. 状態を更新
         state.episodeData = filledData;
 
+        // ★ ここに追加: 現在のエピソード番号を確実に保持する
+        state.currentEpisode = episodeNumber;
+
         // 3. 表示位置（インデックス）を決定
         if (target_scene_number) {
             const idx = filledData.findIndex(s => Number(s.scene_number) === Number(target_scene_number));
@@ -1019,6 +1147,10 @@ async function loadEpisodeData(episodeNumber, target_scene_number = null) {
         }
 
         renderScene(state.episodeData[state.sceneIndex]); 
+        
+        // ★ ここに追加: HUD（第○話、シークバー等）の表示を更新
+        updateHUDValues();
+
         updateUI();
 
     } catch (err) {
@@ -1449,23 +1581,39 @@ const { data, error } = await supabaseClient
     }
 }
 
-    // モーダル開閉
-    document.getElementById('episode-select-icon').onclick = () => openModal('episode-list');
-
 function openModal(type) {
-    // 確実に要素を取得する
     const modal = document.getElementById('modal');
-    const container = document.getElementById('episode-list-container');
-    
     if (!modal) return;
 
-    // モーダル全体を表示
+    // 1. モーダル全体を表示
     modal.style.display = 'flex';
 
-    if (type === 'episode-list') {
-        if (container) container.style.display = 'block';
-        // プルダウンとプレビューの生成関数を呼ぶ
+    // 2. HUD（ヘッダー・フッター）が開いたままだと邪魔なので隠す
+    const hud = document.getElementById('viewer-hud');
+    if (hud) hud.style.display = 'none';
+
+    // 3. モーダル内の表示切り替え
+    const previewArea = document.getElementById('ep-preview-area');
+    const previewFooter = document.getElementById('ep-preview-footer');
+    const editArea = document.getElementById('ep-edit-form-area');
+    const editFooter = document.getElementById('ep-edit-footer');
+
+    // 「物語を選択（あらすじ表示）」モードの場合
+    if (previewArea) previewArea.style.display = 'block';
+    if (previewFooter) previewFooter.style.display = 'flex';
+    
+    // 編集画面などは隠しておく
+    if (editArea) editArea.style.display = 'none';
+    if (editFooter) editFooter.style.display = 'none';
+
+    // 4. データの生成と読み込み
+    // プルダウンを生成
+    if (typeof renderEpisodeDial === 'function') {
         renderEpisodeDial(); 
+    }
+    // 現在のエピソード情報をプレビューに反映
+    if (typeof updateEpisodePreview === 'function') {
+        updateEpisodePreview(state.currentEpisode);
     }
 }
 
@@ -1822,37 +1970,28 @@ if (ui.inlineEditBtn) {
     };
 }
 
-let mainTouchStartX = 0;
-
 function setupMainControls() {
     // 既存のクリックイベントを無効化
-    ui.container.onclick = null;
+   let mainTouchStartX = 0;
+let mainTouchStartTime = 0;
 
-    // タッチ開始時の座標を記録
-    ui.container.addEventListener('touchstart', (e) => {
-        // 編集モード中やモーダル（概要画面）が出ている時はスワイプさせない
-        if (state.isInlineEditing || (ui.modal && ui.modal.style.display === 'flex')) return;
-        mainTouchStartX = e.changedTouches[0].screenX;
-    }, { passive: true });
+ui.container.addEventListener('touchstart', (e) => {
+    if (state.isInlineEditing || (ui.modal && ui.modal.style.display === 'flex')) return;
+    mainTouchStartX = e.changedTouches[0].screenX;
+    mainTouchStartTime = Date.now(); // タップかスワイプかの判別用
+}, { passive: true });
 
-    // タッチ終了時の判定
-    ui.container.addEventListener('touchend', (e) => {
-        if (state.isInlineEditing || (ui.modal && ui.modal.style.display === 'flex')) return;
-        
-        const mainTouchEndX = e.changedTouches[0].screenX;
-        const swipeDistance = mainTouchEndX - mainTouchStartX;
-        const threshold = 50; // スワイプと判定する距離(px)
+// 既存の pointerup 内にあるページ送りロジックは必ず削除してください
+ui.container.addEventListener('pointerup', e => {
+    if (state.isInlineEditing) return;
+    if (state.modalMode || ui.modal.style.display === 'flex') return;
+    if (e.target.closest('#floating-controls')) return;
+    if (e.target.closest('#dialogue-box')) return;
+    
+    // ここには prevScene/nextScene を書かない（touchendに集約したため）
+});
 
-        if (swipeDistance < -threshold) {
-            // 右から左へスワイプ(←)
-            console.log("スワイプ: 前に戻る");
-            prevScene();
-        } else if (swipeDistance > threshold) {
-            // 左から右へスワイプ(→)
-            console.log("スワイプ: 次に進む");
-            nextScene();
-        }
-    }, { passive: true });
+   
 }
 
 // 前に戻る処理
@@ -1879,8 +2018,197 @@ document.addEventListener('DOMContentLoaded', () => {
     setupMainControls();
 });
 
+// HUDの表示・非表示を切り替える（中央タップで実行）
+function toggleHUD() {
+    const hud = document.getElementById('viewer-hud');
+    if (!hud) return;
+    
+    if (hud.style.display === 'none') {
+        updateHUDInfo(); // 表示する直前に最新の状態に更新
+        hud.style.display = 'block';
+    } else {
+        hud.style.display = 'none';
+    }
+}
 
-    window.onload = initialize;
+// HUD情報の更新（ページ番号とシークバー）
+function updateHUDInfo() {
+    if (!state.episodeData || state.episodeData.length === 0) return;
+
+    const total = state.episodeData.length;
+    const current = state.sceneIndex + 1;
+    const epNum = state.currentEpisode || "-";
+
+    document.getElementById('hud-episode-number').textContent = `← 第 ${epNum} 話`;
+    document.getElementById('hud-current-scene').textContent = current;
+    document.getElementById('hud-total-scenes').textContent = total;
+
+    const seekbar = document.getElementById('hud-seekbar');
+    if (seekbar) {
+        seekbar.max = total - 1;
+        seekbar.value = state.sceneIndex;
+    }
+}
+
+
+// --- 次のエピソードへ ---
+async function goToNextEpisode() {
+    if (!state.currentEpisode) {
+        console.error("現在のエピソード番号が不明です");
+        return;
+    }
+    const nextEp = parseInt(state.currentEpisode) + 1;
+    
+    // 正しい関数名 loadEpisodeData を使用
+    if (typeof loadEpisodeData === 'function') {
+        await loadEpisodeData(nextEp);
+    } else {
+        console.error("loadEpisodeData 関数が見つかりません");
+    }
+}
+
+// --- 前のエピソードへ ---
+async function goToPrevEpisode() {
+    if (!state.currentEpisode) return;
+    const prevEp = parseInt(state.currentEpisode) - 1;
+    
+    if (prevEp > 0) {
+        // 正しい関数名 loadEpisodeData を使用
+        if (typeof loadEpisodeData === 'function') {
+            await loadEpisodeData(prevEp);
+        } else {
+            console.error("loadEpisodeData 関数が見つかりません");
+        }
+    }
+}
+
+// シークバー操作の同期（反転していてもvalueは正しく取得できます）
+document.getElementById('hud-seekbar').addEventListener('input', (e) => {
+    const index = parseInt(e.target.value);
+    state.sceneIndex = index;
+    renderScene(state.episodeData[index]);
+    // updateHUDInfo または updateHUDValues を呼んで数字を更新
+    updateHUDInfo(); 
+});
+// 前後のエピソードへの遷移（仮実装：IDを±1してリロード等）
+function goToNextEpisode() {
+    const nextEp = parseInt(state.currentEpisode) + 1;
+    loadEpisode(nextEp); // loadEpisode関数がある前提
+}
+function goToPrevEpisode() {
+    const prevEp = parseInt(state.currentEpisode) - 1;
+    if (prevEp > 0) loadEpisode(prevEp);
+}
+
+// --- 1. 二重発火防止用の関数を定義 ---
+let isProcessing = false;
+function handleNavigation(direction) {
+    if (isProcessing) return;
+    isProcessing = true;
+
+    if (direction === 'next') {
+        nextScene();
+    } else {
+        prevScene();
+    }
+
+    // 0.1秒間だけ操作をロック（二重反応を防ぐ）
+    setTimeout(() => {
+        isProcessing = false;
+    }, 100);
+}
+
+// --- 2. タッチ終了時の判定（ここを丸ごと差し替え） ---
+ui.container.addEventListener('touchend', (e) => {
+    // ボタン（編集ボタン、素材整理アイコン等）が押された場合は、ページ移動を一切行わない
+    if (e.target.closest('button') || e.target.closest('.control-button') || e.target.closest('.hud-icon-btn-mini')) {
+        return; 
+    }
+
+    // 編集モード中やモーダル表示中は、ページ移動を反応させない
+    if (state.isInlineEditing || (ui.modal && ui.modal.style.display === 'flex')) {
+        return;
+    }
+
+    // デフォルト動作（クリックへの連鎖など）を制限
+    if (e.cancelable) {
+        e.preventDefault();
+    }
+
+    const mainTouchEndX = e.changedTouches[0].screenX;
+    const swipeDistance = mainTouchEndX - mainTouchStartX;
+    const threshold = 50;
+
+    // スワイプ判定
+    if (Math.abs(swipeDistance) > threshold) {
+        if (swipeDistance < -threshold) {
+            handleNavigation('prev'); // 右から左（戻る）
+        } else {
+            handleNavigation('next'); // 左から右（進む）
+        }
+        return;
+    }
+
+    // タップ判定
+    const touchX = e.changedTouches[0].clientX;
+    const screenWidth = window.innerWidth;
+    const edgeSize = screenWidth * 0.15;
+
+    if (touchX < edgeSize) {
+        handleNavigation('next'); // 左隅タップ
+    } else if (touchX > screenWidth - edgeSize) {
+        handleNavigation('prev'); // 右隅タップ
+    } else {
+        toggleHUD(); // 中央タップ
+    }
+}, { passive: false });
+
+window.onload = initialize;
+
+// シーン描画時にHUDの数値も更新するように変更
+const originalRenderScene = renderScene;
+renderScene = function(data) {
+    originalRenderScene(data);
+    updateHUDValues(); // シーンが変わるたびにHUDの数値（シークバー等）を更新
+};
+
+function updateHUDValues() {
+    if (!state.episodeData || state.episodeData.length === 0) return;
+
+    const total = state.episodeData.length;
+    const current = state.sceneIndex + 1;
+    const epNum = state.currentEpisode || "-";
+
+    // ヘッダー更新
+    const epDisplay = document.getElementById('hud-episode-number');
+    if (epDisplay) epDisplay.textContent = `← 第 ${epNum} 話`;
+
+    // シークバー更新
+    const seekbar = document.getElementById('hud-seekbar');
+  if (seekbar) {
+    // シークバー上でのタップやクリックがコンテナ（背景）に伝わらないようにする
+    seekbar.addEventListener('touchend', (e) => e.stopPropagation(), { passive: true });
+    seekbar.addEventListener('click', (e) => e.stopPropagation());
+    
+    seekbar.addEventListener('input', (e) => {
+        const index = parseInt(e.target.value);
+        state.sceneIndex = index;
+        renderScene(state.episodeData[index]);
+    });
+}
+
+    // カウンター更新（新しいIDに合わせて適用）
+    const curDisp = document.getElementById('hud-current-scene');
+    const totDisp = document.getElementById('hud-total-scenes');
+    if (curDisp) curDisp.textContent = current;
+    if (totDisp) totDisp.textContent = total;
+}
+
+// シークバーを動かした時の処理
+document.getElementById('hud-seekbar').oninput = (e) => {
+    state.sceneIndex = parseInt(e.target.value);
+    renderScene(state.episodeData[state.sceneIndex]);
+};
 
 </script>
 </body>
