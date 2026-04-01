@@ -62,10 +62,15 @@
 
 /* ヘッダー */
 .hud-header {
+position: fixed;
     top: 0;
-    height: var(--hud-height);
+    left: 0;
+    width: 100%;
+    height: 60px; /* 50pxから60pxに変更 */
+    background: var(--ui-bg);
     display: flex;
-    align-items: center;
+    align-items: center; /* 縦方向の中央揃え */
+    padding: 0 15px;
     justify-content: space-between;
     border-bottom: 1px solid rgba(192, 160, 128, 0.3);
 }
@@ -721,6 +726,27 @@
     min-width: 44px;   /* スマホの推奨タップサイズ */
     min-height: 44px;
 }
+.ep-preview-footer {
+    position: fixed; /* 画面下部に固定 */
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 60px;    /* 高さを60pxに指定 */
+    background: var(--ui-bg);
+    display: flex;
+    justify-content: space-around; /* ボタンを均等に配置 */
+    align-items: center;           /* 上下中央揃え */
+    padding: 0 15px;
+    border-top: 1px solid var(--accent-color);
+    z-index: 1100; /* モーダル内でも最前面にくるように調整 */
+}
+
+/* プレビューエリアの中身がフッターに被らないように下余白を追加 */
+.ep-preview-content {
+    padding-bottom: 80px; /* フッター(60px) + 余裕(20px) */
+    overflow-y: auto;
+}
+
     </style>
 </head>
 <body>
