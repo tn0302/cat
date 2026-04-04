@@ -118,13 +118,10 @@ position: fixed;
         .layer-image {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
             background-size: cover; background-position: center;
-            transition: opacity 0.6s ease; /* ふんわり切り替え */
             opacity: 0;
             will-change: opacity;
         }
         .layer-image.visible { opacity: 1; }
-
-        #background { z-index: 0; }
         
         /* エフェクトレイヤー（乗算やスクリーンなどが必要ならmix-blend-modeを追加） */
         #effect-image { 
@@ -138,7 +135,6 @@ position: fixed;
     transform: translateX(-50%);
     max-height: 140vh;
     object-fit: cover;
-    z-index: 1;
     transition: filter 0.3s ease, transform 0.3s ease;
 }
 
@@ -158,14 +154,11 @@ position: fixed;
             position: absolute; bottom: 0; left: 0; width: 100%; 
             min-height: 28%; /* 少し高さを確保 */
             max-height: 45%;
-            z-index: 100;
             background: linear-gradient(to top, var(--ui-bg) 0%, rgba(15, 23, 42, 0.8) 100%);
             border-top: 2px solid var(--accent-color); /* ゴールドのライン */
             box-shadow: 0 -5px 20px rgba(0,0,0,0.5);
-            
             padding: 20px; /* 下に余裕を持たせる */
             box-sizing: border-box; 
-            z-index: 10; 
             display: flex; flex-direction: column;
         }
         
@@ -198,7 +191,7 @@ position: fixed;
         /* --- ⚙️ UIコントロール（フローティング） --- */
         #floating-controls {
             position: fixed; top: 15px; left: 15px;
-            z-index: 150; display: flex; gap: 10px;
+             display: flex; gap: 10px;
         }
 
         .control-button { 
@@ -387,7 +380,6 @@ position: fixed;
     justify-content: center;
     align-items: center;
     cursor: pointer;
-    z-index: 100;
     transition: 0.3s;
     backdrop-filter: blur(5px);
 }
@@ -665,12 +657,11 @@ position: fixed;
     padding-top: 80px !important;
 }
 
+
 .hud-layer {
     position: fixed;
     top: 0; left: 0;
     width: 100%; height: 100%;
-    z-index: 1500;
-    pointer-events: none; /* 下のコンテンツを触れるように */
 }
 
 .hud-header, .hud-footer {
@@ -745,8 +736,18 @@ position: fixed;
 .ep-preview-content {
     padding-bottom: 80px; /* フッター(60px) + 余裕(20px) */
     overflow-y: auto;
+    touch-action: pan-y; /
 }
-
+/* 修正例 */
+#special {
+    position: absolute;
+    inset: 0;
+    display: none;
+    pointer-events: none;
+    object-fit: cover;
+    width: 100%;
+    height: 100%;
+}
     </style>
 </head>
 <body>
@@ -759,11 +760,16 @@ position: fixed;
     </div>
     
     <div id="novel-container">
-        <div id="background" class="layer-image"></div>
-        <img id="special-image" class="layer-image" src="" alt="" style="display: none;">
-        <img id="character" src="" alt="">
-        <img id="effect-image" class="layer-image" src="" alt="" style="display: none;">
+<div id="novel-container">
+    <div id="background" class="layer-image"></div>
+    
+    <img id="character" class="layer-image" src="" alt="" >
+    
+    <img id="special" class="layer-image" src="" alt="" >
+    
+    <img id="effect" class="layer-image" src="" alt="" >
 
+    
         <div id="dialogue-box">
     <div id="display-area" style="display: block; position: relative; width: 100%; height: 100%;">
         <div id="character-name"></div>
@@ -944,11 +950,16 @@ const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
     let globalLastBackground = "";
 
 let state = {
+        tempEditData: null,
         episodeData: [],
         sceneIndex: 0,
         isAuto: false,
         autoTimer: null,
         episodeNumbers: [],
+        allEpisodes: [], // ★ これを追加
+    currentEpisodeId: null,
+    episodeNumbers: [], // ここに全エピソード番号が入ります
+        currentEpisodeId: null, // 現在表示中のエピソード番号
         loadedAssets: { bg: {}, char: {}, special: {}, effect: {} },
         modalMode: '',
         isInlineEditing: false,
@@ -960,8 +971,8 @@ const ui = {
     name: document.getElementById('character-name'),
     charImg: document.getElementById('character'),
     bgDiv: document.getElementById('background'),
-    specialImg: document.getElementById('special-image'),
-    effectImg: document.getElementById('effect-image'),
+    specialImg: document.getElementById('special'), // ここが 'special' になっていること
+    effectImg: document.getElementById('effect'),
     container: document.getElementById('novel-container'),
     loading: document.getElementById('loading-indicator'),
     epSelect: document.getElementById('episode-select'),
@@ -1023,24 +1034,44 @@ ui.inlineEditBtn.onclick = (e) => {
     /* =================================================================
         初期化 & データロード
        ================================================================= */
-
-    async function initialize() {
+async function initialize() {
         try {
+            // 🌟 1. まず最初に「アセット（画像URL辞書）」を構築する 🌟
+            // これがないと、あとの loadEpisodeData で画像URLが空になります
+            const { data: assets, error: assetError } = await supabaseClient
+                .from('assets')
+                .select('*');
+
+            if (assetError) throw assetError;
+
+            // 取得したURLを state.loadedAssets に整理して格納
+            assets.forEach(a => {
+                const url = a.image_url || a.image;
+                if (!url) return;
+                if (a.asset_type === 'special') state.loadedAssets.special[a.tag] = url;
+                if (a.asset_type === 'background' || a.asset_type === 'bg') state.loadedAssets.bg[a.tag] = url;
+                if (a.asset_type === 'character') {
+                    state.loadedAssets.char[`${a.tag}_${a.face || 'normal'}`] = url;
+                }
+            });
+
+            // 2. エピソード選択肢の生成（既存の処理）
             await populateEpisodeSelect();
             
-            // ★UX改善：オートセーブの自動適用（確認ダイアログなし）
+            // 3. セーブデータの確認と読み込み（既存の処理）
             const savedData = loadProgress();
             let startEp = state.episodeNumbers[0];
             let startIndex = 0;
             
             if (savedData && state.episodeNumbers.includes(savedData.episode)) {
-                // 確認なしで前回の続きをセット
                 startEp = savedData.episode;
                 startIndex = savedData.index || 0;
-                console.log(`Resuming from Ep.${startEp}, Scene ${startIndex}`);
             }
 
             ui.epSelect.value = startEp;
+            
+            // 4. エピソードデータの読み込み
+            // ここで先ほど作った state.loadedAssets を使ってURLが紐付けられます
             await loadEpisodeData(startEp, startIndex);
 
         } catch (e) {
@@ -1049,23 +1080,46 @@ ui.inlineEditBtn.onclick = (e) => {
             showLoading(false);
         }
     }
-// 他の state 定義などがある場所に追記
-async function loadEpisodeData(episodeNumber, target_scene_number = null) {
+
+
+       async function loadEpisodeData(episodeNumber, target_scene_number = null) {
     showLoading(true);
+    
+    state.currentEpisodeId = episodeNumber;
     try {
         // 1. Supabaseからデータを取得
-        const { data, error } = await supabaseClient
-            .from('vs_scenes_with_assets')
-            .select('*')
+const { data, error } = await supabaseClient
+    .from('scenes') // ← 実際のテーブル名に変更
+    .select('*')
             .eq('episode', episodeNumber)
             .order('scene_number', { ascending: true });
 
         if (error) throw error;
+        
         if (!data || data.length === 0) {
             alert('指定されたエピソードにデータがありません。');
             return;
         }
 
+        
+data.forEach(scene => {
+    // 背景URLの解決
+    if (scene.background && !scene.background_image) {
+        scene.background_image = state.loadedAssets.bg[scene.background] || "";
+    }
+    if (scene.character) {
+        // 重要：'normal' という文字列をデフォルトにしつつ、タグと表情をアンダーバーで繋ぐ
+        const faceTag = scene.character_face || scene.face || "normal"; 
+        const charKey = `${scene.character}_${faceTag}`;
+        
+        // state.loadedAssets.char に格納されているキーと一致させる
+        scene.character_image = state.loadedAssets.char[charKey] || "";
+    }
+    // 演出画像(special)URLの解決
+    if (scene.special && scene.special !== "OFF") {
+        scene.special_image = state.loadedAssets.special[scene.special] || "";
+    }
+});
         // --- 📥 データの穴埋め・背景引き継ぎ処理 ---
         let lastCharacterImg = "";
         let characterDisplayEnabled = false; 
@@ -1188,43 +1242,42 @@ async function loadEpisodeData(episodeNumber, target_scene_number = null) {
 }
 
 async function preloadAssetsSmart(currentIndex, count) {
-        const endIndex = Math.min(currentIndex + count, state.episodeData.length);
-        const targets = state.episodeData.slice(currentIndex, endIndex);
-        
-        const required = { bg: new Set(), char: new Set(), special: new Set(), effect: new Set() };
-        
-        targets.forEach(s => {
-            // NOTE: 直接URL(s.background_image等)はfetchAssetsでは先読みできないが、
-            // タグ指定のアセットだけはここでリクエストする
-            if (s.background && !state.loadedAssets.bg[s.background]) required.bg.add(s.background);
-            if (s.character && !state.loadedAssets.char[s.character]) required.char.add(s.character);
-            if (s.special && !state.loadedAssets.special[s.special]) required.special.add(s.special);
-            if (s.effect && !state.loadedAssets.effect[s.effect]) required.effect.add(s.effect);
-        });
+    const endIndex = Math.min(currentIndex + count, state.episodeData.length);
+    const targets = state.episodeData.slice(currentIndex, endIndex);
+    
+    const required = { bg: new Set(), char: new Set(), special: new Set(), effect: new Set() };
+    
+    targets.forEach(s => {
+        if (s.background && !state.loadedAssets.bg[s.background]) required.bg.add(s.background);
+        if (s.character && !state.loadedAssets.char[s.character]) required.char.add(s.character);
+        // special（森の中など）を収集
+        if (s.special && s.special !== "OFF" && !state.loadedAssets.special[s.special]) {
+    required.special.add(s.special);
+}
+        if (s.effect && !state.loadedAssets.effect[s.effect]) required.effect.add(s.effect);
+    });
 
-        const promises = [];
-        if (required.bg.size) promises.push(fetchAssets('background', required.bg, state.loadedAssets.bg));
-        if (required.char.size) promises.push(fetchAssets('character', required.char, state.loadedAssets.char));
-        if (required.special.size) promises.push(fetchAssets('special_image', required.special, state.loadedAssets.special));
-        if (required.effect.size) promises.push(fetchAssets('effect', required.effect, state.loadedAssets.effect));
+    const promises = [];
+    if (required.bg.size) promises.push(fetchAssets('background', required.bg, state.loadedAssets.bg));
+    if (required.char.size) promises.push(fetchAssets('character', required.char, state.loadedAssets.char));
+    // ここで special を一括取得
+        if (required.special.size) promises.push(fetchAssets('special', required.special, state.loadedAssets.special));   if (required.effect.size) promises.push(fetchAssets('effect', required.effect, state.loadedAssets.effect));
+   if (required.effect.size) promises.push(fetchAssets('effect', required.effect, state.loadedAssets.effect));
 
-        await Promise.all(promises);
-    }
+    await Promise.all(promises);
+}
 
-    async function backgroundLoadRest(startIndex) {
+async function backgroundLoadRest(startIndex) {
         const CHUNK = 10;
         for (let i = startIndex; i < state.episodeData.length; i += CHUNK) {
             await preloadAssetsSmart(i, CHUNK);
             await new Promise(r => setTimeout(r, 1000));
         }
     }
-
-  async function fetchAssets(type, tagSet, targetStore) {
-    if (!tagSet.size) return;
+async function fetchAssets(type, tagSet, targetStore) {
+    if (!tagSet.size && type !== 'special') return;
     
     try {
-        // 修正ポイント1: supabase -> supabaseClient に変更
-        // 修正ポイント2: 必要なアセットタイプで絞り込み
         const { data: list, error } = await supabaseClient
             .from('assets')
             .select('*')
@@ -1233,23 +1286,23 @@ async function preloadAssetsSmart(currentIndex, count) {
         if (error) throw error;
 
         (list || []).forEach(a => {
-            // 修正ポイント3: カラム名を image_url と face に合わせる
-            if (a.tag && a.image_url) {
-                if (type === 'character' && a.face) {
-                    // キャラクター名_表情タグ をキーにする
-                    const key = `${a.tag}_${a.face}`;
-                    targetStore[key] = a.image_url;
+            const url = a.image_url || a.image; // image_url を優先
+            if (a.tag && url) {
+                // キャラクターのキー作成ロジック（以前の挙動を維持）
+                if ((type === 'character' || type === 'char') && (a.character_face_tag || a.face)) {
+                    const faceTag = a.character_face_tag || a.face;
+                    const key = `${a.tag}_${faceTag}`;
+                    targetStore[key] = url;
                 } else {
-                    // 背景や演出用
-                    targetStore[a.tag] = a.image_url;
+                    targetStore[a.tag] = url;
                 }
             }
         });
+        console.log(`Assets loaded for ${type}:`, Object.keys(targetStore).length);
     } catch (e) {
         console.warn(`Failed to fetch assets for ${type}:`, e);
     }
 }
-
 
 // エピソード編集画面を開く
 function openEpisodeEdit() {
@@ -1300,40 +1353,29 @@ async function saveEpisodeInfo() {
     }
 }
 
-/* =================================================================
-        描画 (レンダリング)
-       ================================================================= */
-
+// index.html 197行目付近
 function renderScene(s) {
     if (!s) return;
 
-    // --- 💬 テキスト・名前の表示 ---
     ui.name.textContent = s.character || '';
     ui.text.textContent = s.text || ''; 
 
-    // --- 🖼️ 描画判定 ---
-    // ① special に値があり、かつ "OFF" でない場合は挿絵モード
-    const isIllustrationMode = (s.special && s.special !== "OFF");
+    // --- 🌌 背景の描画 ---
+    updateImage(ui.bgDiv, s.background_image || s.background, state.loadedAssets.bg, true);
+    updateImage(ui.charImg, s.character_image || s.character, state.loadedAssets.char, false);
 
-// --- 🌌 背景（Background）の描画 ---
-    const bgUrl = isIllustrationMode ? (s.special_image || s.special) : (s.background_image || s.background);
-   
- // ui.bg を ui.bgDiv に変更// ui.bg ではなく ui.bgDiv を使う
-updateImage(ui.bgDiv, bgUrl, state.loadedAssets.bg, true);
-
-    // --- 👥 キャラクター（Character）の描画 ---
-    if (isIllustrationMode || (!s.character_image && !s.character)) {
-        // 挿絵モード、またはキャラ指定がない場合は非表示
-        ui.charImg.style.display = 'none';
+// --- 🖼️ 特別演出（Special）の表示処理だけを追加 ---
+    if (s.special && s.special !== "OFF") {
+        // 特別画像を表示
+        updateImage(ui.specialImg, s.special, state.loadedAssets.special, false);
+        ui.specialImg.style.display = 'block'; 
     } else {
-        ui.charImg.style.display = 'block';
-        updateImage(ui.charImg, s.character_image || s.character, state.loadedAssets.char, false);
+        // OFFの時は隠す
+        ui.specialImg.style.display = 'none';
+        ui.specialImg.src = '';
     }
 
-    // --- ✨ エフェクト・その他 ---
-    // SpecialImgは背景として使っているので、ここでは個別に表示させない（または非表示にする）
-    if (ui.specialImg) ui.specialImg.style.display = 'none';
-
+    // --- ✨ エフェクトの描画 ---
     updateImage(ui.effectImg, s.effect_image || s.effect, state.loadedAssets.effect, false);
 
     // キャラクターの演出クラス
@@ -1810,27 +1852,58 @@ if (ui.inlineEditBtn) {
             renderScene(s); 
         } catch (err) { console.error("表情更新失敗:", err); }
     };
-
-    // --- キャラ画像タッチで表情切り替え ---
+// --- キャラ画像タッチで表情切り替え ---
     if (ui.charImg) {
         ui.charImg.addEventListener('pointerup', async (e) => {
             if (!state.isInlineEditing) return;
             e.stopPropagation();
+            
             const s = state.episodeData[state.sceneIndex];
             if (!s || !s.character || s.character === "ナレーション") return;
+
+            // 1. 表情リストの取得（キャッシュ利用）
             let faceList = characterFaceCache[s.character];
             if (!faceList) {
-                const { data } = await supabaseClient.from('assets').select('face').eq('asset_type', 'character').eq('tag', s.character);
-                if (data) { faceList = data.map(item => item.face); characterFaceCache[s.character] = faceList; }
+                const { data } = await supabaseClient.from('assets')
+                    .select('face')
+                    .eq('asset_type', 'character')
+                    .eq('tag', s.character);
+                if (data) { 
+                    faceList = data.map(item => item.face); 
+                    characterFaceCache[s.character] = faceList; 
+                }
             }
+
             if (faceList && faceList.length >= 2) {
-                const currentIndex = faceList.indexOf(s.face);
+                // 2. 現在の表情を特定（一時保存データがあればそれを優先、なければマスターから）
+                const currentFace = (state.tempEditData && state.tempEditData.face) ? state.tempEditData.face : s.face;
+                const currentIndex = faceList.indexOf(currentFace);
                 const nextIndex = (currentIndex + 1) % faceList.length;
-                await updateFaceOnly(faceList[nextIndex]);
+                const nextFace = faceList[nextIndex];
+
+                // 3. 【重要】マスターデータは書き換えずに、一時変数(tempEditData)にメモする
+                state.tempEditData = { 
+                    ...state.tempEditData, 
+                    face: nextFace 
+                };
+
+                // 4. 画面上の見た目だけを即座に更新する
+                // 画像URLを取得して、ui.charImg.src を直接書き換える
+                const { data: assetData } = await supabaseClient
+                    .from('assets')
+                    .select('image_url')
+                    .eq('asset_type', 'character')
+                    .eq('tag', s.character)
+                    .eq('face', nextFace)
+                    .single();
+
+                if (assetData && assetData.image_url) {
+                    ui.charImg.src = assetData.image_url;
+                }
             }
         });
     }
-
+    
     // --- シーン追加（現在のシーンをコピーして次に挿入） ---
     if (ui.inlineAddBtn) {
         ui.inlineAddBtn.onclick = async (e) => {
@@ -1906,73 +1979,95 @@ if (ui.inlineEditBtn) {
             finally { showLoading(false); }
         };
     }
-
 // --- 保存ボタン ---
-// --- 保存ボタン ---
-    if (ui.inlineSaveBtn) {
-        ui.inlineSaveBtn.onclick = async (e) => {
-            e.stopPropagation();
-            const s = state.episodeData[state.sceneIndex];
-            if (!s) return; // 変数名を s に統一
-        
-            try {
-                showLoading(true);
-                // 1. 入力された値（タグ名）を取得
-                const up = { 
-                    character: ui.inlineEditName.value, 
-                    face: ui.inlineEditFace.value, 
-                    text: ui.inlineEditTextarea.value, 
-                    background: ui.inlineEditBg ? ui.inlineEditBg.value : s.background,
-                    special: ui.inlineEditSpecial ? ui.inlineEditSpecial.value : s.special,
-                    effect: ui.inlineEditEffect ? ui.inlineEditEffect.value : s.effect
-                };
-                await supabaseClient.from('scenes').update(up).eq('id', s.id);
-                Object.assign(s, up);
-                
-                // 2. Supabase のデータを更新（タグを保存）
-                const { error } = await supabaseClient.from('scenes').update(up).eq('id', s.id);
-                if (error) throw error;
+if (ui.inlineSaveBtn) {
+    ui.inlineSaveBtn.onclick = async (e) => {
+        e.stopPropagation();
+        const s = state.episodeData[state.sceneIndex];
+        if (!s) return;
 
-                // 3. ローカルデータ (s) を更新
-                Object.assign(s, up);
+        try {
+            showLoading(true);
 
-                // ★重要：タグ名から実際の画像URLを再割り当てする
-                // これを行わないと、renderScene を呼んだ時に画像URLが空になり背景が消えます
-                if (state.loadedAssets.bg[s.background]) {
-                    s.background_image = state.loadedAssets.bg[s.background];
+            // 1. フォームと一時データから更新用オブジェクトを作成
+            const up = { 
+                character: ui.inlineEditName.value, 
+                face: (state.tempEditData && state.tempEditData.face) ? state.tempEditData.face : ui.inlineEditFace.value, 
+                text: ui.inlineEditTextarea.value, 
+                background: ui.inlineEditBg ? ui.inlineEditBg.value : s.background,
+                special: ui.inlineEditSpecial ? ui.inlineEditSpecial.value : s.special,
+                effect: ui.inlineEditEffect ? ui.inlineEditEffect.value : s.effect
+            };
+
+            // 2. Supabaseを更新
+            const { error } = await supabaseClient.from('scenes').update(up).eq('id', s.id);
+            if (error) throw error;
+
+// 3. 最新の結合データを取得（画像URLを確定させる）
+            const { data: updatedScene, error: fetchError } = await supabaseClient
+                .from('vs_scenes_with_assets')
+                .select('*')
+                .eq('id', s.id)
+                .single();
+
+            if (fetchError) throw fetchError;
+
+            // --- 4. 背景引き継ぎの再適用 ---
+            if (!updatedScene.background_image || updatedScene.background_image === "") {
+                if (state.sceneIndex > 0) {
+                    updatedScene.background_image = state.episodeData[state.sceneIndex - 1].background_image;
                 }
-                if (state.loadedAssets.special[s.special]) {
-                    s.special_image = state.loadedAssets.special[s.special];
+            }
+
+            // --- 5. 【新規追加】キャラ画像（ナレーション・チハル）の引き継ぎ再適用 ---
+            const charName = updatedScene.character || "";
+            const isSkipTarget = (charName === "ナレーション" || charName === "チハル");
+
+            // もしナレーション等で画像が空の場合、前のシーンの画像を借りる
+            if (isSkipTarget && (!updatedScene.character_image || updatedScene.character_image === "")) {
+                if (state.sceneIndex > 0) {
+                    updatedScene.character_image = state.episodeData[state.sceneIndex - 1].character_image;
                 }
-                if (state.loadedAssets.effect[s.effect]) {
-                    s.effect_image = state.loadedAssets.effect[s.effect];
-                }
-                
-                    // 画面を元の表示に戻す
-                state.isInlineEditing = false;
-                ui.inlineEditForm.style.display = 'none';
-                ui.name.style.display = 'block';
-                ui.text.style.display = 'block';
-                ui.inlineEditBtn.style.display = 'block';
-                
-                 renderScene(s);
-            } catch (err) { alert("保存失敗: " + err.message); } 
-            finally { showLoading(false); }
-        };
-    }
-// --- キャンセル（戻る）ボタン ---
-    if (ui.inlineCancelBtn) {
-        ui.inlineCancelBtn.onclick = (e) => { 
-            e.stopPropagation(); 
+            }
+
+            // 6. ローカルのデータを更新
+            state.episodeData[state.sceneIndex] = updatedScene;
+
+            // 7. 編集モード終了・再描画
             state.isInlineEditing = false;
-            ui.inlineEditForm.style.display = 'none';
-            ui.name.style.display = 'block';
-            ui.text.style.display = 'block';
-            ui.inlineEditBtn.style.display = 'block';
-        };
-    }
+            state.tempEditData = null;
 
-    // --- 編集開始（鉛筆アイコン） ---
+            // 次のシーンへの背景引き継ぎ用にグローバル変数も更新しておく
+            if (typeof globalLastBackground !== 'undefined') {
+                globalLastBackground = updatedScene.background_image;
+            }
+        } catch (err) { 
+            console.error(err);
+            alert("保存失敗: " + err.message); 
+        } finally { 
+            showLoading(false); 
+        }
+    };
+}
+
+
+// --- キャンセル（戻る）ボタン ---
+if (ui.inlineCancelBtn) {
+    ui.inlineCancelBtn.onclick = (e) => { 
+        e.stopPropagation(); 
+        state.isInlineEditing = false;
+        state.tempEditData = null; // 一時メモを捨てる
+        
+        ui.inlineEditForm.style.display = 'none';
+        ui.name.style.display = 'block';
+        ui.text.style.display = 'block';
+        ui.inlineEditBtn.style.display = 'block';
+
+        // 元の保存されているデータ（state内）で描き直すことで見た目を戻す
+        renderScene(state.episodeData[state.sceneIndex]);
+    };
+}
+// --- 編集開始（鉛筆アイコン） ---
     ui.inlineEditBtn.onclick = (e) => {
         e.stopPropagation();
         state.isInlineEditing = true;
@@ -2126,71 +2221,102 @@ function goToPrevEpisode() {
     if (prevEp > 0) loadEpisode(prevEp);
 }
 
-// --- 1. 二重発火防止用の関数を定義 ---
-let isProcessing = false;
-function handleNavigation(direction) {
-    if (isProcessing) return;
-    isProcessing = true;
+// --- ナビゲーション制御（二重発火防止 & エピソード跨ぎ） ---
+ let isProcessing = false;
+    async function handleNavigation(direction) {
+        if (isProcessing) return;
+        isProcessing = true;
 
-    if (direction === 'next') {
-        nextScene();
-    } else {
-        prevScene();
+        // 🌟 修正：HUDが表示されている場合のみ、非表示にする
+        // これにより、連打して読み進めている最中に何度も非表示処理が走るのを防ぎます
+        if (state.isHUDVisible) {
+            toggleHUD(false);
+        }
+
+        if (direction === 'next') {
+            if (state.sceneIndex < state.episodeData.length - 1) {
+                nextScene();
+            } else {
+                await navigateToNeighbor('next');
+            }
+        } else {
+            if (state.sceneIndex > 0) {
+                prevScene();
+            } else {
+                await navigateToNeighbor('prev');
+            }
+        }
+        
+        setTimeout(() => { isProcessing = false; }, 300);
     }
 
-    // 0.1秒間だけ操作をロック（二重反応を防ぐ）
-    setTimeout(() => {
-        isProcessing = false;
-    }, 100);
-}
+    async function navigateToNeighbor(direction) {
+        const currentIndex = state.episodeNumbers.indexOf(parseInt(state.currentEpisodeId));
+        if (currentIndex === -1) return;
 
-// --- 2. タッチ終了時の判定（ここを丸ごと差し替え） ---
-ui.container.addEventListener('touchend', (e) => {
-    // ボタン（編集ボタン、素材整理アイコン等）が押された場合は、ページ移動を一切行わない
-    if (e.target.closest('button') || e.target.closest('.control-button') || e.target.closest('.hud-icon-btn-mini')) {
+        const targetIndex = direction === 'next' ? currentIndex + 1 : currentIndex - 1;
+
+        if (targetIndex >= 0 && targetIndex < state.episodeNumbers.length) {
+            const targetEp = state.episodeNumbers[targetIndex];
+            
+            // 次のエピソードなら0ページ目、前なら最後のページ
+            const startIdx = (direction === 'next') ? 0 : 9999; 
+            await loadEpisodeData(targetEp, startIdx);
+            
+            // 前のエピソードに戻った場合、最後のシーンインデックスに再調整
+            if (direction === 'prev') {
+                state.sceneIndex = state.episodeData.length - 1;
+                renderScene(state.episodeData[state.sceneIndex]);
+            }
+        } else {
+            console.log("エピソードの端です");
+        }
+    }
+
+    // --- タッチイベントの最終版 ---
+   ui.container.addEventListener('touchend', (e) => {
+    // 🌟 修正：モーダルを開くヘッダーや、HUD内の操作エリアを触っている時は無視する
+    if (
+        e.target.closest('button') || 
+        e.target.closest('.control-button') || 
+        e.target.closest('.hud-icon-btn-mini') ||
+        e.target.closest('.hud-header-left') || // 🌟 これを追加
+        e.target.closest('#hud-seekbar')        // 🌟 シークバー操作も除外しておくと安全
+    ) {
         return; 
     }
 
-    // 編集モード中やモーダル表示中は、ページ移動を反応させない
-    if (state.isInlineEditing || (ui.modal && ui.modal.style.display === 'flex')) {
-        return;
-    }
+    if (state.isInlineEditing || (ui.modal && ui.modal.style.display === 'flex')) return;
+        if (e.cancelable) e.preventDefault();
 
-    // デフォルト動作（クリックへの連鎖など）を制限
-    if (e.cancelable) {
-        e.preventDefault();
-    }
+        const mainTouchEndX = e.changedTouches[0].screenX;
+        const swipeDistance = mainTouchEndX - mainTouchStartX;
+        const threshold = 50;
 
-    const mainTouchEndX = e.changedTouches[0].screenX;
-    const swipeDistance = mainTouchEndX - mainTouchStartX;
-    const threshold = 50;
-
-    // スワイプ判定
-    if (Math.abs(swipeDistance) > threshold) {
-        if (swipeDistance < -threshold) {
-            handleNavigation('prev'); // 右から左（戻る）
-        } else {
-            handleNavigation('next'); // 左から右（進む）
+        if (Math.abs(swipeDistance) > threshold) {
+            // スワイプ：直感的な方向（左スワイプで次へ）に合わせる場合はここを調整
+            if (swipeDistance < -threshold) {
+                handleNavigation('next'); 
+            } else {
+                handleNavigation('prev');
+            }
+            return;
         }
-        return;
-    }
 
-    // タップ判定
-    const touchX = e.changedTouches[0].clientX;
-    const screenWidth = window.innerWidth;
-    const edgeSize = screenWidth * 0.15;
+        const touchX = e.changedTouches[0].clientX;
+        const screenWidth = window.innerWidth;
+        const edgeSize = screenWidth * 0.15;
 
-    if (touchX < edgeSize) {
-        handleNavigation('next'); // 左隅タップ
-    } else if (touchX > screenWidth - edgeSize) {
-        handleNavigation('prev'); // 右隅タップ
-    } else {
-        toggleHUD(); // 中央タップ
-    }
-}, { passive: false });
+        if (touchX < edgeSize) {
+            handleNavigation('next');
+        } else if (touchX > screenWidth - edgeSize) {
+            handleNavigation('prev');
+        } else {
+            toggleHUD();
+        }
+    }, { passive: false });
 
-window.onload = initialize;
-
+    window.onload = initialize;
 // シーン描画時にHUDの数値も更新するように変更
 const originalRenderScene = renderScene;
 renderScene = function(data) {
