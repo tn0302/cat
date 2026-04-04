@@ -1069,12 +1069,13 @@ const ui = {
 
     // インライン編集（イマーシブ）
    displayArea: document.getElementById('display-area'), // 追加推奨：表示エリアの切替用
-    inlineEditBtn: document.getElementById('inline-edit-btn'),
+    inlineEditor: document.getElementById('inline-editor'),
     inlineEditForm: document.getElementById('inline-edit-form'),
     inlineEditName: document.getElementById('inline-edit-name'),
     inlineEditFace: document.getElementById('inline-edit-face'),
     inlineEditTextarea: document.getElementById('inline-edit-textarea'),
     inlineSaveBtn: document.getElementById('inline-save-btn'),
+    inlineEditBtn: document.getElementById('inline-edit-btn'),
     inlineCancelBtn: document.getElementById('inline-cancel-btn'),
     
 // ★タブ化に伴い追加が必要な「背景・演出」タブの入力欄
@@ -2118,16 +2119,27 @@ if (ui.inlineSaveBtn) {
                 }
             }
 
-            // 6. ローカルのデータを更新
+           // 6. ローカルのデータを更新
             state.episodeData[state.sceneIndex] = updatedScene;
 
-            // 7. 編集モード終了・再描画
+            // 7. 編集モード終了の設定
             state.isInlineEditing = false;
             state.tempEditData = null;
 
-            ui.inlineEditor.style.display = 'none'; // 編集画面を閉じる
-            renderScene(state.episodeData[state.sceneIndex]); // 最新データでビュアーを更新
+            // --- 🌟 修正ポイント：ここから ---
+            
+            // 編集画面（レイヤー）を非表示にする
+            // ui.inlineEditor が null の場合でもエラーにならないよう、直接取得してチェックします
+            const editorEl = document.getElementById('inline-edit-layer'); 
+            if (editorEl) {
+                editorEl.style.display = 'none';
+            }
 
+            // 最新データでビュアーを再描画
+            renderScene(state.episodeData[state.sceneIndex]);
+
+            // --- 🌟 修正ポイント：ここまで（不要な ui.inlineEditor... の行は削除） ---
+          
             // 次のシーンへの背景引き継ぎ用にグローバル変数も更新しておく
             if (typeof globalLastBackground !== 'undefined') {
                 globalLastBackground = updatedScene.background_image;
