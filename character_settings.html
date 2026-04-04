@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>紋章管理 - キャラクター設定</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@500;700&family=Noto+Sans+JP:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --text-color: #e2e8f0;
+            --accent-color: #c0a080; /* ゴールド */
+            --ui-bg: rgba(30, 41, 59, 0.95);
+            --card-bg: rgba(51, 65, 85, 0.5);
+            --danger-color: #ef4444;
+            --font-fantasy: 'Shippori Mincho', serif;
+        }
+
+        body {
+            font-family: 'Noto Sans JP', sans-serif;
+            background-color: var(--bg-color);
+            background-image: radial-gradient(circle at top, #1e293b 0%, #0f172a 100%);
+            color: var(--text-color);
+            margin: 0; padding: 0;
+            overflow-x: hidden;
+        }
+
+        /* --- ヘッダー --- */
+        .header {
+            padding: 20px;
+            text-align: center;
+            border-bottom: 1px solid var(--accent-color);
+            background: var(--ui-bg);
+            position: sticky; top: 0; z-index: 100;
+        }
+
+        .header h1 {
+            font-family: var(--font-fantasy);
+            font-size: 1.2rem;
+            color: var(--accent-color);
+            margin: 0 0 15px 0;
+            letter-spacing: 2px;
+        }
+
+        .back-link {
+            position: absolute; left: 15px; top: 22px;
+            color: var(--accent-color); text-decoration: none; font-size: 14px;
+        }
+
+        /* --- 検索・操作エリア --- */
+        .search-container {
+            padding: 15px;
+            display: flex; gap: 10px;
+        }
+
+        .search-input {
+            flex: 1;
+            background: var(--card-bg);
+            border: 1px solid var(--accent-color);
+            border-radius: 20px;
+            padding: 10px 20px;
+            color: white;
+            outline: none;
+        }
+
+        /* --- キャラクター横スクロールリスト --- */
+        .char-scroll {
+            display: flex; gap: 15px;
+            padding: 10px 15px;
+            overflow-x: auto;
+            white-space: nowrap;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .char-scroll::-webkit-scrollbar { display: none; }
+
+        .char-bubble {
+            display: flex; flex-direction: column; align-items: center; gap: 5px;
+            min-width: 70px; cursor: pointer; opacity: 0.6; transition: 0.3s;
+        }
+
+        .char-bubble.active { opacity: 1; transform: scale(1.1); }
+
+        .char-bubble img {
+            width: 60px; height: 60px;
+            border-radius: 50%;
+            border: 2px solid var(--accent-color);
+            object-fit: cover;
+            background: #000;
+        }
+
+        .char-bubble span { font-size: 11px; color: var(--accent-color); }
+
+        /* --- 表情グリッド --- */
+        .main-content { padding: 15px; padding-bottom: 100px; }
+
+        .face-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+        }
+
+        .face-card {
+            background: var(--card-bg);
+            border: 1px solid rgba(192, 160, 128, 0.3);
+            border-radius: 12px;
+            padding: 10px;
+            text-align: center;
+        }
+
+        .face-img {
+            width: 100%; aspect-ratio: 3/4;
+            object-fit: contain;
+            background: rgba(0,0,0,0.3);
+            border-radius: 8px;
+            margin-bottom: 10px;
+        }
+
+        .face-name {
+            font-family: var(--font-fantasy);
+            color: var(--accent-color);
+            font-size: 0.9rem; margin-bottom: 10px;
+        }
+
+        .btn-group { display: flex; flex-direction: column; gap: 5px; }
+
+        .btn {
+            border: none; border-radius: 4px; padding: 8px;
+            font-size: 12px; cursor: pointer; font-weight: bold;
+            transition: 0.2s;
+        }
+
+        .btn-edit { background: var(--accent-color); color: var(--bg-color); }
+        .btn-merge { background: transparent; border: 1px solid var(--danger-color); color: var(--danger-color); }
+
+        /* --- 統合モーダル --- */
+        .modal {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.9);
+            display: none; flex-direction: column; padding: 20px; z-index: 200;
+        }
+        .modal.active { display: flex; }
+        .modal-content { background: var(--ui-bg); border: 1px solid var(--accent-color); border-radius: 15px; padding: 20px; }
+
+        .loading-overlay {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.8);
+            display: none; align-items: center; justify-content: center; z-index: 1000;
+        }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <a href="index.html" class="back-link">戻る</a>
+    <h1>キャラクター名簿</h1>
+</div>
+
+<div class="search-container">
+    <input type="search" id="search-input" class="search-input" placeholder="英雄の名を検索..." oninput="handleSearch()">
+</div>
+
+<div class="char-scroll" id="char-scroll">
+    </div>
+
+<div class="main-content">
+    <h2 id="current-char-name" style="font-family: var(--font-fantasy); text-align: center; color: var(--accent-color); font-size: 1.1rem;"></h2>
+    <div class="face-grid" id="face-grid"></div>
+</div>
+
+<div id="merge-modal" class="modal">
+    <div class="modal-content">
+        <h3 style="color: var(--danger-color); margin-top:0;">表情の統合と削除</h3>
+        <p id="merge-info" style="font-size: 13px;"></p>
+        <p style="font-size: 12px; color: #999;">この表情を使用している全てのシーンを、以下のどの表情に置き換えますか？</p>
+        <div id="merge-options" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top:15px;"></div>
+        <button class="btn" style="margin-top: 20px; width: 100%; background: #444;" onclick="closeMergeModal()">キャンセル</button>
+    </div>
+</div>
+
+<div id="loading" class="loading-overlay">loading...</div>
+
+<script>
+    // --- ⚙️ Supabase設定 (既存のプロジェクトに合わせてください) ---
+const SUPABASE_URL = 'https://sluvdcvxtzlpbqrxfpsg.supabase.co';
+    const SUPABASE_KEY = 'sb_publishable_dXIvPQtvu-2PunZ1FNkzyA_yczzig09'; 
+
+    const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    let allAssets = [];
+    let characters = {};
+    let currentCharacter = "";
+
+    async function init() {
+        showLoading(true);
+const { data, error } = await supabaseClient
+    .from('assets')
+    .select('*') // 🌟 これを追加
+    .eq('asset_type', 'character')
+    .order('tag', { ascending: true });
+
+        if (!error) {
+            allAssets = data;
+            groupCharacters();
+            renderCharScroll();
+        }
+        showLoading(false);
+    }
+
+    function groupCharacters() {
+        characters = {};
+        allAssets.forEach(a => {
+            if (!characters[a.tag]) characters[a.tag] = [];
+            characters[a.tag].push(a);
+        });
+    }
+
+    function renderCharScroll(filter = "") {
+        const scrollEl = document.getElementById('char-scroll');
+        scrollEl.innerHTML = "";
+        
+        Object.keys(characters).forEach(name => {
+            if (filter && !name.includes(filter)) return;
+
+            const assets = characters[name];
+            const normal = assets.find(a => a.face === 'normal') || assets[0];
+            
+            const div = document.createElement('div');
+            div.className = `char-bubble ${currentCharacter === name ? 'active' : ''}`;
+            div.innerHTML = `<img src="${normal.image_url}"><span>${name}</span>`;
+            div.onclick = () => selectCharacter(name);
+            scrollEl.appendChild(div);
+        });
+    }
+
+    function handleSearch() {
+        const val = document.getElementById('search-input').value;
+        renderCharScroll(val);
+    }
+
+    function selectCharacter(name) {
+        currentCharacter = name;
+        renderCharScroll(document.getElementById('search-input').value);
+        document.getElementById('current-char-name').textContent = `― ${name} ―`;
+        renderFaceGrid(name);
+    }
+
+    function renderFaceGrid(name) {
+        const grid = document.getElementById('face-grid');
+        grid.innerHTML = "";
+        const assets = characters[name];
+
+        assets.forEach(asset => {
+            const card = document.createElement('div');
+            card.className = "face-card";
+            card.innerHTML = `
+                <img src="${asset.image_url}" class="face-img">
+                <div class="face-name">${asset.face || 'default'}</div>
+                <div class="btn-group">
+                    <button class="btn btn-edit" onclick="triggerUpdate(${asset.id})">画像変更</button>
+                    <button class="btn btn-merge" onclick="openMergeModal(${asset.id}, '${asset.face}')">統合・削除</button>
+                </div>
+                <input type="file" id="file-${asset.id}" style="display:none" onchange="uploadNewImage(event, ${asset.id})">
+            `;
+            grid.appendChild(card);
+        });
+    }
+
+    // --- 統合ロジック ---
+    let sourceAssetId = null;
+    let sourceFaceName = "";
+
+    function openMergeModal(id, face) {
+        sourceAssetId = id;
+        sourceFaceName = face;
+        const modal = document.getElementById('merge-modal');
+        const info = document.getElementById('merge-info');
+        const options = document.getElementById('merge-options');
+
+        info.innerHTML = `削除対象: <b>${face}</b>`;
+        options.innerHTML = "";
+
+        // 自分以外の表情を置換先候補として出す
+        characters[currentCharacter].forEach(target => {
+            if (target.id === id) return;
+            const opt = document.createElement('div');
+            opt.style.cursor = "pointer";
+            opt.innerHTML = `
+                <img src="${target.image_url}" style="width:100%; aspect-ratio:1; object-fit:cover; border-radius:5px;">
+                <div style="font-size:10px; text-align:center;">${target.face}へ</div>
+            `;
+            opt.onclick = () => execMerge(target.face);
+            options.appendChild(opt);
+        });
+
+        modal.classList.add('active');
+    }
+
+    async function execMerge(targetFaceName) {
+        if (!confirm(`「${sourceFaceName}」を削除し、全てのシーンを「${targetFaceName}」に書き換えます。よろしいですか？`)) return;
+
+        showLoading(true);
+        try {
+            // 1. scenesテーブルの表情を一括置換
+            const { error: updateError } = await supabaseClient
+                .from('scenes')
+                .update({ face: targetFaceName })
+                .eq('character', currentCharacter)
+                .eq('face', sourceFaceName);
+
+            if (updateError) throw updateError;
+
+            // 2. assetsテーブルから元の表情を削除
+            const { error: deleteError } = await supabaseClient
+                .from('assets')
+                .delete()
+                .eq('id', sourceAssetId);
+
+            if (deleteError) throw deleteError;
+
+            alert("統合と置換が完了しました。");
+            location.reload();
+        } catch (e) {
+            alert("エラー: " + e.message);
+        } finally {
+            showLoading(false);
+        }
+    }
+
+    function closeMergeModal() {
+        document.getElementById('merge-modal').classList.remove('active');
+    }
+
+    // --- 画像更新 ---
+    function triggerUpdate(id) { document.getElementById(`file-${id}`).click(); }
+
+    async function uploadNewImage(event, assetId) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        showLoading(true);
+        try {
+            const formData = new FormData();
+            formData.append('file', file);
+            const res = await fetch('/api/media', { method: 'POST', body: formData });
+            const cloudData = await res.json();
+            
+            await supabaseClient.from('assets').update({ image_url: cloudData.url }).eq('id', assetId);
+            alert("更新完了！");
+            location.reload();
+        } catch (e) {
+            alert("アップロード失敗");
+        } finally {
+            showLoading(false);
+        }
+    }
+
+    function showLoading(s) { document.getElementById('loading').style.display = s ? 'flex' : 'none'; }
+
+    init();
+</script>
+</body>
+</html>

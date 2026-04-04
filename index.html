@@ -748,6 +748,80 @@ position: fixed;
     width: 100%;
     height: 100%;
 }
+
+/* CSSセクションに追加、または既存の箇所を修正 */
+
+.hud-header-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    pointer-events: auto; /* 🌟 これを追加：右側のボタンエリアもクリック可能にする */
+}
+
+.hud-icon-btn-mini {
+    display: flex;
+    align-items: center;
+    text-decoration: none;
+    color: var(--accent-color);
+    background: rgba(255, 255, 255, 0.1);
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+}
+
+.hud-icon-btn-mini:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+/* スマホではテキストを隠してアイコンだけにする場合（任意） */
+@media (max-width: 600px) {
+    .btn-text-desktop {
+        display: none;
+    }
+}
+/* --- SVGボタン専用スタイル --- */
+
+.svg-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px; /* アイコンと文字の間隔 */
+    padding: 6px 10px; /* 少し大きめに確保 */
+    transition: background 0.2s, transform 0.1s;
+}
+
+.svg-btn:active {
+    transform: scale(0.96); /* クリック時の沈み込み演出 */
+}
+
+/* SVGアイコン自体のサイズと色 */
+.svg-icon {
+    width: 20px;  /* アイコンの大きさ */
+    height: 20px;
+    fill: var(--accent-color); /* 文字と同じ色（例：金色）にする */
+    transition: fill 0.2s;
+}
+
+/* ホバー時に色を少し明るくする（任意） */
+.svg-btn:hover .svg-icon {
+    fill: #fff;
+}
+
+/* テキスト部分の調整 */
+.btn-text {
+    font-size: 13px;
+    font-weight: bold;
+    color: var(--accent-color);
+}
+
+/* スマホではテキストを隠してアイコンだけにする（レスポンシブ） */
+@media (max-width: 600px) {
+    .svg-btn .btn-text {
+        display: none;
+    }
+    .svg-btn {
+        padding: 8px; /* アイコンのみの場合はパディングを調整 */
+    }
+}
     </style>
 </head>
 <body>
@@ -839,9 +913,23 @@ position: fixed;
         <div class="hud-header-left" onclick="openModal()">
             <span id="hud-episode-number">← 第 - 話</span>
         </div>
-        <div class="hud-header-right">
-            <button class="hud-icon-btn-mini" onclick="window.location.href='asset_upload.html'" title="素材管理">🖼️</button>
-        </div>
+<div class="hud-header-right" style="pointer-events: auto;">
+
+    <a href="asset_upload.html" class="hud-icon-btn-mini svg-btn" title="アセット管理">
+        <svg viewBox="0 0 24 24" class="svg-icon">
+            <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14zm-5-7l-3 3.72L9 13l3 4 2-2.39z"/>
+        </svg>
+        <span class="btn-text">アセット</span>
+    </a>
+
+    <a href="character_settings.html" class="hud-icon-btn-mini svg-btn" title="キャラ画像設定">
+        <svg viewBox="0 0 24 24" class="svg-icon">
+            <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm6 12H6v-1c0-2 4-3.1 6-3.1s6 1.1 6 3.1v1z"/>
+        </svg>
+        <span class="btn-text">キャラ設定</span>
+    </a>
+
+</div>
     </div>
 
     <div class="hud-footer">
@@ -2036,6 +2124,9 @@ if (ui.inlineSaveBtn) {
             // 7. 編集モード終了・再描画
             state.isInlineEditing = false;
             state.tempEditData = null;
+
+            ui.inlineEditor.style.display = 'none'; // 編集画面を閉じる
+            renderScene(state.episodeData[state.sceneIndex]); // 最新データでビュアーを更新
 
             // 次のシーンへの背景引き継ぎ用にグローバル変数も更新しておく
             if (typeof globalLastBackground !== 'undefined') {
