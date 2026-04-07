@@ -1,0 +1,812 @@
+
+        /* --- 🎨 テーマ設定 (異世界ファンタジー・シンプル) --- */
+        :root {
+            --bg-color: #0f172a;       /* 深い紺色 (背景) */
+            --text-color: #e2e8f0;     /* 白に近い灰色 (本文) */
+            --accent-color: #c0a080;   /* くすんだゴールド (強調・枠線) */
+            --ui-bg: rgba(15, 23, 42, 0.95); /* 半透明の紺色 (UI背景) */
+            --font-main: 'Noto Sans JP', sans-serif;
+            --font-serif: 'Shippori Mincho', serif; /* タイトル・名前用 */
+        }
+
+ html, body {
+    margin: 0; padding: 0; 
+    height: 100%; width: 100%;
+    background: #000; 
+    color: var(--text-color);
+    font-family: var(--font-main);
+    overflow: hidden;
+    user-select: none;
+    display: flex;
+    flex-direction: column;
+}
+
+/* 上部の黒い画面（ヘッダー用スペース） */
+.safe-area-top {
+    height: 30px; /* ヘッダーの高さに合わせて調整 */
+    background-color: #000;
+    width: 100%;
+    flex-shrink: 0;
+}
+
+/* 下部の黒い画面（フッター用スペース） */
+.safe-area-bottom {
+    height: 30px; /* フッター（シークバー含む）の高さに合わせて調整 */
+    background-color: #000;
+    width: 100%;
+    flex-shrink: 0;
+}
+
+/* ビューアー本体：上下の黒い帯に挟まれたエリア */
+/* --- 📱 2. レイアウト構造 --- */
+#novel-container {
+    flex-grow: 1;
+    position: relative;
+    width: 100%;
+    background-color: #000;
+    overflow: hidden;
+    touch-action: pan-y; /* スワイプJS制御用 */
+}
+
+/* ヘッダー */
+.hud-header {
+position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 60px; /* 50pxから60pxに変更 */
+    background: var(--ui-bg);
+    display: flex;
+    align-items: center; /* 縦方向の中央揃え */
+    padding: 0 15px;
+    justify-content: space-between;
+    border-bottom: 1px solid rgba(192, 160, 128, 0.3);
+}
+
+.hud-header-left {
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    color: var(--accent-color);
+    font-weight: 500;
+}
+
+.hud-icon-btn-mini {
+    background: none;
+    border: none;
+    font-size: 1.5rem; /* スマホ用に少し大きく */
+    cursor: pointer;
+    color: var(--text-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+
+
+        /* --- 🖼️ ビューアエリア --- */
+ #novel-container {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    background-color: #000;
+    overflow: hidden;
+    /* 【重要】ブラウザのデフォルトスワイプ（戻る・進む）を無効化し、JSで制御可能にする */
+    touch-action: none; 
+}
+/* フッター */
+.hud-footer {
+    bottom: 0;
+    height: 65px; /* シークバー操作用に少し厚め */
+    display: flex;
+    align-items: center;
+    border-top: 1px solid rgba(192, 160, 128, 0.2);
+}
+        /* レイヤー共通設定 */
+        .layer-image {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background-size: cover; background-position: center;
+            opacity: 0;
+            will-change: opacity;
+        }
+        .layer-image.visible { opacity: 1; }
+        
+        /* エフェクトレイヤー（乗算やスクリーンなどが必要ならmix-blend-modeを追加） */
+        #effect-image { 
+            z-index: 3; object-fit: cover; pointer-events: none; 
+            mix-blend-mode: screen; /* 光のエフェクト等はスクリーン合成 */
+        }
+
+#character {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    max-height: 140vh;
+    object-fit: cover;
+    transition: filter 0.3s ease, transform 0.3s ease;
+}
+
+/* styleタグ内に追加・修正 */
+#novel-container {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    background-color: #000;
+    overflow: hidden;
+    /* ブラウザ固有の左右スワイプ挙動を無効化し、JSでの制御を優先させる */
+    touch-action: pan-y; 
+}
+
+        /* --- 💬 ダイアログボックス（スタイリッシュ・ファンタジー） --- */
+        #dialogue-box {
+            position: absolute; bottom: 0; left: 0; width: 100%; 
+            min-height: 28%; /* 少し高さを確保 */
+            max-height: 45%;
+            background: linear-gradient(to top, var(--ui-bg) 0%, rgba(15, 23, 42, 0.8) 100%);
+            border-top: 2px solid var(--accent-color); /* ゴールドのライン */
+            box-shadow: 0 -5px 20px rgba(0,0,0,0.5);
+            padding: 20px; /* 下に余裕を持たせる */
+            box-sizing: border-box; 
+            display: flex; flex-direction: column;
+        }
+        
+        #character-name { 
+            font-family: var(--font-serif); /* 明朝体 */
+            font-size: 1.2em; 
+            font-weight: 700; 
+            color: var(--accent-color);
+            margin-bottom: 12px; 
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+            letter-spacing: 0.05em;
+        }
+        
+        #dialogue-text { 
+            letter-spacing: 0.08em;
+            color: var(--text-color);
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.8); 
+            user-select: text; 
+            white-space: pre-wrap; 
+        }
+        
+        #next-indicator { 
+            position: absolute; bottom: 15px; right: 25px; 
+            font-size: 1.2em; color: var(--accent-color);
+            animation: float 1.5s ease-in-out infinite; 
+            cursor: pointer;
+        }
+        @keyframes float { 0%, 100% { transform: translateY(0); opacity: 0.8; } 50% { transform: translateY(-5px); opacity: 1; } }
+
+        /* --- ⚙️ UIコントロール（フローティング） --- */
+        #floating-controls {
+            position: fixed; top: 15px; left: 15px;
+             display: flex; gap: 10px;
+        }
+
+        .control-button { 
+            width: 44px; height: 44px; 
+            border-radius: 8px; /* 角丸四角形に変更 */
+            border: 1px solid rgba(192, 160, 128, 0.3); /* 薄いゴールド枠 */
+            background: rgba(15, 23, 42, 0.6);
+            backdrop-filter: blur(5px);
+            color: var(--text-color); 
+            font-size: 1.2em;
+            cursor: pointer; 
+            display: flex; justify-content: center; align-items: center;
+            transition: all 0.2s;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        }
+        .control-button:hover { background: rgba(192, 160, 128, 0.2); border-color: var(--accent-color); }
+        .control-button:active { transform: scale(0.95); }
+
+        /* ドロップダウンメニュー */
+        .dropdown { position: relative; }
+        .dropdown-content {
+            display: none; position: absolute; top: 55px; left: 0;
+            background-color: var(--ui-bg); 
+            border: 1px solid var(--accent-color);
+            min-width: 180px;
+            border-radius: 4px; overflow: hidden;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.8); 
+        }
+        .dropdown-content button {
+            color: var(--text-color); padding: 12px 16px; width: 100%; text-align: left;
+            background: none; border: none; cursor: pointer; font-family: var(--font-main);
+        }
+        .dropdown-content button:hover { background-color: rgba(192, 160, 128, 0.2); }
+
+  /* --- 📝 モーダル：基本構造 --- */
+#modal {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    z-index: 2000; display: none; justify-content: center; align-items: center;
+}
+#modal-overlay {
+    position: absolute; width: 100%; height: 100%;
+    background: rgba(0, 0, 0, 0.85); backdrop-filter: blur(4px);
+}
+#modal-content {
+    position: relative; width: 90%; max-width: 800px;
+    background: var(--bg-color); border: 1px solid var(--accent-color);
+    border-radius: 16px; padding: 30px; z-index: 2001;
+    max-height: 80vh; overflow-y: auto; /* overflowを修正 */
+}
+.modal-close-btn {
+    position: absolute;
+    top: 15px;
+    right: 20px;
+    background: rgba(192, 160, 128, 0.1);
+    border: 1px solid var(--accent-color);
+    color: var(--accent-color);
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+    transition: 0.3s;
+}
+
+/* フルスクリーン用のスタイル */
+.fullscreen-content {
+    position: relative;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: 100% !important;
+    max-height: 100vh !important;
+    background: var(--bg-color);
+    padding: 80px 20px 40px 20px !important; /* 上部にヘッダー分の余白 */
+    box-sizing: border-box;
+    overflow-y: auto !important; /* コンテンツが長くてもスクロール可能に */
+    -webkit-overflow-scrolling: touch;
+    border: none !important;
+    border-radius: 0 !important;
+}
+
+/* あらすじの長文エリア */
+.ep-summary-fulltext {
+    font-size: 1rem;
+    line-height: 1.8;
+    color: var(--text-color);
+    white-space: pre-wrap;
+    margin-bottom: 40px;
+    background: rgba(255,255,255,0.03);
+    padding: 15px;
+    border-radius: 8px;
+}
+
+/* 下部に流れるボタン群 */
+.ep-footer-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    margin-top: 20px;
+    padding-bottom: 40px; /* 最後のボタンの下に余白 */
+}
+
+.cancel-button-link {
+    background: none;
+    border: none;
+    color: #94a3b8;
+    text-decoration: underline;
+    cursor: pointer;
+    font-size: 0.9rem;
+}
+
+/* ヘッダー固定 */
+.modal-header-controls {
+    position: fixed; /* absoluteからfixedに変更してスクロールしても付いてくるように */
+    top: 0;
+    left: 0;
+    right: 0;
+    padding: 15px 20px;
+    display: flex;
+    gap: 10px;
+}
+
+.custom-select-mini {
+    flex-grow: 1; /* プルダウンを可能な限り広げる */
+    padding: 8px;
+    border: 1px solid var(--accent-color);
+    color: var(--text-color);
+    border-radius: 6px;
+    font-size: 0.9rem;
+}
+
+.modal-control-btn {
+    flex: 0 0 40px;
+    height: 40px;
+    background: rgba(192, 160, 128, 0.1);
+    border: 1px solid var(--accent-color);
+    color: var(--accent-color);
+    border-radius: 6px;
+    cursor: pointer;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 1.2rem;
+}
+
+.ep-button-group {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 20px;
+}
+
+
+.modal-close-btn:hover {
+    background: var(--accent-color);
+    color: var(--bg-color);
+}
+        h2 { color: var(--accent-color); font-family: var(--font-serif); border-bottom: 1px solid #444; padding-bottom: 10px; margin-top: 0; }
+        
+        input, textarea, select {
+            width: 100%; padding: 10px; margin: 5px 0 15px;
+            background: #0f172a; border: 1px solid #475569; 
+            color: #fff; border-radius: 4px; box-sizing: border-box;
+            font-family: var(--font-main);
+        }
+        input:focus, textarea:focus { outline: none; border-color: var(--accent-color); }
+        
+        button.action-btn { background: var(--accent-color); color: #0f172a; font-weight: bold; border: none; padding: 12px; width: 100%; border-radius: 4px; cursor: pointer; transition: opacity 0.2s; }
+        button.action-btn:hover { opacity: 0.9; }
+        .cancel-button { background: transparent; border: 1px solid #64748b; color: #94a3b8; margin-top: 10px; width: 100%; padding: 10px; border-radius: 4px; cursor: pointer; }
+        .delete-button { background: #7f1d1d; color: #fecaca; width: 100%; padding: 10px; border: none; border-radius: 4px; cursor: pointer; }
+
+
+        #immersive-edit-trigger {
+    position: fixed;
+    top: 15px;
+    right: 70px; /* メニューボタンの隣 */
+    width: 40px;
+    height: 40px;
+    background: rgba(192, 160, 128, 0.2);
+    border: 1px solid var(--accent-color);
+    color: var(--accent-color);
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+    transition: 0.3s;
+    backdrop-filter: blur(5px);
+}
+
+.modal-close-btn-circle {
+    background: rgba(192, 160, 128, 0.1);
+    border: 1px solid var(--accent-color);
+    color: var(--accent-color);
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+    font-size: 1.2rem;
+    transition: 0.3s;
+}
+
+.modal-close-btn-circle:hover {
+    background: var(--accent-color);
+    color: var(--bg-color);
+    transform: translateY(-2px);
+}
+
+/* 編集フォーム内のラベル */
+#ep-edit-form-area .label {
+    font-size: 0.75rem;
+    color: var(--accent-color);
+    display: block;
+    margin-bottom: 5px;
+}
+
+#immersive-edit-trigger:hover {
+    background: var(--accent-color);
+    color: var(--bg-color);
+    transform: scale(1.1);
+}
+
+/* 編集モード中のダイアログボックス強調 */
+.editing-active #dialogue-box {
+    border-top: 2px solid #ffeb3b; /* 編集中の色 */
+    box-shadow: 0 -5px 30px rgba(255, 235, 59, 0.2);
+}
+/* =================================================================
+    UX改善：インライン編集 & アセット変更CSS
+   ================================================================= */
+
+/* 1. 枠なしインライン編集フォーム：通常テキストと区別がつかないデザイン */
+#inline-edit-form {
+    display: none;
+    flex-direction: column;
+    width: 100%;
+}
+
+
+/* 保存/戻るボタンコンテナ */
+#inline-edit-form .button-container {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+    margin-top: 5px;
+}
+
+/* 保存ボタン */
+#inline-save-btn {
+    background: var(--accent-color);
+    color: var(--bg-color);
+    border: none;
+    padding: 3px 12px;
+    cursor: pointer;
+    border-radius: 4px;
+    font-weight: bold;
+}
+
+/* 戻るボタン */
+#inline-cancel-btn {
+    color: #ccc;
+    border: none;
+    padding: 3px 12px;
+    cursor: pointer;
+    border-radius: 4px;
+}
+
+/* 2. 編集時の追加/削除ボタン（左下） */
+#inline-edit-actions {
+    position: absolute;
+    left: 10px;
+    bottom: 10px;
+    display: none; /* 初期非表示 */
+    gap: 10px;
+    z-index: 105; /* dialogue-box(100)内 */
+}
+
+/* シンプルで馴染むアイコンボタン */
+#inline-add-btn, #inline-delete-btn {
+    background: none;
+    border: none;
+    color: var(--accent-color);
+    cursor: pointer;
+    opacity: 0.6;
+    padding: 5px;
+    transition: opacity 0.2s, color 0.2s;
+}
+
+#inline-add-btn:hover, #inline-delete-btn:hover {
+    opacity: 1;
+}
+
+#inline-delete-btn:hover {
+    color: #ff6b6b; /* ゴミ箱はホバー時に赤く */
+}
+
+/* 3. 右上のアセット変更ボックス */
+#novel-asset-controls {
+    position: absolute;
+    top: 10px;
+    right: 70px; /* フローティングコントロールの左隣 */
+    display: none; /* 初期非表示 */
+    gap: 8px;
+    background: rgba(0,0,0,0.7);
+    padding: 5px;
+    border-radius: 5px;
+    z-index: 110; /* dialogue-box(100)より上 */
+}
+
+/* シンプルなセレクトボックス */
+#novel-asset-controls select {
+    background: transparent;
+    border: 1px solid rgba(255,255,255,0.3);
+    color: white;
+    padding: 2px 5px;
+    font-size: 0.8rem;
+    cursor: pointer;
+    border-radius: 3px;
+    font-family: 'Noto Sans JP', sans-serif;
+}
+
+#novel-asset-controls select option {
+    background: #222;
+    color: white;
+}
+
+        /* --- ⏳ ローディング --- */
+        #loading-indicator {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: #000; color: var(--accent-color); z-index: 300;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            transition: opacity 0.5s;
+            font-family: var(--font-serif);
+        }
+        .spinner {
+            width: 50px; height: 50px; 
+            border: 3px solid rgba(192, 160, 128, 0.2); 
+            border-top: 3px solid var(--accent-color);
+            border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 20px;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+
+  .edit-tabs .tab-btn {
+    flex: 1; background: rgba(255,255,255,0.05); border: 1px solid #444; color: #888;
+    padding: 6px; font-size: 0.75rem; border-radius: 4px 4px 0 0; cursor: pointer;
+}
+.edit-tabs .tab-btn.active {
+    background: rgba(192,160,128,0.2); color: var(--accent-color); border-color: var(--accent-color);
+}
+.tab-content label { display: block; font-size: 0.65rem; color: var(--accent-color); margin-bottom: 2px; }
+.tab-content input, .tab-content textarea {
+    background: rgba(0,0,0,0.4); border: 1px solid #555; color: white; padding: 6px; border-radius: 4px; font-size: 0.9rem;
+}
+
+
+.ep-tag {
+    background: rgba(192, 160, 128, 0.2);
+    padding: 2px 8px;
+    border-radius: 4px;
+}
+
+.add-card {
+    border: 2px dashed rgba(192, 160, 128, 0.4);
+    background: transparent;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+}
+
+.add-icon {
+    font-size: 3rem;
+    color: var(--accent-color);
+    margin-bottom: 10px;
+}
+
+.ep-selector-wrapper { display: flex; flex-direction: column; gap: 20px; padding: 10px; }
+.custom-select {
+    width: 100%; padding: 12px; background: rgba(30, 41, 59, 0.8);
+    border: 1px solid var(--accent-color); color: var(--text-color);
+    border-radius: 8px; font-size: 1rem; outline: none;
+}
+.ep-preview-card {
+    padding: 20px;
+}
+
+.ep-summary-text {
+    font-size: 0.95rem;
+    line-height: 1.6;
+    margin-bottom: 20px;
+    color: #cbd5e1;
+    font-style: italic;
+}
+
+.ep-info-grid {
+    display: grid;
+    gap: 15px;
+    margin-bottom: 25px;
+}
+
+.info-item .label {
+    display: block;
+    font-size: 0.75rem;
+    color: var(--accent-color);
+    margin-bottom: 4px;
+}
+
+.char-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+/* 読むボタン */
+.start-btn {
+    width: 100%;
+    padding: 15px;
+    background: linear-gradient(to right, #c0a080, #a88a68);
+    color: #0f172a;
+    border: none;
+    border-radius: 8px;
+    font-weight: bold;
+    font-size: 1.1rem;
+    cursor: pointer;
+    transition: 0.3s;
+}
+
+.start-btn:hover {
+    filter: brightness(1.2);
+    transform: scale(1.02);
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+
+/* スワイプエリアの調整 */
+.swipe-area {
+    min-height: 100%;
+    padding-bottom: 150px; /* フッターと被らないように余白を確保 */
+    touch-action: pan-y; /* 上下スクロールは許容し、左右はJSで制御 */
+}
+
+/* ページ切り替え時のアニメーション（任意） */
+.fade-in-swipe {
+    animation: fadeInSwipe 0.3s ease-out;
+}
+@keyframes fadeInSwipe {
+    from { opacity: 0; transform: translateX(20px); }
+    to { opacity: 1; transform: translateX(0); }
+}
+
+.fullscreen-content {
+    /* 前回の設定を継承しつつ微調整 */
+    padding-top: 80px !important;
+}
+
+
+.hud-layer {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+}
+
+.hud-header, .hud-footer {
+    position: absolute;
+    width: 100%;
+    background: rgba(0, 0, 0, 0.85);
+    padding: 0 15px;
+    box-sizing: border-box;
+    pointer-events: auto; /* ボタン類は反応するように */
+}
+
+.hud-seekbar-flex-container {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    gap: 15px; /* シークバーと数字の間隔 */
+}
+
+#hud-seekbar {
+    flex-grow: 1;
+    height: 8px;
+    accent-color: var(--accent-color);
+    transform: scaleX(-1); /* 右がMIN、左がMAX */
+    cursor: pointer;
+}
+
+#hud-page-counter-inline {
+    white-space: nowrap;
+    font-size: 0.9rem;
+    font-family: monospace;
+    min-width: 70px;
+    text-align: right;
+}
+
+.hud-action-grid {
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+}
+
+/* --- フッター・アイコンの最適化 --- */
+.hud-icon-btn {
+    background: none;
+    border: none;
+    color: var(--text-color);
+    font-size: 1.5rem; /* アイコン自体を大きく */
+    padding: 12px;     /* タップ領域を拡大 */
+    cursor: pointer;
+    opacity: 0.9;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 44px;   /* スマホの推奨タップサイズ */
+    min-height: 44px;
+}
+.ep-preview-footer {
+    position: fixed; /* 画面下部に固定 */
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 60px;    /* 高さを60pxに指定 */
+    background: var(--ui-bg);
+    display: flex;
+    justify-content: space-around; /* ボタンを均等に配置 */
+    align-items: center;           /* 上下中央揃え */
+    padding: 0 15px;
+    border-top: 1px solid var(--accent-color);
+    z-index: 1100; /* モーダル内でも最前面にくるように調整 */
+}
+
+/* プレビューエリアの中身がフッターに被らないように下余白を追加 */
+.ep-preview-content {
+    padding-bottom: 80px; /* フッター(60px) + 余裕(20px) */
+    overflow-y: auto;
+    touch-action: pan-y; /
+}
+/* 修正例 */
+#special {
+    position: absolute;
+    inset: 0;
+    display: none;
+    pointer-events: none;
+    object-fit: cover;
+    width: 100%;
+    height: 100%;
+}
+
+/* CSSセクションに追加、または既存の箇所を修正 */
+
+.hud-header-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    pointer-events: auto; /* 🌟 これを追加：右側のボタンエリアもクリック可能にする */
+}
+
+.hud-icon-btn-mini {
+    display: flex;
+    align-items: center;
+    text-decoration: none;
+    color: var(--accent-color);
+    background: rgba(255, 255, 255, 0.1);
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+}
+
+.hud-icon-btn-mini:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+/* スマホではテキストを隠してアイコンだけにする場合（任意） */
+@media (max-width: 600px) {
+    .btn-text-desktop {
+        display: none;
+    }
+}
+/* --- SVGボタン専用スタイル --- */
+
+.svg-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px; /* アイコンと文字の間隔 */
+    padding: 6px 10px; /* 少し大きめに確保 */
+    transition: background 0.2s, transform 0.1s;
+}
+
+.svg-btn:active {
+    transform: scale(0.96); /* クリック時の沈み込み演出 */
+}
+
+/* SVGアイコン自体のサイズと色 */
+.svg-icon {
+    width: 20px;  /* アイコンの大きさ */
+    height: 20px;
+    fill: var(--accent-color); /* 文字と同じ色（例：金色）にする */
+    transition: fill 0.2s;
+}
+
+/* ホバー時に色を少し明るくする（任意） */
+.svg-btn:hover .svg-icon {
+    fill: #fff;
+}
+
+/* テキスト部分の調整 */
+.btn-text {
+    font-size: 13px;
+    font-weight: bold;
+    color: var(--accent-color);
+}
+
+/* スマホではテキストを隠してアイコンだけにする（レスポンシブ） */
+@media (max-width: 600px) {
+    .svg-btn .btn-text {
+        display: none;
+    }
+    .svg-btn {
+        padding: 8px; /* アイコンのみの場合はパディングを調整 */
+    }
+}

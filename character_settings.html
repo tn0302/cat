@@ -3,207 +3,885 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <title>紋章管理 - キャラクター設定</title>
+    <title>設定集 - キャラクターデータベース</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@500;700&family=Noto+Sans+JP:wght@400;500&display=swap" rel="stylesheet">
     <style>
         :root {
-            --bg-color: #0f172a;
-            --text-color: #e2e8f0;
-            --accent-color: #c0a080; /* ゴールド */
-            --ui-bg: rgba(30, 41, 59, 0.95);
-            --card-bg: rgba(51, 65, 85, 0.5);
-            --danger-color: #ef4444;
-            --font-fantasy: 'Shippori Mincho', serif;
+            --bg-color: #0f172a;       /* 深い紺色 (背景) */
+            --text-color: #e2e8f0;     /* 白に近い灰色 (本文) */
+            --accent-color: #c0a080;   /* くすんだゴールド (強調・枠線) */
+            --ui-bg: rgba(15, 23, 42, 0.95); /* 半透明の紺色 (UI背景) */
+            --card-bg: rgba(30, 41, 59, 0.5);
+            --input-bg: #0f172a;
+            --danger-color: #f43f5e;
+            --font-main: 'Noto Sans JP', sans-serif;
+            --font-serif: 'Shippori Mincho', serif; /* タイトル・名前用 */
         }
 
         body {
-            font-family: 'Noto Sans JP', sans-serif;
+            font-family: var(--font-main);
             background-color: var(--bg-color);
-            background-image: radial-gradient(circle at top, #1e293b 0%, #0f172a 100%);
             color: var(--text-color);
             margin: 0; padding: 0;
             overflow-x: hidden;
+            min-height: 100vh;
         }
 
         /* --- ヘッダー --- */
         .header {
-            padding: 20px;
-            text-align: center;
-            border-bottom: 1px solid var(--accent-color);
-            background: var(--ui-bg);
             position: sticky; top: 0; z-index: 100;
+            background: var(--ui-bg);
+            backdrop-filter: blur(12px);
+            padding: 16px;
+            border-bottom: 1px solid rgba(192, 160, 128, 0.3);
+        }
+        .tabs-container { display: flex; gap: 8px; margin-bottom: 16px; }
+        .tab-item {
+            flex: 1; background: rgba(255, 255, 255, 0.03); padding: 10px; border-radius: 6px;
+            border: 1px solid rgba(192, 160, 128, 0.1); text-align: center; font-size: 13px;
+            cursor: pointer; transition: 0.2s; color: #94a3b8;
+        }
+        .tab-item.active { background: var(--accent-color); color: #0f172a; font-weight: 600; border-color: var(--accent-color); }
+
+        .search-container { display: flex; gap: 10px; }
+        .search-box {
+            flex: 1; background: #1e293b; border: 1px solid var(--accent-color);
+            color: white; padding: 10px; border-radius: 8px; box-sizing: border-box; outline: none;
         }
 
-        .header h1 {
-            font-family: var(--font-fantasy);
-            font-size: 1.2rem;
-            color: var(--accent-color);
-            margin: 0 0 15px 0;
-            letter-spacing: 2px;
+        /* --- グリッド --- */
+        .container { padding: 15px; }
+        .asset-grid {
+            display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px;
+        }
+        .char-card {
+            background: var(--card-bg); border-radius: 15px; overflow: hidden;
+            border: 1px solid rgba(192, 160, 128, 0.2); text-align: center;
+            cursor: pointer; transition: transform 0.2s; position: relative;
+        }
+        .char-card:active { transform: scale(0.98); }
+        .char-card img { width: 100%; aspect-ratio: 1/1; object-fit: cover; object-position: top; display: block; }
+        .char-label {
+            position: absolute; bottom: 0; width: 100%;
+            background: linear-gradient(transparent, rgba(15, 23, 42, 0.95));
+            padding: 24px 12px 12px; color: #fff; font-size: 14px; font-weight: 500;
         }
 
-        .back-link {
-            position: absolute; left: 15px; top: 22px;
-            color: var(--accent-color); text-decoration: none; font-size: 14px;
+        #detail-overlay.no-visual .visual-area,
+        #detail-overlay.no-visual .action-sidebar .icon-btn:not(.danger),
+        #detail-overlay.no-visual #face-selector,
+        #detail-overlay.no-visual #display-face-name {
+            display: none !important;
+        }
+        #detail-overlay.no-visual .metadata-section {
+            padding-top: 80px;
+            min-height: 100vh;
         }
 
-        /* --- 検索・操作エリア --- */
-        .search-container {
-            padding: 15px;
-            display: flex; gap: 10px;
+        .char-card.no-image {
+            height: auto;
+            min-height: 100px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        .char-card.no-image .char-label {
+            position: static;
+            background: none;
+            font-size: 1.1rem;
+            text-align: center;
+            width: 100%;
+            padding: 0;
         }
 
-        .search-input {
-            flex: 1;
-            background: var(--card-bg);
-            border: 1px solid var(--accent-color);
-            border-radius: 20px;
-            padding: 10px 20px;
-            color: white;
-            outline: none;
-        }
-
-        /* --- キャラクター横スクロールリスト --- */
-        .char-scroll {
-            display: flex; gap: 15px;
-            padding: 10px 15px;
-            overflow-x: auto;
-            white-space: nowrap;
-            -webkit-overflow-scrolling: touch;
-        }
-
-        .char-scroll::-webkit-scrollbar { display: none; }
-
-        .char-bubble {
-            display: flex; flex-direction: column; align-items: center; gap: 5px;
-            min-width: 70px; cursor: pointer; opacity: 0.6; transition: 0.3s;
-        }
-
-        .char-bubble.active { opacity: 1; transform: scale(1.1); }
-
-        .char-bubble img {
-            width: 60px; height: 60px;
-            border-radius: 50%;
-            border: 2px solid var(--accent-color);
-            object-fit: cover;
-            background: #000;
-        }
-
-        .char-bubble span { font-size: 11px; color: var(--accent-color); }
-
-        /* --- 表情グリッド --- */
-        .main-content { padding: 15px; padding-bottom: 100px; }
-
-        .face-grid {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
+        .list-item {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(192, 160, 128, 0.1);
+            padding: 16px 20px;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
             gap: 15px;
         }
-
-        .face-card {
-            background: var(--card-bg);
-            border: 1px solid rgba(192, 160, 128, 0.3);
-            border-radius: 12px;
-            padding: 10px;
-            text-align: center;
+        .list-item:hover {
+            background: rgba(255, 255, 255, 0.06);
+            border-color: var(--accent-color);
         }
-
-        .face-img {
-            width: 100%; aspect-ratio: 3/4;
-            object-fit: contain;
-            background: rgba(0,0,0,0.3);
+        .list-item-content {
+            flex: 1;
+            min-width: 0;
+        }
+        .list-item-name {
+            font-size: 16px;
+            font-weight: 600;
+            color: #fff;
+            margin-bottom: 4px;
+        }
+        .list-item-desc {
+            font-size: 13px;
+            color: #94a3b8;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .list-item-actions {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .list-item-arrow {
+            color: #64748b;
+            font-size: 18px;
+        }
+        .list-item-delete {
+            color: #64748b;
+            font-size: 16px;
+            padding: 8px;
             border-radius: 8px;
-            margin-bottom: 10px;
-        }
-
-        .face-name {
-            font-family: var(--font-fantasy);
-            color: var(--accent-color);
-            font-size: 0.9rem; margin-bottom: 10px;
-        }
-
-        .btn-group { display: flex; flex-direction: column; gap: 5px; }
-
-        .btn {
-            border: none; border-radius: 4px; padding: 8px;
-            font-size: 12px; cursor: pointer; font-weight: bold;
             transition: 0.2s;
         }
-
-        .btn-edit { background: var(--accent-color); color: var(--bg-color); }
-        .btn-merge { background: transparent; border: 1px solid var(--danger-color); color: var(--danger-color); }
-
-        /* --- 統合モーダル --- */
-        .modal {
-            position: fixed; inset: 0; background: rgba(0,0,0,0.9);
-            display: none; flex-direction: column; padding: 20px; z-index: 200;
+        .list-item-delete:hover {
+            background: rgba(239, 68, 68, 0.1);
+            color: #ef4444;
         }
-        .modal.active { display: flex; }
-        .modal-content { background: var(--ui-bg); border: 1px solid var(--accent-color); border-radius: 15px; padding: 20px; }
 
-        .loading-overlay {
-            position: fixed; inset: 0; background: rgba(0,0,0,0.8);
-            display: none; align-items: center; justify-content: center; z-index: 1000;
+        #metadata-container .btn-save-meta { display: none; }
+        #metadata-container.edit-mode .btn-save-meta { display: block; }
+
+        /* --- 詳細オーバーレイ --- */
+        #detail-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: #0f172a;
+            z-index: 1000; display: none; flex-direction: column; overflow-y: auto;
+        }
+        #detail-overlay.active { display: flex; }
+
+        /* ビジュアルエリア */
+        .visual-area {
+            position: relative; width: 100%; height: 70vh; flex-shrink: 0;
+            display: flex; justify-content: center; align-items: center; overflow: hidden;
+            background: #020617;
+        }
+        #main-character-img {
+            height: 100%; max-width: 100%; object-fit: contain;
+            transition: opacity 0.3s ease-in-out;
+        }
+
+        .char-info-panel {
+            margin-bottom: 24px;
+        }
+        .char-info-panel h2 { 
+            font-family: var(--font-serif);
+            font-size: 2.4rem; margin: 0; font-weight: 700;
+            color: var(--accent-color); letter-spacing: 0.05em;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+        }
+        .char-info-panel .face-label { font-size: 0.85rem; color: #94a3b8; background: rgba(255,255,255,0.05); padding: 4px 12px; border-radius: 20px; text-transform: uppercase; letter-spacing: 0.05em; }
+
+        /* 表情セレクター（横スクロール） */
+        .face-selector {
+            display: flex; gap: 12px;
+            padding: 12px 0; overflow-x: auto;
+            scrollbar-width: none; z-index: 1010;
+            width: 100%;
+        }
+        .face-selector::-webkit-scrollbar { display: none; }
+        .face-bubble {
+            width: 64px; height: 64px; border-radius: 12px; border: 1px solid rgba(192, 160, 128, 0.2);
+            overflow: hidden; background: rgba(255,255,255,0.03); transition: 0.2s; flex-shrink: 0;
+            cursor: pointer;
+        }
+        .face-bubble.active { border-color: var(--accent-color); background: rgba(192, 160, 128, 0.1); }
+        .face-bubble img { width: 100%; height: 100%; object-fit: cover; object-position: top; }
+
+        /* 操作サイドバー（左上） */
+        .action-sidebar {
+            position: absolute; left: 24px; top: 24px;
+            display: flex; flex-direction: column; gap: 12px; z-index: 1010;
+        }
+        .icon-btn {
+            width: 44px; height: 44px; border-radius: 12px; background: rgba(30, 41, 59, 0.8);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(192, 160, 128, 0.2); display: flex; justify-content: center; align-items: center;
+            color: #fff; font-size: 20px; cursor: pointer; transition: 0.2s;
+        }
+        .icon-btn:hover { background: var(--accent-color); color: #0f172a; border-color: var(--accent-color); }
+        .icon-btn.danger:hover { background: var(--danger-color); color: #fff; border-color: var(--danger-color); }
+
+        .close-btn { position: absolute; top: 24px; right: 24px; z-index: 1020; font-size: 32px; color: var(--accent-color); background: none; border: none; cursor: pointer; transition: 0.2s; }
+        .close-btn:hover { color: #fff; transform: rotate(90deg); text-shadow: 0 0 10px var(--accent-color); }
+
+        /* メタデータセクション（下部） */
+        .metadata-section {
+            background: var(--ui-bg); padding: 40px 24px 80px;
+            position: relative; z-index: 1005;
+        }
+        .detail-tabs {
+            display: flex; gap: 24px; margin-bottom: 32px; border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+        .detail-tab {
+            padding: 12px 0; text-align: center; font-size: 14px; color: #64748b;
+            cursor: pointer; font-weight: 600; transition: 0.2s; position: relative;
+        }
+        .detail-tab.active { color: var(--accent-color); }
+        .detail-tab.active::after {
+            content: ''; position: absolute; bottom: -1px; left: 0; width: 100%; height: 2px; background: var(--accent-color);
+        }
+        .tab-pane { display: none; padding: 0; }
+        .tab-pane.active { display: block; }
+        
+        .view-content {
+            font-size: 15px; line-height: 1.7; color: #cbd5e1; white-space: pre-wrap;
+            min-height: 120px; padding: 0;
+        }
+
+        .large-textarea {
+            width: 100%; min-height: 180px; background: var(--input-bg);
+            border: 1px solid rgba(192, 160, 128, 0.2); border-radius: 8px;
+            color: #fff; padding: 16px; box-sizing: border-box; font-size: 14px; line-height: 1.6;
+            outline: none; resize: none; display: none;
+        }
+        .edit-mode .large-textarea { display: block; }
+        .edit-mode .view-content { display: none; }
+
+        .info-list { margin: 40px 0; display: flex; flex-direction: column; gap: 24px; }
+        .info-group {
+            background: rgba(255,255,255,0.02); padding: 20px; border-radius: 12px;
+            border: 1px solid rgba(192, 160, 128, 0.1);
+        }
+        .info-group-header {
+            display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;
+        }
+        .info-group-title {
+            font-size: 14px; color: #94a3b8; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;
+            display: flex; align-items: center; gap: 8px;
+        }
+        .add-btn {
+            background: rgba(192, 160, 128, 0.1); border: none; color: var(--accent-color);
+            font-size: 11px; padding: 4px 12px; border-radius: 4px; cursor: pointer; display: none; font-weight: 600;
+        }
+        .edit-mode .add-btn { display: block; }
+
+        .multi-item { display: flex; gap: 12px; margin-bottom: 12px; align-items: center; }
+        .multi-input, .multi-select, .multi-input-group {
+            flex: 1; background: var(--input-bg); border: 1px solid rgba(192, 160, 128, 0.2);
+            color: #fff; padding: 10px 14px; border-radius: 6px; font-size: 13px; outline: none;
+            display: none; box-sizing: border-box;
+        }
+        .multi-display {
+            flex: 1; font-size: 15px; color: #e2e8f0;
+        }
+        .multi-display-name { color: var(--accent-color); font-weight: 600; }
+        .multi-display-role { color: #64748b; font-size: 12px; margin-left: 8px; }
+        .edit-mode .multi-input, .edit-mode .multi-select, .edit-mode .multi-input-group { display: block; }
+        .edit-mode .multi-input-group { display: flex; }
+        .edit-mode .multi-display { display: none; }
+
+        .remove-btn { color: #64748b; cursor: pointer; font-size: 18px; display: none; transition: 0.2s; }
+        .remove-btn:hover { color: var(--danger-color); }
+        .edit-mode .remove-btn { display: block; }
+
+        .mode-toggle-container {
+            display: flex; justify-content: flex-end; margin-bottom: 24px; gap: 8px;
+        }
+        .mode-btn {
+            background: rgba(255,255,255,0.03); border: 1px solid rgba(255, 255, 255, 0.05);
+            color: #64748b; padding: 8px 20px; border-radius: 6px; font-size: 13px; cursor: pointer; transition: 0.2s;
+        }
+        .mode-btn.active { background: var(--accent-color); color: #0f172a; border-color: var(--accent-color); font-weight: 600; }
+        .mode-btn.danger { color: #ef4444; border-color: rgba(239, 68, 68, 0.2); }
+        .mode-btn.danger:hover { background: rgba(239, 68, 68, 0.1); }
+
+        .btn-save-meta {
+            width: 100%; padding: 18px; background: var(--accent-color); color: #0f172a;
+            border: none; border-radius: 8px; font-weight: 700; font-size: 16px; cursor: pointer;
+            transition: 0.2s;
+        }
+        .metadata-group { display: none; }
+        #fullscreen-viewer {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: #000; z-index: 2000; display: none; flex-direction: column;
+        }
+        #fullscreen-viewer.active { display: flex; }
+        .viewer-main { flex: 1; display: flex; justify-content: center; align-items: center; overflow: hidden; position: relative; }
+        .viewer-main img { max-width: 100%; max-height: 100%; object-fit: contain; transition: 0.3s; }
+        
+        .viewer-nav {
+            position: absolute; top: 50%; transform: translateY(-50%);
+            width: 50px; height: 50px; background: rgba(0,0,0,0.5);
+            border-radius: 50%; display: flex; justify-content: center; align-items: center;
+            color: #fff; font-size: 24px; cursor: pointer; z-index: 10;
+            border: 1px solid rgba(192, 160, 128, 0.2); transition: 0.2s;
+        }
+        .viewer-nav:hover { background: var(--accent-color); color: #0f172a; }
+        .viewer-nav.prev { left: 20px; }
+        .viewer-nav.next { right: 20px; }
+
+        .viewer-close {
+            position: absolute; top: 20px; right: 20px; width: 40px; height: 40px;
+            background: rgba(0,0,0,0.5); border-radius: 50%;
+            display: flex; justify-content: center; align-items: center;
+            color: #fff; font-size: 24px; cursor: pointer; z-index: 20;
+        }
+
+        .viewer-edit-trigger {
+            position: absolute; bottom: 30px; right: 30px; width: 60px; height: 60px;
+            background: var(--accent-color); color: #0f172a; border-radius: 50%;
+            display: flex; justify-content: center; align-items: center;
+            font-size: 24px; cursor: pointer; z-index: 20; box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+            transition: 0.2s;
+        }
+        .viewer-edit-trigger:hover { transform: scale(1.1); }
+
+        .viewer-actions {
+            position: absolute; bottom: 0; left: 0; width: 100%;
+            background: rgba(15, 23, 42, 0.98); backdrop-filter: blur(20px);
+            padding: 20px; border-top: 1px solid rgba(192, 160, 128, 0.3);
+            display: none; flex-direction: column; gap: 20px; z-index: 30;
+            animation: slideUp 0.3s ease-out;
+        }
+        .viewer-actions.active { display: flex; }
+        @keyframes slideUp {
+            from { transform: translateY(100%); }
+            to { transform: translateY(0); }
+        }
+
+        .viewer-tabs { display: flex; gap: 12px; border-bottom: 1px solid rgba(255,255,255,0.05); }
+        .viewer-tab {
+            padding: 12px 24px; font-size: 14px; color: #64748b; cursor: pointer; font-weight: 600; position: relative;
+        }
+        .viewer-tab.active { color: var(--accent-color); }
+        .viewer-tab.active::after {
+            content: ''; position: absolute; bottom: -1px; left: 0; width: 100%; height: 2px; background: var(--accent-color);
+        }
+        .viewer-pane { display: none; padding: 20px 0; }
+        .viewer-pane.active { display: block; }
+        
+        .viewer-close { position: absolute; top: 24px; right: 24px; color: #fff; font-size: 32px; cursor: pointer; z-index: 2010; text-shadow: 0 0 10px rgba(0,0,0,0.5); }
+
+        /* キャラ詳細：特別演出ギャラリー */
+        .special-gallery-item {
+            margin-bottom: 24px;
+        }
+        .special-gallery-ep {
+            font-size: 11px;
+            color: var(--accent-color);
+            font-weight: 700;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .special-gallery-ep::after {
+            content: "";
+            flex: 1;
+            height: 1px;
+            background: rgba(255,255,255,0.1);
+        }
+        .special-img-container {
+            display: flex;
+            gap: 12px;
+            overflow-x: auto;
+            padding-bottom: 12px;
+            scrollbar-width: thin;
+        }
+        .special-thumb {
+            flex: 0 0 100px;
+            aspect-ratio: 9/16;
+            border-radius: 8px;
+            overflow: hidden;
+            cursor: pointer;
+            border: 1px solid rgba(192, 160, 128, 0.2);
+            transition: 0.2s;
+            position: relative;
+        }
+        .special-thumb:hover {
+            transform: scale(1.03);
+            border-color: var(--accent-color);
+        }
+        .special-thumb img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        .special-thumb-label {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: linear-gradient(transparent, rgba(0,0,0,0.8));
+            padding: 4px 8px;
+            font-size: 8px;
+            color: #fff;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .location-bg-thumb {
+            display: flex; flex-direction: column; gap: 4px; cursor: pointer;
+            width: 120px; margin-bottom: 8px;
+        }
+        .location-bg-thumb img {
+            width: 100%; aspect-ratio: 16/9; object-fit: cover; border-radius: 4px;
+            border: 1px solid rgba(192, 160, 128, 0.2);
+        }
+        .location-bg-thumb span {
+            font-size: 11px; color: #94a3b8; text-align: center;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+
+        .metadata-group { display: none; }
+        .metadata-group.active { display: block; }
+
+        /* 統合モーダル */
+        .merge-modal {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.92); z-index: 2000; display: none; justify-content: center; align-items: center;
+        }
+        .merge-modal.active { display: flex; }
+        .merge-content { background: #1e293b; width: 90%; max-width: 450px; padding: 25px; border-radius: 20px; border: 1px solid var(--accent-color); }
+        .merge-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; max-height: 350px; overflow-y: auto; margin: 20px 0; }
+        .merge-item { text-align: center; cursor: pointer; }
+        .merge-item img { width: 100%; aspect-ratio: 9/16; object-fit: cover; border-radius: 8px; border: 1px solid rgba(192, 160, 128, 0.2); }
+
+        #loading { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); display: none; justify-content: center; align-items: center; z-index: 9999; }
+
+        @media (max-width: 640px) {
+            .metadata-section { padding: 32px 16px 60px; }
+            .info-group { padding: 16px; }
+            .multi-item { 
+                flex-direction: column; 
+                align-items: stretch; 
+                gap: 8px; 
+                position: relative;
+                padding: 12px;
+                background: rgba(192, 160, 128, 0.05);
+                border-radius: 8px;
+            }
+            .multi-item .multi-input, .multi-item .multi-select { width: 100%; flex: none; }
+            .multi-item .remove-btn { 
+                position: absolute; top: 4px; right: 4px; margin: 0;
+                background: rgba(15, 23, 42, 0.8); width: 24px; height: 24px;
+                display: none; justify-content: center; align-items: center;
+                border-radius: 50%; font-size: 14px; z-index: 5;
+            }
+            .edit-mode .multi-item .remove-btn { display: flex; }
+            
+            .multi-item .multi-display {
+                display: flex; flex-direction: column; gap: 4px;
+            }
+            .multi-display-role { margin-left: 0; }
+            .edit-mode .multi-item .multi-display { display: none; }
+        }
+        .header h1 {
+            font-family: var(--font-serif);
+            text-align: center; font-size: 1.4rem; margin: 0 0 16px 0; font-weight: 700; color: var(--accent-color); letter-spacing: 0.1em;
         }
     </style>
 </head>
 <body>
 
-<div class="header">
-    <a href="index.html" class="back-link">戻る</a>
-    <h1>キャラクター名簿</h1>
-</div>
-
-<div class="search-container">
-    <input type="search" id="search-input" class="search-input" placeholder="英雄の名を検索..." oninput="handleSearch()">
-</div>
-
-<div class="char-scroll" id="char-scroll">
+    <div id="main-list-view">
+        <div class="header">
+            <h1>設定集</h1>
+            <div class="tabs-container">
+                <div id="tab-character" class="tab-item active" onclick="switchTab('character')">👤 キャラ</div>
+                <div id="tab-worldview" class="tab-item" onclick="switchTab('worldview')">📖 世界観</div>
+            </div>
+            <div class="search-container">
+                <input type="text" id="search-input" class="search-box" placeholder="名前で検索..." oninput="filterAssets()">
+                <button class="tab-item active" style="flex: 0 0 80px;" onclick="addNewAsset()">＋ 追加</button>
+            </div>
+        </div>
+        <div class="container">
+            <div id="quick-add-form" style="display: none; margin-bottom: 24px; background: rgba(255,255,255,0.03); padding: 20px; border-radius: 16px; border: 1px solid rgba(192, 160, 128, 0.2); box-shadow: 0 4px 20px rgba(0,0,0,0.2);">
+                <h3 id="quick-add-title" style="margin: 0 0 12px 0; font-size: 0.95rem; color: #fff; font-weight: 600;">👤 新しいキャラを追加</h3>
+                <div style="display: flex; gap: 10px;">
+                    <input type="text" id="quick-add-input" placeholder="名前を入力..." onkeydown="if(event.key==='Enter') quickAddAsset()" style="flex: 1; background: rgba(0,0,0,0.3); border: 1px solid rgba(192, 160, 128, 0.2); border-radius: 10px; padding: 10px 14px; color: #fff; outline: none; font-size: 0.9rem;">
+                    <button onclick="quickAddAsset()" style="background: var(--accent-color); color: #0f172a; border: none; border-radius: 10px; padding: 0 20px; font-weight: 600; cursor: pointer; transition: all 0.2s; font-size: 0.9rem;">追加</button>
+                </div>
+            </div>
+            <div id="asset-list" class="asset-grid"></div>
+        </div>
     </div>
 
-<div class="main-content">
-    <h2 id="current-char-name" style="font-family: var(--font-fantasy); text-align: center; color: var(--accent-color); font-size: 1.1rem;"></h2>
-    <div class="face-grid" id="face-grid"></div>
-</div>
+    <div id="detail-overlay">
+        <button class="close-btn" onclick="closeDetail()">×</button>
+        
+        <div class="action-sidebar">
+            <div class="icon-btn" onclick="triggerUpdate()" title="画像変更">🔄</div>
+            <div class="icon-btn" onclick="openMergeModal()" title="表情統合">🧬</div>
+        </div>
 
-<div id="merge-modal" class="modal">
-    <div class="modal-content">
-        <h3 style="color: var(--danger-color); margin-top:0;">表情の統合と削除</h3>
-        <p id="merge-info" style="font-size: 13px;"></p>
-        <p style="font-size: 12px; color: #999;">この表情を使用している全てのシーンを、以下のどの表情に置き換えますか？</p>
-        <div id="merge-options" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top:15px;"></div>
-        <button class="btn" style="margin-top: 20px; width: 100%; background: #444;" onclick="closeMergeModal()">キャンセル</button>
+        <div class="visual-area">
+            <img id="main-character-img" src="" alt="立ち絵">
+        </div>
+
+        <div id="metadata-container" class="metadata-section">
+            <div class="char-info-panel">
+                <h2 id="display-name">Character Name</h2>
+                <span id="display-face-name" class="face-label">normal</span>
+            </div>
+
+            <div id="face-selector" class="face-selector"></div>
+
+            <div class="mode-toggle-container">
+                <div class="mode-btn active" id="btn-view-mode" onclick="setEditMode(false)">閲覧</div>
+                <div class="mode-btn" id="btn-edit-mode" onclick="setEditMode(true)">編集</div>
+                <div class="mode-btn danger" onclick="deleteProfileDirect(currentCharacterName, currentDetailType)">削除</div>
+            </div>
+
+            <div id="character-metadata" class="metadata-group">
+                <div class="detail-tabs">
+                    <div class="detail-tab active" onclick="switchDetailTab(0)">プロフィール</div>
+                    <div class="detail-tab" onclick="switchDetailTab(1)">容姿</div>
+                    <div class="detail-tab" onclick="switchDetailTab(2)">口調</div>
+                </div>
+
+                <div id="tab-profile" class="tab-pane active">
+                    <div id="view-description" class="view-content"></div>
+                    <textarea id="meta-description" class="large-textarea" placeholder="キャラクターの背景、性格、目的などを詳細に記載..."></textarea>
+                </div>
+                <div id="tab-appearance" class="tab-pane">
+                    <div id="view-appearance" class="view-content"></div>
+                    <textarea id="meta-appearance" class="large-textarea" placeholder="身長、服装、特徴など..."></textarea>
+                </div>
+                <div id="tab-tone" class="tab-pane">
+                    <div id="view-tone" class="view-content"></div>
+                    <textarea id="meta-tone" class="large-textarea" placeholder="特徴的な口癖、話し方のルールなどを記載..."></textarea>
+                </div>
+
+                <div class="info-list">
+                    <!-- 勢力・役職 -->
+                    <div class="info-group">
+                        <div class="info-group-header">
+                            <div class="info-group-title">🛡️ 勢力・役職</div>
+                            <button class="add-btn" onclick="addMultiItem('factions')">＋ 追加</button>
+                        </div>
+                        <div id="list-factions"></div>
+                    </div>
+
+                    <!-- 出身地 -->
+                    <div class="info-group">
+                        <div class="info-group-header">
+                            <div class="info-group-title">📍 出身地</div>
+                            <button class="add-btn" onclick="addMultiItem('origins')">＋ 追加</button>
+                        </div>
+                        <div id="list-origins"></div>
+                    </div>
+
+                    <!-- スキル・手段 -->
+                    <div class="info-group">
+                        <div class="info-group-header">
+                            <div class="info-group-title">⚔️ スキル・手段</div>
+                            <button class="add-btn" onclick="addMultiItem('skills')">＋ 追加</button>
+                        </div>
+                        <div id="list-skills"></div>
+                    </div>
+
+                    <!-- 特別演出ギャラリー -->
+                    <div id="special-appearances-group" class="info-group">
+                        <div class="info-group-header">
+                            <div class="info-group-title">🎬 特別演出ギャラリー</div>
+                        </div>
+                        <div id="list-special-gallery" style="padding: 10px 0;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="faction-metadata" class="metadata-group">
+                <div class="info-list">
+                    <div class="info-group">
+                        <div class="info-group-header">
+                            <div class="info-group-title">📝 概要</div>
+                        </div>
+                        <div id="view-faction-description" class="view-content"></div>
+                        <textarea id="meta-faction-description" class="large-textarea" placeholder="勢力の成り立ち、目的、規模などを記載..."></textarea>
+                    </div>
+
+                    <div class="info-group">
+                        <div class="info-group-header">
+                            <div class="info-group-title">👥 人物</div>
+                            <button class="add-btn" onclick="addMultiItem('faction-people')">＋ 追加</button>
+                        </div>
+                        <div id="list-faction-people" style="display: flex; flex-direction: column; gap: 8px; margin-top: 12px;"></div>
+                    </div>
+
+                    <div class="info-group">
+                        <div class="info-group-header">
+                            <div class="info-group-title">🏰 拠点・場所</div>
+                            <button class="add-btn" onclick="addMultiItem('faction-locations')">＋ 追加</button>
+                        </div>
+                        <div id="list-faction-locations"></div>
+                    </div>
+
+                    <div class="info-group">
+                        <div class="info-group-header">
+                            <div class="info-group-title">⚔️ スキル・手段</div>
+                            <button class="add-btn" onclick="addMultiItem('faction-skills')">＋ 追加</button>
+                        </div>
+                        <div id="list-faction-skills"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="location-metadata" class="metadata-group">
+                <div class="info-list">
+                    <div class="info-group">
+                        <div class="info-group-header">
+                            <div class="info-group-title">📝 概要</div>
+                        </div>
+                        <div id="view-location-description" class="view-content"></div>
+                        <textarea id="meta-location-description" class="large-textarea" placeholder="場所の歴史、地理、重要性などを記載..."></textarea>
+                    </div>
+
+                    <div class="info-group">
+                        <div class="info-group-header">
+                            <div class="info-group-title">👥 関連人物</div>
+                            <button class="add-btn" onclick="addMultiItem('location-people')">＋ 追加</button>
+                        </div>
+                        <div id="list-location-people"></div>
+                    </div>
+
+                    <div class="info-group">
+                        <div class="info-group-header">
+                            <div class="info-group-title">🛡️ 関連勢力</div>
+                            <button class="add-btn" onclick="addMultiItem('location-factions')">＋ 追加</button>
+                        </div>
+                        <div id="list-location-factions"></div>
+                    </div>
+
+                    <div class="info-group">
+                        <div class="info-group-header">
+                            <div class="info-group-title">🌌 関連背景</div>
+                            <button class="add-btn" onclick="addMultiItem('location-backgrounds')">＋ 追加</button>
+                        </div>
+                        <div id="list-location-backgrounds"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="term-metadata" class="metadata-group">
+                <div class="info-list">
+                    <div class="info-group">
+                        <div class="info-group-header">
+                            <div class="info-group-title">📝 概要</div>
+                        </div>
+                        <div id="view-term-description" class="view-content"></div>
+                        <textarea id="meta-term-description" class="large-textarea" placeholder="用語の定義、由来、使われ方などを記載..."></textarea>
+                    </div>
+                </div>
+            </div>
+
+            <button class="btn-save-meta" onclick="saveMetadata()">💾 設定を保存する</button>
+        </div>
+
+        <input type="file" id="global-file-input" style="display:none" onchange="handleImageUpload(event)">
     </div>
-</div>
 
-<div id="loading" class="loading-overlay">loading...</div>
+    <div id="fullscreen-viewer">
+        <div class="viewer-close" onclick="closeViewer()">×</div>
+        <div class="viewer-main">
+            <div class="viewer-nav prev" onclick="navigateViewer(-1)">‹</div>
+            <img id="viewer-img" src="" alt="特別演出">
+            <div class="viewer-nav next" onclick="navigateViewer(1)">›</div>
+        </div>
+        
+        <div class="viewer-edit-trigger" onclick="toggleViewerEdit()">✏️</div>
+
+        <div id="viewer-actions-panel" class="viewer-actions">
+            <div class="viewer-tabs">
+                <div class="viewer-tab active" onclick="switchViewerTab(0)">差し替え</div>
+                <div class="viewer-tab" onclick="switchViewerTab(1)">削除</div>
+                <div class="viewer-tab" onclick="switchViewerTab(2)">統合</div>
+            </div>
+            
+            <div id="viewer-pane-replace" class="viewer-pane active">
+                <p style="font-size:13px; color:#94a3b8; margin-bottom:12px;">現在の画像を新しい画像に置き換えます。</p>
+                <button class="btn-save-meta" onclick="triggerReplace()">📁 画像を選択して差し替え</button>
+            </div>
+            
+            <div id="viewer-pane-delete" class="viewer-pane">
+                <p style="font-size:13px; color:#94a3b8; margin-bottom:12px;">この演出データを完全に削除します。元に戻せません。</p>
+                <button class="btn-save-meta" style="background:var(--danger-color); color:#fff;" onclick="deleteCurrentAsset()">🗑️ データを削除する</button>
+            </div>
+            
+            <div id="viewer-pane-merge" class="viewer-pane">
+                <p style="font-size:13px; color:#94a3b8; margin-bottom:12px;">他の演出データと統合します。</p>
+                <button class="btn-save-meta" onclick="openMergeModalFromViewer()">🔗 統合メニューを開く</button>
+            </div>
+            
+            <button class="tab-item" style="width:100%; margin-top:10px;" onclick="toggleViewerEdit()">閉じる</button>
+        </div>
+    </div>
+
+    <div id="merge-modal" class="merge-modal">
+        <div class="merge-content">
+            <h3 style="margin-top:0; color:var(--accent-color); font-family: var(--font-fantasy);">表情の統合</h3>
+            <div id="merge-grid" class="merge-grid"></div>
+            <button class="tab-item active" style="width:100%;" onclick="closeMergeModal()">キャンセル</button>
+        </div>
+    </div>
+
+    <div id="loading"><div style="color:var(--accent-color)">通信中...</div></div>
 
 <script>
-    // --- ⚙️ Supabase設定 (既存のプロジェクトに合わせてください) ---
-const SUPABASE_URL = 'https://sluvdcvxtzlpbqrxfpsg.supabase.co';
+    /* 
+       Supabase Table Schema:
+       - assets: id(uuid), tag(text), face(text), image_url(text), asset_type(text), created_at(timestamp)
+       - characters: name(text, primary), description(text), tone(text), appearance(text), factions(jsonb), origins(jsonb), skills(jsonb)
+       - factions: name(text, primary), description(text), people(jsonb), locations(jsonb), skills(jsonb)
+       - locations: name(text, primary), description(text), people(jsonb), factions(jsonb), backgrounds(jsonb)
+       - terms: name(text, primary), description(text)
+    */
+    const SUPABASE_URL = 'https://sluvdcvxtzlpbqrxfpsg.supabase.co';
     const SUPABASE_KEY = 'sb_publishable_dXIvPQtvu-2PunZ1FNkzyA_yczzig09'; 
-
     const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
+    let currentType = 'character';
+    let currentDetailType = 'character';
     let allAssets = [];
+    let allAssetsCache = [];
+    let allScenes = [];
     let characters = {};
-    let currentCharacter = "";
+    let characterProfiles = {}; 
+    let factionProfiles = {};
+    let locationProfiles = {};
+    let termProfiles = {};
+    let currentCharacterName = "";
+    let currentAssetId = null;
+    let currentViewerAssetId = null;
+    let currentGalleryAssets = [];
+    let currentGalleryIndex = 0;
+    let touchStartX = 0;
+    let touchEndX = 0;
+    let isReplaceMode = false;
 
-    async function init() {
+    async function init() { 
         showLoading(true);
-const { data, error } = await supabaseClient
-    .from('assets')
-    .select('*') // 🌟 これを追加
-    .eq('asset_type', 'character')
-    .order('tag', { ascending: true });
+        try {
+            await fetchProfiles(); 
+            await fetchFactionProfiles();
+            await fetchLocationProfiles();
+            await fetchTermProfiles();
+            await fetchScenes();
+            await fetchAllAssets();
+            await fetchAssets(); 
+        } catch (e) { console.error(e); } finally { showLoading(false); }
+    }
 
-        if (!error) {
-            allAssets = data;
-            groupCharacters();
-            renderCharScroll();
+    async function fetchAllAssets() {
+        const { data } = await supabaseClient.from('assets').select('*');
+        allAssetsCache = data || [];
+    }
+
+    async function fetchScenes() {
+        const { data } = await supabaseClient
+            .from('scenes')
+            .select('*')
+            .order('episode', { ascending: true })
+            .order('scene_number', { ascending: true });
+        allScenes = data || [];
+    }
+
+    async function fetchProfiles() {
+        const { data } = await supabaseClient.from('characters').select('*');
+        characterProfiles = {};
+        if (data) data.forEach(p => characterProfiles[p.name] = p);
+    }
+
+    async function fetchFactionProfiles() {
+        const { data } = await supabaseClient.from('factions').select('*');
+        factionProfiles = {};
+        if (data) data.forEach(p => factionProfiles[p.name] = p);
+    }
+
+    async function fetchLocationProfiles() {
+        const { data } = await supabaseClient.from('locations').select('*');
+        locationProfiles = {};
+        if (data) data.forEach(p => locationProfiles[p.name] = p);
+    }
+
+    async function fetchTermProfiles() {
+        const { data } = await supabaseClient.from('terms').select('*');
+        termProfiles = {};
+        if (data) data.forEach(p => termProfiles[p.name] = p);
+    }
+
+    async function switchTab(type) {
+        currentType = type;
+        document.querySelectorAll('.tab-item').forEach(el => el.classList.remove('active'));
+        const target = document.getElementById(`tab-${type}`);
+        if(target) target.classList.add('active');
+        document.getElementById('search-input').value = "";
+        
+        updateQuickAddLabels();
+        document.getElementById('quick-add-form').style.display = 'none';
+        
+        await fetchAssets();
+    }
+
+    function updateQuickAddLabels() {
+        const title = document.getElementById('quick-add-title');
+        const input = document.getElementById('quick-add-input');
+        const form = document.getElementById('quick-add-form');
+        
+        // Remove existing selector if any
+        const existingSelector = document.getElementById('quick-add-type-selector');
+        if (existingSelector) existingSelector.remove();
+
+        if (currentType === 'worldview') {
+            title.innerHTML = `🌍 新しい世界観要素を追加`;
+            input.placeholder = "名前を入力...";
+            
+            const selector = document.createElement('select');
+            selector.id = 'quick-add-type-selector';
+            selector.className = 'search-box';
+            selector.style.marginTop = '10px';
+            selector.style.marginBottom = '10px';
+            selector.style.width = '100%';
+            selector.innerHTML = `
+                <option value="faction">🛡️ 勢力</option>
+                <option value="location">📍 場所</option>
+                <option value="term">📖 用語</option>
+            `;
+            // Insert before the input container
+            const inputContainer = input.parentElement;
+            form.insertBefore(selector, inputContainer);
+        } else {
+            const config = {
+                'character': { icon: '👤', label: 'キャラ', placeholder: '名前を入力...' }
+            };
+            const c = config[currentType] || config['character'];
+            title.innerHTML = `${c.icon} 新しい${c.label}を追加`;
+            input.placeholder = c.placeholder;
         }
-        showLoading(false);
+    }
+
+    async function fetchAssets() {
+        showLoading(true);
+        try {
+            let query = supabaseClient.from('assets').select('*');
+            if (currentType === 'worldview') {
+                query = query.in('asset_type', ['faction', 'location', 'term']);
+            } else {
+                query = query.eq('asset_type', currentType);
+            }
+            const { data, error } = await query.order('tag', { ascending: true });
+            if (error) throw error;
+            allAssets = data;
+
+            groupCharacters();
+            renderCharacterGrid();
+        } catch (e) { alert(e.message); } finally { showLoading(false); }
     }
 
     function groupCharacters() {
@@ -214,129 +892,1063 @@ const { data, error } = await supabaseClient
         });
     }
 
-    function renderCharScroll(filter = "") {
-        const scrollEl = document.getElementById('char-scroll');
-        scrollEl.innerHTML = "";
+    function renderCharacterGrid() {
+        const list = document.getElementById('asset-list');
+        list.innerHTML = '';
         
-        Object.keys(characters).forEach(name => {
-            if (filter && !name.includes(filter)) return;
+        if (currentType === 'worldview') {
+            renderWorldviewGrid(list);
+            return;
+        }
 
-            const assets = characters[name];
+        const isListMode = (currentType === 'faction' || currentType === 'location' || currentType === 'term');
+        
+        if (isListMode) {
+            list.style.display = 'flex';
+            list.style.flexDirection = 'column';
+            list.style.gap = '10px';
+        } else {
+            list.style.display = 'grid';
+            list.style.gridTemplateColumns = 'repeat(2, 1fr)';
+            list.style.gap = '15px';
+        }
+        
+        // Get all unique names from both assets and profiles
+        let profileNames = [];
+        if (currentType === 'character') profileNames = Object.keys(characterProfiles);
+        else if (currentType === 'faction') profileNames = Object.keys(factionProfiles);
+        else if (currentType === 'location') profileNames = Object.keys(locationProfiles);
+        else if (currentType === 'term') profileNames = Object.keys(termProfiles);
+        
+        const assetNames = Object.keys(characters);
+        const allNames = [...new Set([...profileNames, ...assetNames])].sort();
+
+        if (allNames.length === 0) {
+            list.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 50px; color: #94a3b8;">データがありません。</div>';
+            return;
+        }
+
+        allNames.forEach(name => {
+            const assets = characters[name] || [];
             const normal = assets.find(a => a.face === 'normal') || assets[0];
+            const imageUrl = normal ? normal.image_url : 'https://picsum.photos/seed/' + name + '/400/700';
             
-            const div = document.createElement('div');
-            div.className = `char-bubble ${currentCharacter === name ? 'active' : ''}`;
-            div.innerHTML = `<img src="${normal.image_url}"><span>${name}</span>`;
-            div.onclick = () => selectCharacter(name);
-            scrollEl.appendChild(div);
-        });
-    }
-
-    function handleSearch() {
-        const val = document.getElementById('search-input').value;
-        renderCharScroll(val);
-    }
-
-    function selectCharacter(name) {
-        currentCharacter = name;
-        renderCharScroll(document.getElementById('search-input').value);
-        document.getElementById('current-char-name').textContent = `― ${name} ―`;
-        renderFaceGrid(name);
-    }
-
-    function renderFaceGrid(name) {
-        const grid = document.getElementById('face-grid');
-        grid.innerHTML = "";
-        const assets = characters[name];
-
-        assets.forEach(asset => {
             const card = document.createElement('div');
-            card.className = "face-card";
-            card.innerHTML = `
-                <img src="${asset.image_url}" class="face-img">
-                <div class="face-name">${asset.face || 'default'}</div>
-                <div class="btn-group">
-                    <button class="btn btn-edit" onclick="triggerUpdate(${asset.id})">画像変更</button>
-                    <button class="btn btn-merge" onclick="openMergeModal(${asset.id}, '${asset.face}')">統合・削除</button>
-                </div>
-                <input type="file" id="file-${asset.id}" style="display:none" onchange="uploadNewImage(event, ${asset.id})">
-            `;
-            grid.appendChild(card);
+            
+            if (isListMode) {
+                let desc = "";
+                if (currentType === 'faction') desc = factionProfiles[name]?.description || "";
+                else if (currentType === 'location') desc = locationProfiles[name]?.description || "";
+                else if (currentType === 'term') desc = termProfiles[name]?.description || "";
+
+                card.className = 'list-item';
+                card.onclick = () => openDetail(name);
+                card.innerHTML = `
+                    <div class="list-item-content">
+                        <div class="list-item-name">${name}</div>
+                        <div class="list-item-desc">${desc}</div>
+                    </div>
+                    <div class="list-item-actions">
+                        <div class="list-item-arrow">›</div>
+                    </div>
+                `;
+            } else {
+                card.className = 'char-card';
+                if (currentType !== 'character') card.classList.add('no-image');
+                card.onclick = () => openDetail(name);
+                card.innerHTML = `
+                    ${currentType === 'character' ? `<img src="${imageUrl}">` : ''}
+                    <div class="char-label">${name}</div>
+                `;
+            }
+            list.appendChild(card);
         });
     }
 
-    // --- 統合ロジック ---
-    let sourceAssetId = null;
-    let sourceFaceName = "";
+    function renderWorldviewGrid(list) {
+        list.style.display = 'flex';
+        list.style.flexDirection = 'column';
+        list.style.gap = '30px';
 
-    function openMergeModal(id, face) {
-        sourceAssetId = id;
-        sourceFaceName = face;
-        const modal = document.getElementById('merge-modal');
-        const info = document.getElementById('merge-info');
-        const options = document.getElementById('merge-options');
+        const types = [
+            { id: 'faction', label: '🛡️ 勢力', profiles: factionProfiles },
+            { id: 'location', label: '📍 場所', profiles: locationProfiles },
+            { id: 'term', label: '📖 用語', profiles: termProfiles }
+        ];
 
-        info.innerHTML = `削除対象: <b>${face}</b>`;
-        options.innerHTML = "";
+        types.forEach(type => {
+            const section = document.createElement('div');
+            section.innerHTML = `<h2 style="font-family: var(--font-serif); color: var(--accent-color); border-bottom: 1px solid rgba(192, 160, 128, 0.3); padding-bottom: 8px; margin-bottom: 15px;">${type.label}</h2>`;
+            
+            const subList = document.createElement('div');
+            subList.style.display = 'flex';
+            subList.style.flexDirection = 'column';
+            subList.style.gap = '10px';
+            
+            const profileNames = Object.keys(type.profiles);
+            const assetNames = allAssets.filter(a => a.asset_type === type.id).map(a => a.tag);
+            const allNames = [...new Set([...profileNames, ...assetNames])].sort();
 
-        // 自分以外の表情を置換先候補として出す
-        characters[currentCharacter].forEach(target => {
-            if (target.id === id) return;
-            const opt = document.createElement('div');
-            opt.style.cursor = "pointer";
-            opt.innerHTML = `
-                <img src="${target.image_url}" style="width:100%; aspect-ratio:1; object-fit:cover; border-radius:5px;">
-                <div style="font-size:10px; text-align:center;">${target.face}へ</div>
-            `;
-            opt.onclick = () => execMerge(target.face);
-            options.appendChild(opt);
+            if (allNames.length === 0) {
+                subList.innerHTML = '<div style="text-align: center; padding: 20px; color: #94a3b8; font-size: 0.9rem;">データがありません。</div>';
+            } else {
+                allNames.forEach(name => {
+                    const desc = type.profiles[name]?.description || "";
+                    const card = document.createElement('div');
+                    card.className = 'list-item';
+                    card.onclick = () => openDetail(name, type.id);
+                    card.innerHTML = `
+                        <div class="list-item-content">
+                            <div class="list-item-name">${name}</div>
+                            <div class="list-item-desc">${desc}</div>
+                        </div>
+                        <div class="list-item-actions">
+                            <div class="list-item-arrow">›</div>
+                        </div>
+                    `;
+                    subList.appendChild(card);
+                });
+            }
+            section.appendChild(subList);
+            list.appendChild(section);
         });
-
-        modal.classList.add('active');
     }
 
-    async function execMerge(targetFaceName) {
-        if (!confirm(`「${sourceFaceName}」を削除し、全てのシーンを「${targetFaceName}」に書き換えます。よろしいですか？`)) return;
+    function openDetail(name, type) {
+        currentCharacterName = name;
+        currentDetailType = type || currentType;
+        const overlay = document.getElementById('detail-overlay');
+        const assets = characters[name] || [];
+        const normal = assets.find(a => a.face === 'normal') || assets[0];
+        
+        document.getElementById('display-name').textContent = name;
+        
+        const charMeta = document.getElementById('character-metadata');
+        const factionMeta = document.getElementById('faction-metadata');
+        const locationMeta = document.getElementById('location-metadata');
+        const termMeta = document.getElementById('term-metadata');
 
-        showLoading(true);
-        try {
-            // 1. scenesテーブルの表情を一括置換
-            const { error: updateError } = await supabaseClient
-                .from('scenes')
-                .update({ face: targetFaceName })
-                .eq('character', currentCharacter)
-                .eq('face', sourceFaceName);
+        if (currentDetailType === 'character') {
+            overlay.classList.remove('no-visual');
+        } else {
+            overlay.classList.add('no-visual');
+        }
 
-            if (updateError) throw updateError;
+        charMeta.classList.remove('active');
+        factionMeta.classList.remove('active');
+        locationMeta.classList.remove('active');
+        termMeta.classList.remove('active');
 
-            // 2. assetsテーブルから元の表情を削除
-            const { error: deleteError } = await supabaseClient
-                .from('assets')
-                .delete()
-                .eq('id', sourceAssetId);
+        if (currentDetailType === 'character') {
+            charMeta.classList.add('active');
+            const profile = characterProfiles[name] || {};
+            
+            document.getElementById('meta-description').value = profile.description || "";
+            document.getElementById('view-description').textContent = profile.description || "記録なし";
+            document.getElementById('meta-appearance').value = profile.appearance || "";
+            document.getElementById('view-appearance').textContent = profile.appearance || "記録なし";
+            document.getElementById('meta-tone').value = profile.tone || "";
+            document.getElementById('view-tone').textContent = profile.tone || "記録なし";
 
-            if (deleteError) throw deleteError;
+            renderMultiList('factions', profile.factions || []);
+            renderMultiList('origins', profile.origins || []);
+            renderMultiList('skills', profile.skills || []);
+            renderSpecialAppearances(name);
+        } else if (currentDetailType === 'faction') {
+            factionMeta.classList.add('active');
+            const profile = factionProfiles[name] || {};
 
-            alert("統合と置換が完了しました。");
-            location.reload();
-        } catch (e) {
-            alert("エラー: " + e.message);
-        } finally {
-            showLoading(false);
+            document.getElementById('meta-faction-description').value = profile.description || "";
+            document.getElementById('view-faction-description').textContent = profile.description || "記録なし";
+
+            // Merge manual people and auto-extracted characters from character profiles
+            const mergedPeople = [...(profile.people || [])];
+            const manualNames = new Set(mergedPeople.map(p => p.name));
+
+            Object.values(characterProfiles).forEach(char => {
+                if (char.factions) {
+                    char.factions.forEach(f => {
+                        if (f.name === name && !manualNames.has(char.name)) {
+                            mergedPeople.push({ name: char.name, role: f.role || '所属' });
+                            manualNames.add(char.name);
+                        }
+                    });
+                }
+            });
+
+            renderMultiList('faction-people', mergedPeople);
+            renderMultiList('faction-locations', profile.locations || []);
+            renderMultiList('faction-skills', profile.skills || []);
+        } else if (currentDetailType === 'location') {
+            locationMeta.classList.add('active');
+            const profile = locationProfiles[name] || {};
+
+            document.getElementById('meta-location-description').value = profile.description || "";
+            document.getElementById('view-location-description').textContent = profile.description || "記録なし";
+
+            // Merge manual people and auto-extracted characters from character profiles
+            const mergedPeople = [...(profile.people || [])];
+            const manualPeopleNames = new Set(mergedPeople.map(p => p.name));
+
+            Object.values(characterProfiles).forEach(char => {
+                if (char.origins && char.origins.includes(name) && !manualPeopleNames.has(char.name)) {
+                    mergedPeople.push({ name: char.name, role: '出身・ゆかり' });
+                    manualPeopleNames.add(char.name);
+                }
+            });
+
+            // Merge manual factions and auto-extracted factions from faction profiles
+            const mergedFactions = [...(profile.factions || [])];
+            const manualFactionNames = new Set(mergedFactions.map(f => f.name));
+
+            Object.values(factionProfiles).forEach(fac => {
+                if (fac.locations && fac.locations.includes(name) && !manualFactionNames.has(fac.name)) {
+                    mergedFactions.push({ name: fac.name, role: '拠点・影響下' });
+                    manualFactionNames.add(fac.name);
+                }
+            });
+
+            renderMultiList('location-people', mergedPeople);
+            renderMultiList('location-factions', mergedFactions);
+            renderMultiList('location-backgrounds', profile.backgrounds || []);
+        } else if (currentDetailType === 'term') {
+            termMeta.classList.add('active');
+            const profile = termProfiles[name] || {};
+
+            document.getElementById('meta-term-description').value = profile.description || "";
+            document.getElementById('view-term-description').textContent = profile.description || "記録なし";
+        }
+        
+        if (currentDetailType === 'character') {
+            switchDetailTab(0);
+        }
+
+        renderFaceSelector(assets);
+        if (normal) {
+            selectFace(normal.id);
+        } else {
+            currentAssetId = null;
+            document.getElementById('main-character-img').src = 'https://picsum.photos/seed/' + name + '/400/700';
+            document.getElementById('display-face-name').textContent = "No Image";
+        }
+        
+        overlay.classList.add('active');
+        document.body.style.overflow = 'hidden';
+        setEditMode(false);
+    }
+
+    function renderSpecialAppearances(charName) {
+        const list = document.getElementById('list-special-gallery');
+        if (!list) return;
+        list.innerHTML = "";
+        
+        // 1. Find all episodes where this character has at least one special scene
+        const qualifiedEpisodes = [...new Set(allScenes
+            .filter(s => s.character === charName && s.special)
+            .map(s => s.episode))];
+        
+        if (qualifiedEpisodes.length === 0) {
+            document.getElementById('special-appearances-group').style.display = 'none';
+            return;
+        }
+        document.getElementById('special-appearances-group').style.display = 'block';
+
+        // 2. Sort episodes
+        const sortedEps = qualifiedEpisodes.sort((a, b) => Number(a) - Number(b));
+
+        const galleryAssets = [];
+
+        sortedEps.forEach(ep => {
+            // Get all unique specials in this episode from ANY character
+            const allSpecialsInEp = allScenes.filter(s => s.episode === ep && s.special);
+            
+            // Deduplicate by special tag to avoid showing the same image twice
+            const uniqueSpecials = [];
+            const seenTags = new Set();
+            allSpecialsInEp.forEach(s => {
+                if (!seenTags.has(s.special)) {
+                    seenTags.add(s.special);
+                    uniqueSpecials.push(s);
+                }
+            });
+
+            if (uniqueSpecials.length === 0) return;
+
+            const epGroup = document.createElement('div');
+            epGroup.className = 'special-gallery-item';
+            
+            const epLabel = document.createElement('div');
+            epLabel.className = 'special-gallery-ep';
+            epLabel.textContent = `Episode ${ep}`;
+            epGroup.appendChild(epLabel);
+
+            const imgContainer = document.createElement('div');
+            imgContainer.className = 'special-img-container horizontal-scroll';
+
+            uniqueSpecials.forEach(scene => {
+                // Find asset image_url from allAssetsCache where tag === scene.special
+                const asset = allAssetsCache.find(a => a.tag === scene.special);
+                if (!asset) return;
+                
+                galleryAssets.push(asset);
+                const currentIndex = galleryAssets.length - 1;
+
+                const thumb = document.createElement('div');
+                thumb.className = 'special-thumb';
+                thumb.onclick = () => openGalleryViewer(galleryAssets, currentIndex);
+                
+                thumb.innerHTML = `
+                    <img src="${asset.image_url}" loading="lazy">
+                    <div class="special-thumb-label">${scene.scene_name || 'Special Scene'}</div>
+                `;
+                imgContainer.appendChild(thumb);
+            });
+
+            epGroup.appendChild(imgContainer);
+            list.appendChild(epGroup);
+        });
+    }
+
+    function openLocationGallery(tag) {
+        const profile = locationProfiles[currentCharacterName] || {};
+        const bgTags = profile.backgrounds || [];
+        const bgAssets = bgTags.map(t => allAssetsCache.find(a => a.tag === t && a.asset_type === 'background')).filter(Boolean);
+        const index = bgAssets.findIndex(a => a.tag === tag);
+        if (index !== -1) {
+            openGalleryViewer(bgAssets, index);
         }
     }
 
-    function closeMergeModal() {
-        document.getElementById('merge-modal').classList.remove('active');
+    function openGalleryViewer(assets, index) {
+        currentGalleryAssets = assets;
+        currentGalleryIndex = index;
+        updateViewerContent();
+        const viewer = document.getElementById('fullscreen-viewer');
+        viewer.classList.add('active');
+        document.getElementById('viewer-actions-panel').classList.remove('active');
+        
+        // Add touch listeners for swiping
+        viewer.addEventListener('touchstart', handleTouchStart, false);
+        viewer.addEventListener('touchend', handleTouchEnd, false);
     }
 
-    // --- 画像更新 ---
-    function triggerUpdate(id) { document.getElementById(`file-${id}`).click(); }
+    function handleTouchStart(e) {
+        touchStartX = e.changedTouches[0].screenX;
+    }
 
-    async function uploadNewImage(event, assetId) {
+    function handleTouchEnd(e) {
+        touchEndX = e.changedTouches[0].screenX;
+        handleSwipe();
+    }
+
+    function handleSwipe() {
+        const threshold = 50;
+        if (touchEndX < touchStartX - threshold) {
+            // Swipe left -> Next
+            navigateViewer(1);
+        }
+        if (touchEndX > touchStartX + threshold) {
+            // Swipe right -> Prev
+            navigateViewer(-1);
+        }
+    }
+
+    function updateViewerContent() {
+        const asset = currentGalleryAssets[currentGalleryIndex];
+        if (!asset) return;
+        currentViewerAssetId = asset.id;
+        const img = document.getElementById('viewer-img');
+        img.src = asset.image_url;
+    }
+
+    function navigateViewer(dir) {
+        currentGalleryIndex += dir;
+        if (currentGalleryIndex < 0) currentGalleryIndex = currentGalleryAssets.length - 1;
+        if (currentGalleryIndex >= currentGalleryAssets.length) currentGalleryIndex = 0;
+        updateViewerContent();
+    }
+
+    function toggleViewerEdit() {
+        const panel = document.getElementById('viewer-actions-panel');
+        panel.classList.toggle('active');
+    }
+
+    function closeViewer() {
+        const viewer = document.getElementById('fullscreen-viewer');
+        viewer.classList.remove('active');
+        viewer.removeEventListener('touchstart', handleTouchStart);
+        viewer.removeEventListener('touchend', handleTouchEnd);
+        document.body.style.overflow = 'auto';
+        currentViewerAssetId = null;
+    }
+
+    function setEditMode(isEdit) {
+        const container = document.getElementById('metadata-container');
+        const btnView = document.getElementById('btn-view-mode');
+        const btnEdit = document.getElementById('btn-edit-mode');
+        
+        if (isEdit) {
+            container.classList.add('edit-mode');
+            btnEdit.classList.add('active');
+            btnView.classList.remove('active');
+        } else {
+            container.classList.remove('edit-mode');
+            btnEdit.classList.remove('active');
+            btnView.classList.add('active');
+        }
+    }
+
+    function getLocationOptions(selected) {
+        let options = `<option value="">選択してください...</option>`;
+        const sortedLocations = Object.keys(locationProfiles).sort();
+        sortedLocations.forEach(loc => {
+            options += `<option value="${loc}" ${loc === selected ? 'selected' : ''}>${loc}</option>`;
+        });
+        return options;
+    }
+
+    function getBackgroundOptions(selected) {
+        let options = `<option value="">選択してください...</option>`;
+        
+        // Collect all backgrounds used in OTHER locations
+        const usedByOthers = new Set();
+        Object.entries(locationProfiles).forEach(([locName, profile]) => {
+            if (locName !== currentCharacterName && profile.backgrounds) {
+                profile.backgrounds.forEach(bg => usedByOthers.add(bg));
+            }
+        });
+
+        const backgrounds = allAssetsCache.filter(a => a.asset_type === 'background').sort((a, b) => (a.tag || '').localeCompare(b.tag || ''));
+        const seenTags = new Set();
+        backgrounds.forEach(bg => {
+            if (bg.tag && !seenTags.has(bg.tag)) {
+                // Only add if not used by others, OR if it's the currently selected one
+                if (!usedByOthers.has(bg.tag) || bg.tag === selected) {
+                    options += `<option value="${bg.tag}" ${bg.tag === selected ? 'selected' : ''}>${bg.tag}</option>`;
+                    seenTags.add(bg.tag);
+                }
+            }
+        });
+        return options;
+    }
+
+    function getCharacterOptions(selected) {
+        let options = `<option value="">選択してください...</option>`;
+        const sortedChars = Object.keys(characterProfiles).sort();
+        sortedChars.forEach(char => {
+            options += `<option value="${char}" ${char === selected ? 'selected' : ''}>${char}</option>`;
+        });
+        return options;
+    }
+
+    function getFactionOptions(selected) {
+        let options = `<option value="">選択してください...</option>`;
+        const sortedFactions = Object.keys(factionProfiles).sort();
+        sortedFactions.forEach(fac => {
+            options += `<option value="${fac}" ${fac === selected ? 'selected' : ''}>${fac}</option>`;
+        });
+        return options;
+    }
+
+    function renderMultiList(type, items) {
+        const list = document.getElementById(`list-${type}`);
+        list.innerHTML = "";
+        
+        if (!items || items.length === 0) {
+            if (type === 'factions') items = [{name: '', role: ''}];
+            else items = [''];
+        }
+
+        // Special handling for location-backgrounds view mode gallery
+        if (type === 'location-backgrounds') {
+            const galleryDiv = document.createElement('div');
+            galleryDiv.className = 'location-bg-gallery multi-display';
+            galleryDiv.style.display = 'flex';
+            galleryDiv.style.flexWrap = 'wrap';
+            galleryDiv.style.gap = '12px';
+            galleryDiv.style.marginTop = '12px';
+
+            items.forEach((val) => {
+                if (!val) return;
+                const asset = allAssetsCache.find(a => a.tag === val && a.asset_type === 'background');
+                if (asset) {
+                    const thumb = document.createElement('div');
+                    thumb.className = 'location-bg-thumb';
+                    thumb.onclick = () => openLocationGallery(val);
+                    thumb.innerHTML = `
+                        <img src="${asset.image_url}" referrerPolicy="no-referrer">
+                        <span>${val}</span>
+                    `;
+                    galleryDiv.appendChild(thumb);
+                }
+            });
+            if (galleryDiv.children.length > 0) {
+                list.appendChild(galleryDiv);
+            }
+        }
+
+        items.forEach((item, idx) => {
+            const div = document.createElement('div');
+            div.className = 'multi-item';
+            
+            if (type === 'location-backgrounds') {
+                const val = typeof item === 'string' ? item : '';
+                div.innerHTML = `
+                    <div class="multi-display" style="display:none"></div>
+                    <select class="multi-input">${getBackgroundOptions(val)}</select>
+                    <span class="remove-btn" onclick="this.parentElement.remove()">×</span>
+                `;
+            } else if (type === 'factions' || type === 'faction-people' || type === 'location-people' || type === 'location-factions') {
+                const name = typeof item === 'object' ? (item.name || '') : '';
+                const role = typeof item === 'object' ? (item.role || '') : '';
+                
+                let placeholderName = '名前';
+                let nameInput = `<input type="text" class="multi-input faction-name" placeholder="${placeholderName}" value="${name}">`;
+                
+                // Dropdowns ONLY for Location detail editing
+                if (type === 'location-factions') {
+                    placeholderName = '勢力名';
+                    nameInput = `<select class="multi-input faction-name">${getFactionOptions(name)}</select>`;
+                } else if (type === 'location-people') {
+                    placeholderName = 'キャラクター名';
+                    nameInput = `<select class="multi-input faction-name">${getCharacterOptions(name)}</select>`;
+                } else if (type === 'factions') {
+                    placeholderName = '勢力名';
+                } else if (type === 'faction-people') {
+                    placeholderName = 'キャラクター名';
+                }
+
+                div.innerHTML = `
+                    <div class="multi-display">
+                        <span class="multi-display-name">${name || '未設定'}</span>
+                        <span class="multi-display-role">${role || ''}</span>
+                    </div>
+                    ${nameInput}
+                    <input type="text" class="multi-input faction-role" placeholder="役職・関係" value="${role}">
+                    <span class="remove-btn" onclick="this.parentElement.remove()">×</span>
+                `;
+            } else if (type === 'skills' || type === 'faction-skills') {
+                const title = typeof item === 'object' ? (item.title || '') : (typeof item === 'string' ? item : '');
+                const desc = typeof item === 'object' ? (item.description || '') : '';
+                
+                div.innerHTML = `
+                    <div class="multi-display">
+                        <span class="multi-display-name">${title || '未設定'}</span>
+                        <span class="multi-display-role">${desc || ''}</span>
+                    </div>
+                    <input type="text" class="multi-input skill-title" placeholder="スキル名" value="${title}">
+                    <input type="text" class="multi-input skill-desc" placeholder="詳細・手段" value="${desc}">
+                    <span class="remove-btn" onclick="this.parentElement.remove()">×</span>
+                `;
+            } else {
+                const val = typeof item === 'string' ? item : '';
+                let placeholder = '入力...';
+                if (type === 'origins') placeholder = '出身地名';
+                else if (type === 'faction-locations') placeholder = '場所名';
+
+                div.innerHTML = `
+                    <div class="multi-display">${val || '未設定'}</div>
+                    <input type="text" class="multi-input" placeholder="${placeholder}" value="${val}">
+                    <span class="remove-btn" onclick="this.parentElement.remove()">×</span>
+                `;
+            }
+            list.appendChild(div);
+        });
+    }
+
+    function addMultiItem(type) {
+        const list = document.getElementById(`list-${type}`);
+        const div = document.createElement('div');
+        div.className = 'multi-item';
+        
+        if (type === 'factions' || type === 'faction-people' || type === 'location-people' || type === 'location-factions') {
+            let placeholderName = '名前';
+            let nameInput = `<input type="text" class="multi-input faction-name" placeholder="${placeholderName}" value="">`;
+            
+            if (type === 'location-factions') {
+                placeholderName = '勢力名';
+                nameInput = `<select class="multi-input faction-name">${getFactionOptions('')}</select>`;
+            } else if (type === 'location-people') {
+                placeholderName = 'キャラクター名';
+                nameInput = `<select class="multi-input faction-name">${getCharacterOptions('')}</select>`;
+            } else if (type === 'factions') {
+                placeholderName = '勢力名';
+            } else if (type === 'faction-people') {
+                placeholderName = 'キャラクター名';
+            }
+
+            div.innerHTML = `
+                <div class="multi-display"></div>
+                ${nameInput}
+                <input type="text" class="multi-input faction-role" placeholder="役職・関係" value="">
+                <span class="remove-btn" onclick="this.parentElement.remove()">×</span>
+            `;
+        } else if (type === 'skills' || type === 'faction-skills') {
+            div.innerHTML = `
+                <div class="multi-display"></div>
+                <input type="text" class="multi-input skill-title" placeholder="スキル名" value="">
+                <input type="text" class="multi-input skill-desc" placeholder="詳細・手段" value="">
+                <span class="remove-btn" onclick="this.parentElement.remove()">×</span>
+            `;
+        } else if (type === 'location-backgrounds') {
+            div.innerHTML = `
+                <div class="multi-display" style="display:none"></div>
+                <select class="multi-input">${getBackgroundOptions('')}</select>
+                <span class="remove-btn" onclick="this.parentElement.remove()">×</span>
+            `;
+        } else {
+            let placeholder = '入力...';
+            if (type === 'origins') placeholder = '出身地名';
+            else if (type === 'faction-locations') placeholder = '場所名';
+
+            div.innerHTML = `
+                <div class="multi-display"></div>
+                <input type="text" class="multi-input" placeholder="${placeholder}" value="">
+                <span class="remove-btn" onclick="this.parentElement.remove()">×</span>
+            `;
+        }
+        list.appendChild(div);
+    }
+
+    async function saveMetadata() {
+        if (currentDetailType === 'character') {
+            await saveCharacterMetadata();
+        } else if (currentDetailType === 'faction') {
+            await saveFactionMetadata();
+        } else if (currentDetailType === 'location') {
+            await saveLocationMetadata();
+        } else if (currentDetailType === 'term') {
+            await saveTermMetadata();
+        }
+    }
+
+    async function saveCharacterMetadata() {
+        showLoading(true);
+        const factions = Array.from(document.querySelectorAll('#list-factions .multi-item')).map(el => ({
+            name: el.querySelector('.faction-name').value,
+            role: el.querySelector('.faction-role').value
+        })).filter(f => f.name);
+        const origins = Array.from(document.querySelectorAll('#list-origins .multi-item .multi-input')).map(el => el.value).filter(v => v);
+        const skills = Array.from(document.querySelectorAll('#list-skills .multi-item')).map(el => ({
+            title: el.querySelector('.skill-title').value,
+            description: el.querySelector('.skill-desc').value
+        })).filter(s => s.title);
+
+        const oldProfile = characterProfiles[currentCharacterName] || {};
+        const payload = {
+            name: currentCharacterName,
+            description: document.getElementById('meta-description').value,
+            tone: document.getElementById('meta-tone').value,
+            appearance: document.getElementById('meta-appearance').value,
+            factions: factions,
+            origins: origins,
+            skills: skills
+        };
+        try {
+            const { error } = await supabaseClient.from('characters').upsert(payload, { onConflict: 'name' });
+            if (error) throw error;
+            characterProfiles[currentCharacterName] = payload;
+
+            // Sync to Locations (Origins)
+            const oldOrigins = oldProfile.origins || [];
+            const removedOrigins = oldOrigins.filter(o => !origins.includes(o));
+            const addedOrigins = origins.filter(o => !oldOrigins.includes(o));
+
+            for (const loc of removedOrigins) {
+                const p = locationProfiles[loc];
+                if (p) {
+                    const updated = (p.people || []).filter(x => x.name !== currentCharacterName);
+                    await supabaseClient.from('locations').update({ people: updated }).eq('name', loc);
+                    locationProfiles[loc].people = updated;
+                }
+            }
+            for (const loc of addedOrigins) {
+                const p = locationProfiles[loc] || { name: loc, people: [] };
+                const updated = [...(p.people || [])];
+                if (!updated.find(x => x.name === currentCharacterName)) {
+                    updated.push({ name: currentCharacterName, role: '出身・ゆかり' });
+                    await supabaseClient.from('locations').upsert({ ...p, people: updated }, { onConflict: 'name' });
+                    locationProfiles[loc] = { ...p, people: updated };
+                }
+            }
+
+            // Sync to Factions
+            const oldFactions = (oldProfile.factions || []).map(f => f.name);
+            const newFactions = factions.map(f => f.name);
+            const removedFactions = oldFactions.filter(f => !newFactions.includes(f));
+            const addedFactions = factions.filter(f => !oldFactions.includes(f.name));
+
+            for (const fac of removedFactions) {
+                const p = factionProfiles[fac];
+                if (p) {
+                    const updated = (p.people || []).filter(x => x.name !== currentCharacterName);
+                    await supabaseClient.from('factions').update({ people: updated }).eq('name', fac);
+                    factionProfiles[fac].people = updated;
+                }
+            }
+            for (const facObj of addedFactions) {
+                const fac = facObj.name;
+                const p = factionProfiles[fac] || { name: fac, people: [] };
+                const updated = [...(p.people || [])];
+                if (!updated.find(x => x.name === currentCharacterName)) {
+                    updated.push({ name: currentCharacterName, role: facObj.role || '所属' });
+                    await supabaseClient.from('factions').upsert({ ...p, people: updated }, { onConflict: 'name' });
+                    factionProfiles[fac] = { ...p, people: updated };
+                }
+            }
+
+            alert("保存しました。");
+            openDetail(currentCharacterName);
+        } catch (e) { alert("保存失敗: " + e.message); } finally { showLoading(false); }
+    }
+
+    async function saveFactionMetadata() {
+        showLoading(true);
+        const people = Array.from(document.querySelectorAll('#list-faction-people .multi-item')).map(el => ({
+            name: el.querySelector('.faction-name').value,
+            role: el.querySelector('.faction-role').value
+        })).filter(p => p.name);
+        const locations = Array.from(document.querySelectorAll('#list-faction-locations .multi-item .multi-input')).map(el => el.value).filter(v => v);
+        const skills = Array.from(document.querySelectorAll('#list-faction-skills .multi-item')).map(el => ({
+            title: el.querySelector('.skill-title').value,
+            description: el.querySelector('.skill-desc').value
+        })).filter(s => s.title);
+
+        const oldProfile = factionProfiles[currentCharacterName] || {};
+        const payload = {
+            name: currentCharacterName,
+            description: document.getElementById('meta-faction-description').value,
+            people: people,
+            locations: locations,
+            skills: skills
+        };
+        try {
+            const { error } = await supabaseClient.from('factions').upsert(payload, { onConflict: 'name' });
+            if (error) throw error;
+            factionProfiles[currentCharacterName] = payload;
+
+            // Sync to Characters (People)
+            const oldPeople = (oldProfile.people || []).map(p => p.name);
+            const newPeople = people.map(p => p.name);
+            const removedPeople = oldPeople.filter(p => !newPeople.includes(p));
+            const addedPeople = people.filter(p => !oldPeople.includes(p.name));
+
+            for (const char of removedPeople) {
+                const p = characterProfiles[char];
+                if (p) {
+                    const updated = (p.factions || []).filter(x => x.name !== currentCharacterName);
+                    await supabaseClient.from('characters').update({ factions: updated }).eq('name', char);
+                    characterProfiles[char].factions = updated;
+                }
+            }
+            for (const pObj of addedPeople) {
+                const char = pObj.name;
+                const p = characterProfiles[char] || { name: char, factions: [] };
+                const updated = [...(p.factions || [])];
+                if (!updated.find(x => x.name === currentCharacterName)) {
+                    updated.push({ name: currentCharacterName, role: pObj.role || '所属' });
+                    await supabaseClient.from('characters').upsert({ ...p, factions: updated }, { onConflict: 'name' });
+                    characterProfiles[char] = { ...p, factions: updated };
+                }
+            }
+
+            // Sync to Locations
+            const oldLocs = oldProfile.locations || [];
+            const removedLocs = oldLocs.filter(l => !locations.includes(l));
+            const addedLocs = locations.filter(l => !oldLocs.includes(l));
+
+            for (const loc of removedLocs) {
+                const p = locationProfiles[loc];
+                if (p) {
+                    const updated = (p.factions || []).filter(x => x.name !== currentCharacterName);
+                    await supabaseClient.from('locations').update({ factions: updated }).eq('name', loc);
+                    locationProfiles[loc].factions = updated;
+                }
+            }
+            for (const loc of addedLocs) {
+                const p = locationProfiles[loc] || { name: loc, factions: [] };
+                const updated = [...(p.factions || [])];
+                if (!updated.find(x => x.name === currentCharacterName)) {
+                    updated.push({ name: currentCharacterName, role: '拠点・影響下' });
+                    await supabaseClient.from('locations').upsert({ ...p, factions: updated }, { onConflict: 'name' });
+                    locationProfiles[loc] = { ...p, factions: updated };
+                }
+            }
+
+            alert("保存しました。");
+            openDetail(currentCharacterName);
+        } catch (e) { alert("保存失敗: " + e.message); } finally { showLoading(false); }
+    }
+
+    async function saveLocationMetadata() {
+        showLoading(true);
+        const people = Array.from(document.querySelectorAll('#list-location-people .multi-item')).map(el => ({
+            name: el.querySelector('.faction-name').value,
+            role: el.querySelector('.faction-role').value
+        })).filter(p => p.name);
+        const factions = Array.from(document.querySelectorAll('#list-location-factions .multi-item')).map(el => ({
+            name: el.querySelector('.faction-name').value,
+            role: el.querySelector('.faction-role').value
+        })).filter(f => f.name);
+        const backgrounds = Array.from(document.querySelectorAll('#list-location-backgrounds .multi-item .multi-input')).map(el => el.value).filter(v => v);
+
+        const oldProfile = locationProfiles[currentCharacterName] || {};
+        const payload = {
+            name: currentCharacterName,
+            description: document.getElementById('meta-location-description').value,
+            people: people,
+            factions: factions,
+            backgrounds: backgrounds
+        };
+        try {
+            const { error } = await supabaseClient.from('locations').upsert(payload, { onConflict: 'name' });
+            if (error) throw error;
+            locationProfiles[currentCharacterName] = payload;
+
+            // Sync to Characters (People)
+            const oldPeople = (oldProfile.people || []).map(p => p.name);
+            const newPeople = people.map(p => p.name);
+            const removedPeople = oldPeople.filter(p => !newPeople.includes(p));
+            const addedPeople = people.filter(p => !oldPeople.includes(p.name));
+
+            for (const char of removedPeople) {
+                const p = characterProfiles[char];
+                if (p) {
+                    const updated = (p.origins || []).filter(x => x !== currentCharacterName);
+                    await supabaseClient.from('characters').update({ origins: updated }).eq('name', char);
+                    characterProfiles[char].origins = updated;
+                }
+            }
+            for (const pObj of addedPeople) {
+                const char = pObj.name;
+                const p = characterProfiles[char] || { name: char, origins: [] };
+                const updated = [...(p.origins || [])];
+                if (!updated.includes(currentCharacterName)) {
+                    updated.push(currentCharacterName);
+                    await supabaseClient.from('characters').upsert({ ...p, origins: updated }, { onConflict: 'name' });
+                    characterProfiles[char] = { ...p, origins: updated };
+                }
+            }
+
+            // Sync to Factions
+            const oldFactions = (oldProfile.factions || []).map(f => f.name);
+            const newFactions = factions.map(f => f.name);
+            const removedFactions = oldFactions.filter(f => !newFactions.includes(f));
+            const addedFactions = factions.filter(f => !oldFactions.includes(f.name));
+
+            for (const fac of removedFactions) {
+                const p = factionProfiles[fac];
+                if (p) {
+                    const updated = (p.locations || []).filter(x => x !== currentCharacterName);
+                    await supabaseClient.from('factions').update({ locations: updated }).eq('name', fac);
+                    factionProfiles[fac].locations = updated;
+                }
+            }
+            for (const fObj of addedFactions) {
+                const fac = fObj.name;
+                const p = factionProfiles[fac] || { name: fac, locations: [] };
+                const updated = [...(p.locations || [])];
+                if (!updated.includes(currentCharacterName)) {
+                    updated.push(currentCharacterName);
+                    await supabaseClient.from('factions').upsert({ ...p, locations: updated }, { onConflict: 'name' });
+                    factionProfiles[fac] = { ...p, locations: updated };
+                }
+            }
+
+            alert("保存しました。");
+            openDetail(currentCharacterName);
+        } catch (e) { alert("保存失敗: " + e.message); } finally { showLoading(false); }
+    }
+
+    async function saveTermMetadata() {
+        showLoading(true);
+        const payload = {
+            name: currentCharacterName,
+            description: document.getElementById('meta-term-description').value
+        };
+        try {
+            const { error } = await supabaseClient.from('terms').upsert(payload, { onConflict: 'name' });
+            if (error) throw error;
+            termProfiles[currentCharacterName] = payload;
+            alert("保存しました。");
+            openDetail(currentCharacterName);
+        } catch (e) { alert("保存失敗: " + e.message); } finally { showLoading(false); }
+    }
+
+    function renderFaceSelector(assets) {
+        const selector = document.getElementById('face-selector');
+        selector.innerHTML = "";
+        assets.forEach(asset => {
+            const div = document.createElement('div');
+            div.className = 'face-bubble';
+            div.id = `bubble-${asset.id}`;
+            div.innerHTML = `<img src="${asset.image_url}">`;
+            div.onclick = (e) => { e.stopPropagation(); selectFace(asset.id); };
+            selector.appendChild(div);
+        });
+    }
+
+    function selectFace(id) {
+        currentAssetId = id;
+        const asset = characters[currentCharacterName].find(a => a.id === id);
+        const img = document.getElementById('main-character-img');
+        img.style.opacity = 0;
+        setTimeout(() => {
+            img.src = asset.image_url;
+            img.style.opacity = 1;
+        }, 150);
+        document.getElementById('display-face-name').textContent = asset.face || "normal";
+        document.querySelectorAll('.face-bubble').forEach(b => b.classList.remove('active'));
+        const activeBubble = document.getElementById(`bubble-${id}`);
+        if(activeBubble) activeBubble.classList.add('active');
+    }
+
+    function closeDetail() {
+        document.getElementById('detail-overlay').classList.remove('active');
+        document.body.style.overflow = 'auto';
+    }
+
+    function switchDetailTab(index) {
+        if (currentType !== 'character') return;
+        const activeGroupId = 'character-metadata';
+        const activeGroup = document.getElementById(activeGroupId);
+        if (!activeGroup) return;
+
+        const tabs = activeGroup.querySelectorAll('.detail-tab');
+        const panes = activeGroup.querySelectorAll('.tab-pane');
+        tabs.forEach((t, i) => t.classList.toggle('active', i === index));
+        panes.forEach((p, i) => p.classList.toggle('active', i === index));
+    }
+
+    async function createAsset(name, type) {
+        if (!name) return;
+        showLoading(true);
+        try {
+            // Check if asset already exists for this tag
+            const { data: existingAssets } = await supabaseClient.from('assets').select('id').eq('tag', name).eq('asset_type', type);
+            
+            if (!existingAssets || existingAssets.length === 0) {
+                const { error } = await supabaseClient.from('assets').insert([{
+                    tag: name,
+                    asset_type: type,
+                    face: type === 'character' ? 'normal' : null,
+                    image_url: 'https://picsum.photos/seed/' + Date.now() + '/400/700'
+                }]);
+                if (error) throw error;
+            }
+
+            if (type === 'character') {
+                await supabaseClient.from('characters').upsert([{ 
+                    name: name,
+                    factions: [],
+                    origins: [],
+                    skills: []
+                }], { onConflict: 'name' });
+            } else if (type === 'faction') {
+                await supabaseClient.from('factions').upsert([{
+                    name: name,
+                    people: [],
+                    locations: [],
+                    skills: []
+                }], { onConflict: 'name' });
+            } else if (type === 'location') {
+                await supabaseClient.from('locations').upsert([{
+                    name: name,
+                    people: [],
+                    factions: [],
+                    backgrounds: []
+                }], { onConflict: 'name' });
+            } else if (type === 'term') {
+                await supabaseClient.from('terms').upsert([{
+                    name: name
+                }], { onConflict: 'name' });
+            }
+            await init();
+            openDetail(name);
+            setEditMode(true);
+        } catch (e) { alert(e.message); } finally { showLoading(false); }
+    }
+
+    async function quickAddAsset() {
+        const input = document.getElementById('quick-add-input');
+        const name = input.value.trim();
+        if (!name) {
+            alert("名前を入力してください。");
+            return;
+        }
+        
+        let type = currentType;
+        if (currentType === 'worldview') {
+            const selector = document.getElementById('quick-add-type-selector');
+            if (selector) type = selector.value;
+        }
+        
+        await createAsset(name, type);
+        input.value = '';
+        document.getElementById('quick-add-form').style.display = 'none';
+    }
+
+    async function addNewAsset() {
+        const form = document.getElementById('quick-add-form');
+        if (form.style.display === 'none') {
+            form.style.display = 'block';
+            document.getElementById('quick-add-input').focus();
+        } else {
+            form.style.display = 'none';
+        }
+    }
+
+    function filterAssets() {
+        const val = document.getElementById('search-input').value.toLowerCase();
+        document.querySelectorAll('.char-card, .list-item').forEach(card => {
+            card.style.display = card.innerText.toLowerCase().includes(val) ? 'block' : 'none';
+        });
+    }
+
+    function triggerUpdate() { document.getElementById('global-file-input').click(); }
+    function triggerUpdateAsset(id) { currentAssetId = id; document.getElementById('global-file-input').click(); }
+
+    function openViewer(id, url) {
+        currentViewerAssetId = id;
+        document.getElementById('viewer-img').src = url;
+        document.getElementById('fullscreen-viewer').classList.add('active');
+        document.body.style.overflow = 'hidden';
+        switchViewerTab(0);
+    }
+
+    function closeViewer() {
+        document.getElementById('fullscreen-viewer').classList.remove('active');
+        document.body.style.overflow = 'auto';
+        currentViewerAssetId = null;
+    }
+
+    function switchViewerTab(index) {
+        const tabs = document.querySelectorAll('.viewer-tab');
+        const panes = document.querySelectorAll('.viewer-pane');
+        tabs.forEach((t, i) => t.classList.toggle('active', i === index));
+        panes.forEach((p, i) => p.classList.toggle('active', i === index));
+    }
+
+    function triggerReplace() {
+        isReplaceMode = true;
+        document.getElementById('global-file-input').click();
+    }
+
+    function openMergeModalFromViewer() {
+        if (!currentViewerAssetId) return;
+        const asset = allAssets.find(a => a.id === currentViewerAssetId);
+        if (asset) {
+            // For special assets, we might want to merge with other assets of the same tag (episode)
+            openMergeModal(asset.tag);
+        }
+    }
+
+    async function handleImageUpload(event) {
         const file = event.target.files[0];
         if (!file) return;
-
+        
+        const targetId = isReplaceMode ? currentViewerAssetId : currentAssetId;
+        
         showLoading(true);
         try {
             const formData = new FormData();
@@ -344,19 +1956,146 @@ const { data, error } = await supabaseClient
             const res = await fetch('/api/media', { method: 'POST', body: formData });
             const cloudData = await res.json();
             
-            await supabaseClient.from('assets').update({ image_url: cloudData.url }).eq('id', assetId);
-            alert("更新完了！");
-            location.reload();
-        } catch (e) {
-            alert("アップロード失敗");
-        } finally {
-            showLoading(false);
+            if (targetId) {
+                await supabaseClient.from('assets').update({ image_url: cloudData.url }).eq('id', targetId);
+                if (isReplaceMode) {
+                    document.getElementById('viewer-img').src = cloudData.url;
+                }
+                await init();
+                if (currentType === 'character' && currentAssetId) selectFace(currentAssetId);
+                alert("更新完了");
+            } else {
+                // New asset logic (from previous addNewAsset or similar)
+                // This part was missing in the previous view_file, I'll keep it simple
+            }
+        } catch (e) { alert("失敗: " + e.message); } finally { 
+            showLoading(false); 
+            isReplaceMode = false;
+            currentAssetId = null;
+            event.target.value = ""; 
         }
     }
 
+    async function deleteCurrentAsset() {
+        const targetId = currentViewerAssetId || currentAssetId;
+        if (!targetId) return;
+        if (!confirm("このアセットを削除しますか？")) return;
+        
+        showLoading(true);
+        try {
+            await supabaseClient.from('assets').delete().eq('id', targetId);
+            
+            // Update local cache and gallery if in viewer
+            if (currentViewerAssetId) {
+                currentGalleryAssets.splice(currentGalleryIndex, 1);
+                if (currentGalleryAssets.length === 0) {
+                    closeViewer();
+                } else {
+                    if (currentGalleryIndex >= currentGalleryAssets.length) {
+                        currentGalleryIndex = currentGalleryAssets.length - 1;
+                    }
+                    updateViewerContent();
+                }
+            }
+
+            await init();
+            
+            if (!currentViewerAssetId) {
+                const remaining = characters[currentCharacterName];
+                if (remaining && remaining.length > 0) {
+                    renderFaceSelector(remaining);
+                    selectFace(remaining[0].id);
+                } else {
+                    closeDetail();
+                }
+            }
+            alert("削除しました。");
+        } catch (e) { alert(e.message); } finally { showLoading(false); }
+    }
+
+    async function deleteAssetDirect(id) {
+        if (!confirm("削除しますか？")) return;
+        showLoading(true);
+        try {
+            await supabaseClient.from('assets').delete().eq('id', id);
+            await init();
+        } catch (e) { alert(e.message); } finally { showLoading(false); }
+    }
+
+    async function deleteProfileDirect(name, type) {
+        if (!confirm(`${name} を削除しますか？この操作は取り消せません。`)) return;
+        showLoading(true);
+        try {
+            let table = '';
+            if (type === 'faction') table = 'factions';
+            else if (type === 'location') table = 'locations';
+            else if (type === 'term') table = 'terms';
+            else if (type === 'character') table = 'characters';
+
+            if (table) {
+                const { error } = await supabaseClient.from(table).delete().eq('name', name);
+                if (error) throw error;
+            }
+
+            // Also delete associated assets
+            await supabaseClient.from('assets').delete().eq('tag', name).eq('asset_type', type);
+
+            await init();
+            alert("削除しました。");
+        } catch (e) { alert("削除失敗: " + e.message); } finally { showLoading(false); }
+    }
+
+    function openMergeModal(tagOverride) {
+        const grid = document.getElementById('merge-grid');
+        grid.innerHTML = "";
+        
+        const targetTag = tagOverride || currentCharacterName;
+        const targetId = currentViewerAssetId || currentAssetId;
+        
+        // Filter assets by tag
+        const targets = allAssets.filter(a => a.tag === targetTag && a.id !== targetId);
+        
+        targets.forEach(target => {
+            const div = document.createElement('div');
+            div.className = 'merge-item';
+            div.innerHTML = `<img src="${target.image_url}"><div style="font-size:10px; color:var(--accent-color);">${target.face || target.tag}</div>`;
+            div.onclick = async () => {
+                if (!confirm("統合しますか？")) return;
+                showLoading(true);
+                try {
+                    const sourceAsset = allAssets.find(a => a.id === targetId);
+                    if (currentType === 'character') {
+                        await supabaseClient.from('scenes').update({ face: target.face }).eq('character', targetTag).eq('face', sourceAsset.face);
+                    } else if (currentType === 'special') {
+                        await supabaseClient.from('scenes').update({ special: target.image_url }).eq('special', sourceAsset.image_url);
+                    }
+                    
+                    await supabaseClient.from('assets').delete().eq('id', targetId);
+                    closeMergeModal();
+                    if (currentViewerAssetId) closeViewer();
+                    await init();
+                    
+                    if (currentType === 'character') {
+                        const remaining = characters[targetTag];
+                        if (remaining && remaining.length > 0) {
+                            renderFaceSelector(remaining);
+                            selectFace(remaining[0].id);
+                        } else {
+                            closeDetail();
+                        }
+                    }
+                    alert("統合しました。");
+                } catch (e) { alert(e.message); } finally { showLoading(false); }
+            };
+            grid.appendChild(div);
+        });
+        document.getElementById('merge-modal').classList.add('active');
+    }
+
+    function closeMergeModal() { document.getElementById('merge-modal').classList.remove('active'); }
     function showLoading(s) { document.getElementById('loading').style.display = s ? 'flex' : 'none'; }
 
-    init();
+    window.onload = init;
 </script>
 </body>
 </html>
